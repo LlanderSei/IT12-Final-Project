@@ -10,20 +10,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@1,500&family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
+    /* 1. RESET */
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    /* 2. BODY STYLES (Your Background) */
     body {
         height: 100vh;
         width: 100%;
         display: flex;
-        justify-content: center;
-        align-items: center;
+        justify-content: center; /* Centers content horizontally */
+        align-items: center;     /* Centers content vertically */
         font-family: 'Montserrat', sans-serif;
         overflow: hidden;
-        /* A slightly different, deeper gradient */
         background: linear-gradient(-45deg, #1A2980, #26D0CE, #ff6a00, #ee0979);
         background-size: 400% 400%;
         animation: gradientBG 15s ease infinite;
+        position: relative; /* Needed for the absolute navbar */
     }
 
     @keyframes gradientBG {
@@ -32,53 +34,63 @@
         100% { background-position: 0% 50%; }
     }
 
-    .glass-container {
-        background: rgba(255, 255, 255, 0.1);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        padding: 4rem;
-        text-align: center;
+    /* 3. NAVBAR STYLES (Added) */
+    .navbar {
+        position: absolute; /* Takes it out of the flex flow */
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 20px 50px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10; /* Ensures it sits on top */
+    }
+
+    .logo {
         color: white;
-        max-width: 600px; /* Slightly wider for names */
-        width: 90%;
+        font-weight: 700;
+        font-size: 1.5rem;
+        letter-spacing: 1px;
     }
 
-    .team-header {
-        font-size: 1rem;
+    .nav-links {
+        list-style: none;
+        display: flex;
+        gap: 40px; /* Space between links */
+    }
+
+    .nav-links a {
+        text-decoration: none;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: 0.3s;
         text-transform: uppercase;
-        letter-spacing: 3px;
-        opacity: 0.8;
-        margin-bottom: 1.5rem;
+        letter-spacing: 1px;
     }
 
-    .names-display {
-        font-family: 'Lora', serif;
-        font-size: 2.5rem; /* Large size for visibility */
-        font-weight: 500;
-        font-style: italic;
-        line-height: 1.4;
-        margin-bottom: 2rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-
-    /* Animation classes */
-    .anim-element {
-        opacity: 0;
-        transform: translateY(20px);
-        animation: slideUpFade 0.8s ease-out forwards;
-    }
-    .delay-1 { animation-delay: 0.2s; }
-    .delay-2 { animation-delay: 0.4s; }
-
-    @keyframes slideUpFade {
-        to { opacity: 1; transform: translateY(0); }
+    .nav-links a:hover {
+        color: white;
+        text-shadow: 0 0 10px rgba(255,255,255,0.6);
     }
 </style>
 </head>
 <body>
 
-    <div class="glass-container">
-        <p class="team-header anim
+    <nav class="navbar">
+        <div class="logo">ALV GROUP</div>
+        <ul class="nav-links">
+            <li><a href="#">Home</a></li>
+            <li><a href="#">About</a></li>
+            <li><a href="#">Projects</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
+
+    <div style="color: white; text-align: center;">
+        <h1 style="font-family: 'Lora', serif; font-size: 3rem;">Welcome</h1>
+    </div>
+
+</body>
+</html>
