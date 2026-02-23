@@ -32,12 +32,20 @@ export default function ProductsTab({ products, categories }) {
 	});
 
 	const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+	const [editingCategory, setEditingCategory] = useState(null);
+	const [isCategoryDeleteModalOpen, setIsCategoryDeleteModalOpen] =
+		useState(false);
+	const [categoryToDelete, setCategoryToDelete] = useState(null);
+
 	const {
 		data: catData,
 		setData: setCatData,
 		post: postCat,
+		put: putCat,
+		delete: destroyCat,
 		processing: catProcessing,
 		reset: catReset,
+		errors: catErrors,
 	} = useForm({
 		CategoryName: "",
 		CategoryDescription: "",
@@ -93,12 +101,55 @@ export default function ProductsTab({ products, categories }) {
 		});
 	};
 
+	const openModifyCategories = () => {
+		setEditingCategory(null);
+		catReset();
+		setIsCategoryModalOpen(true);
+	};
+
 	const submitCategory = (e) => {
 		e.preventDefault();
-		postCat(route("inventory.categories.store"), {
+		if (editingCategory) {
+			putCat(route("inventory.categories.update", editingCategory.ID), {
+				onSuccess: () => {
+					setEditingCategory(null);
+					catReset();
+				},
+				preserveScroll: true,
+			});
+		} else {
+			postCat(route("inventory.categories.store"), {
+				onSuccess: () => {
+					catReset();
+				},
+				preserveScroll: true,
+			});
+		}
+	};
+
+	const editCategory = (category) => {
+		setEditingCategory(category);
+		setCatData({
+			CategoryName: category.CategoryName,
+			CategoryDescription: category.CategoryDescription || "",
+		});
+	};
+
+	const cancelEditCategory = () => {
+		setEditingCategory(null);
+		catReset();
+	};
+
+	const deleteCategory = (category) => {
+		setCategoryToDelete(category);
+		setIsCategoryDeleteModalOpen(true);
+	};
+
+	const confirmDeleteCategory = () => {
+		destroyCat(route("inventory.categories.destroy", categoryToDelete.ID), {
 			onSuccess: () => {
-				setIsCategoryModalOpen(false);
-				catReset();
+				setIsCategoryDeleteModalOpen(false);
+				setCategoryToDelete(null);
 			},
 			preserveScroll: true,
 		});
@@ -358,20 +409,32 @@ export default function ProductsTab({ products, categories }) {
 				</div>
 			</div>
 
-			{/* Floating Add Product Button */}
+			{/* Floating Buttons */}
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 hidden sm:block">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4">
+					<button
+						onClick={openModifyCategories}
+						className="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+					>
+						Modify Categories
+					</button>
 					<button
 						onClick={openAddModal}
-						className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+						className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
 					>
 						Add Products
 					</button>
 				</div>
 			</div>
 
-			{/* Mobile-friendly Add Product Button */}
-			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 sm:hidden">
+			{/* Mobile-friendly Buttons */}
+			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 sm:hidden flex flex-col space-y-2">
+				<button
+					onClick={openModifyCategories}
+					className="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+				>
+					Modify Categories
+				</button>
 				<button
 					onClick={openAddModal}
 					className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
@@ -485,13 +548,6 @@ export default function ProductsTab({ products, categories }) {
 																</option>
 															))}
 														</select>
-														<button
-															type="button"
-															onClick={() => setIsCategoryModalOpen(true)}
-															className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
-														>
-															Add
-														</button>
 													</div>
 													{errors.CategoryID && (
 														<p className="mt-2 text-sm text-red-600">
@@ -585,10 +641,10 @@ export default function ProductsTab({ products, categories }) {
 				</div>
 			)}
 
-			{/* Add Category Modal */}
+			{/* Modify Categories Modal */}
 			{isCategoryModalOpen && (
 				<div
-					className="fixed inset-0 z-[60] overflow-y-auto"
+					className="fixed inset-0 z-50 overflow-y-auto"
 					aria-labelledby="modal-title"
 					role="dialog"
 					aria-modal="true"
@@ -605,59 +661,128 @@ export default function ProductsTab({ products, categories }) {
 						>
 							&#8203;
 						</span>
-						<div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-sm w-full">
-							<form onSubmit={submitCategory}>
-								<div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-									<h3
-										className="text-lg leading-6 font-medium text-gray-900 mb-4"
-										id="modal-title"
-									>
-										Add New Category
-									</h3>
-									<div className="space-y-4">
-										<div>
-											<label
-												htmlFor="CategoryName"
-												className="block text-sm font-medium text-gray-700"
-											>
-												Category Name
-											</label>
+						<div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md w-full">
+							<div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+								<h3
+									className="text-lg leading-6 font-medium text-gray-900 mb-4"
+									id="modal-title"
+								>
+									Modify Categories
+								</h3>
+
+								{/* Category List */}
+								<div className="max-h-60 overflow-y-auto border rounded-md mb-4 divide-y">
+									{categories?.map((cat) => (
+										<div
+											key={cat.ID}
+											className="flex justify-between items-center p-3 hover:bg-gray-50"
+										>
+											<span className="text-gray-900 font-medium">
+												{cat.CategoryName}
+											</span>
+											<div className="flex space-x-2">
+												<button
+													type="button"
+													onClick={() => editCategory(cat)}
+													className="p-1 text-gray-400 hover:text-[#D97736]"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														className="h-5 w-5"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+													>
+														<path
+															strokeLinecap="round"
+															strokeLinejoin="round"
+															strokeWidth={2}
+															d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+														/>
+													</svg>
+												</button>
+												<button
+													type="button"
+													onClick={() => deleteCategory(cat)}
+													className="p-1 text-gray-400 hover:text-red-500"
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														className="h-5 w-5"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+													>
+														<path
+															strokeLinecap="round"
+															strokeLinejoin="round"
+															strokeWidth={2}
+															d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+														/>
+													</svg>
+												</button>
+											</div>
+										</div>
+									))}
+								</div>
+
+								{/* Add/Edit Form */}
+								<form onSubmit={submitCategory} className="border-t pt-4">
+									<h4 className="text-sm font-semibold text-gray-700 mb-2">
+										{editingCategory ? "Rename Category" : "Add New Category"}
+									</h4>
+									<div className="flex space-x-2">
+										<div className="flex-1">
 											<input
 												type="text"
-												id="CategoryName"
 												value={catData.CategoryName}
 												onChange={(e) =>
 													setCatData("CategoryName", e.target.value)
 												}
+												placeholder="Category Name"
 												required
-												className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+												className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
 											/>
 										</div>
+										<button
+											type="submit"
+											disabled={catProcessing}
+											className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-sm font-medium text-white hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] disabled:opacity-50"
+										>
+											{editingCategory ? "Update" : "Save"}
+										</button>
+										{editingCategory && (
+											<button
+												type="button"
+												onClick={cancelEditCategory}
+												className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+											>
+												Cancel
+											</button>
+										)}
 									</div>
-								</div>
-								<div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-									<button
-										type="submit"
-										disabled={catProcessing}
-										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-base font-medium text-white hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-									>
-										Add
-									</button>
-									<button
-										type="button"
-										onClick={() => setIsCategoryModalOpen(false)}
-										className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-									>
-										Cancel
-									</button>
-								</div>
-							</form>
+									{catErrors.CategoryName && (
+										<p className="mt-2 text-sm text-red-600">
+											{catErrors.CategoryName}
+										</p>
+									)}
+								</form>
+							</div>
+							<div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+								<button
+									type="button"
+									onClick={() => setIsCategoryModalOpen(false)}
+									className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] sm:w-auto sm:text-sm"
+								>
+									Close
+								</button>
+							</div>
 						</div>
 					</div>
 				</div>
 			)}
 
-			{/* Delete Confirmation Modal */}
+			{/* Product Delete Confirmation Modal */}
 			<ConfirmationModal
 				show={isDeleteModalOpen}
 				onClose={() => setIsDeleteModalOpen(false)}
@@ -666,6 +791,17 @@ export default function ProductsTab({ products, categories }) {
 				message={`Are you sure you want to delete "${editingProduct?.ProductName}"? This action cannot be undone.`}
 				confirmText="Delete"
 				processing={processing}
+			/>
+
+			{/* Category Delete Confirmation Modal */}
+			<ConfirmationModal
+				show={isCategoryDeleteModalOpen}
+				onClose={() => setIsCategoryDeleteModalOpen(false)}
+				onConfirm={confirmDeleteCategory}
+				title="Delete Category"
+				message={`Are you sure you want to delete category "${categoryToDelete?.CategoryName}"? This action cannot be undone.`}
+				confirmText="Delete"
+				processing={catProcessing}
 			/>
 		</div>
 	);
