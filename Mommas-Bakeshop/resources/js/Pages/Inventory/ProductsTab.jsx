@@ -166,11 +166,11 @@ export default function ProductsTab({ products, categories }) {
 	}, [products, searchQuery, sortConfig]);
 
 	return (
-		<div className="flex flex-col flex-1 w-full relative">
-			<div className="flex-1">
-				<div className="mx-auto w-full">
-					<div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-						<div className="p-6">
+		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
+			<div className="flex-1 flex flex-col overflow-hidden min-h-0">
+				<div className="mx-auto w-full flex-1 flex flex-col overflow-hidden min-h-0">
+					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
+						<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
 							{/* Header */}
 							<div className="flex justify-between items-center mb-6">
 								<h3 className="text-xl font-bold text-gray-900">
@@ -210,9 +210,9 @@ export default function ProductsTab({ products, categories }) {
 							</div>
 
 							{/* Table */}
-							<div className="border rounded-lg border-gray-200 overflow-hidden">
+							<div className="border rounded-lg border-gray-200 flex-1 overflow-y-auto">
 								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="bg-gray-50">
+									<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
 										<tr>
 											<th
 												scope="col"
