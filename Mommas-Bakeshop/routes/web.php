@@ -42,6 +42,8 @@ Route::middleware('auth')->group(function () {
   Route::post('/inventory/batches', [\App\Http\Controllers\ProductController::class, 'storeBatch'])->name('inventory.batches.store');
 
   Route::post('/inventory/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('inventory.categories.store');
+  Route::put('/inventory/categories/{id}', [\App\Http\Controllers\CategoryController::class, 'update'])->name('inventory.categories.update');
+  Route::delete('/inventory/categories/{id}', [\App\Http\Controllers\CategoryController::class, 'destroy'])->name('inventory.categories.destroy');
 
   // Administration
   Route::get('/admin/reports', function () {
