@@ -57,6 +57,12 @@ const NAV_STRUCTURE = [
 				icon: "👥",
 				href: route("admin.users"),
 			},
+			{
+				id: "admin.audits",
+				label: "Audits",
+				icon: "📜",
+				href: route("admin.audits"),
+			},
 		],
 	},
 ];
