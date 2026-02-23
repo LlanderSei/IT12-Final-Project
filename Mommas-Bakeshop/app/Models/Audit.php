@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use OwenIt\Auditing\Models\Audit as BaseAudit;
 
-class Audit extends Model {
+class Audit extends BaseAudit {
   protected $table = 'Audits';
   protected $primaryKey = 'ID';
   public $timestamps = false;

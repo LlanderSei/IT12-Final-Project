@@ -60,6 +60,7 @@ return new class extends Migration {
       $table->text('Price');
       $table->text('Quantity');
       $table->text('Status');
+      $table->unsignedBigInteger('LowStockThreshold')->default(10);
       $table->timestamp('DateAdded')->useCurrent();
       $table->timestamp('DateModified')->useCurrent();
     });
@@ -68,7 +69,7 @@ return new class extends Migration {
       $table->id('ID');
       $table->foreignId('UserID')->references('ID')->on('Users')->onDelete('cascade');
       $table->foreignId('ProductID')->references('ID')->on('Products')->onDelete('cascade');
-      $table->text('BatchDescription');
+      $table->text('BatchDescription')->nullable();
       $table->unsignedBigInteger('QuantityAdded');
       $table->timestamp('DateAdded')->useCurrent();
     });
