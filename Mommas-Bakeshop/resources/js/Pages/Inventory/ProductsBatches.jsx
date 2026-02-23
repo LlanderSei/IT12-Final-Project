@@ -20,10 +20,11 @@ export default function ProductsBatches({
 					Products & Production Batches
 				</h2>
 			}
+			disableScroll={true}
 		>
 			<Head title="Products & Batches" />
 
-			<div className="flex flex-col flex-1 w-full">
+			<div className="flex flex-col flex-1 w-full overflow-hidden min-h-0">
 				<div className="bg-white border-b border-gray-200 mt-0">
 					<div className="mx-auto px-4">
 						<nav className="-mb-px flex gap-2" aria-label="Tabs">

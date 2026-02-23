@@ -26,9 +26,13 @@ Route::middleware('auth')->group(function () {
   })->name('pos.cashier');
 
   // Inventory
-  Route::get('/inventory/levels', function () {
-    return Inertia::render('Inventory/InventoryLevels');
-  })->name('inventory.levels');
+  Route::get('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'index'])->name('inventory.levels');
+  Route::post('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'store'])->name('inventory.levels.store');
+  Route::put('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'update'])->name('inventory.levels.update');
+  Route::delete('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'destroy'])->name('inventory.levels.destroy');
+
+  Route::post('/inventory/stock-in', [\App\Http\Controllers\InventoryController::class, 'storeStockIn'])->name('inventory.stock-in.store');
+  Route::post('/inventory/stock-out', [\App\Http\Controllers\InventoryController::class, 'storeStockOut'])->name('inventory.stock-out.store');
 
   Route::get('/inventory/products', [\App\Http\Controllers\ProductController::class, 'index'])->name('inventory.products');
   Route::post('/inventory/products', [\App\Http\Controllers\ProductController::class, 'store'])->name('inventory.products.store');
