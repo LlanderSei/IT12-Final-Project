@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useForm } from "@inertiajs/react";
 
-export default function BatchesTab({ products, batches }) {
+export default function ProductionBatches({ products, batches }) {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
 	// Form for recording a batch

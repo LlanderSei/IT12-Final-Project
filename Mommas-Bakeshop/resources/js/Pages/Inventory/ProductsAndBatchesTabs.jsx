@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head } from "@inertiajs/react";
-import ProductsTab from "./ProductsTab";
-import BatchesTab from "./BatchesTab";
+import Products from "./ProductsAndBatchesSubviews/Products";
+import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
 
-export default function ProductsBatches({
+export default function ProductsAndBatchesTabs({
 	products,
 	categories,
 	batches,
@@ -46,11 +46,11 @@ export default function ProductsBatches({
 				</div>
 
 				{activeTab === "Products" && (
-					<ProductsTab products={products} categories={categories} />
+					<Products products={products} categories={categories} />
 				)}
 
 				{activeTab === "Production Batches" && (
-					<BatchesTab products={products} batches={batches} />
+					<ProductionBatches products={products} batches={batches} />
 				)}
 			</div>
 		</AuthenticatedLayout>

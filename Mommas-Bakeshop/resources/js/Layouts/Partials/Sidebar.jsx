@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, usePage } from "@inertiajs/react";
 
 // ─── Navigation Structure (mirrors reference app.js navStructure) ────────────
@@ -18,10 +18,11 @@ const NAV_STRUCTURE = [
 		section: "Point of Sale",
 		items: [
 			{
-				id: "pos.cashier",
+				id: "pos.cash-sale",
+				activeRoutes: ["pos.cash-sale", "pos.consignments", "pos.cashier"],
 				label: "Cashier",
 				icon: "🛒",
-				href: route("pos.cashier"),
+				href: route("pos.cash-sale"),
 			},
 		],
 	},
@@ -92,8 +93,34 @@ const Sidebar = () => {
 	const { auth } = usePage().props;
 	const user = auth?.user ?? { name: "Admin User", role: "admin" };
 
-	const [isExpanded, setIsExpanded] = useState(true);
-	const [collapsedSections, setCollapsedSections] = useState({});
+	const [isExpanded, setIsExpanded] = useState(() => {
+		if (typeof window === "undefined") return true;
+		const saved = window.localStorage.getItem("sidebar:isExpanded");
+		return saved === null ? true : saved === "true";
+	});
+	const [collapsedSections, setCollapsedSections] = useState(() => {
+		if (typeof window === "undefined") return {};
+		const saved = window.localStorage.getItem("sidebar:collapsedSections");
+		if (!saved) return {};
+		try {
+			return JSON.parse(saved);
+		} catch {
+			return {};
+		}
+	});
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		window.localStorage.setItem("sidebar:isExpanded", String(isExpanded));
+	}, [isExpanded]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		window.localStorage.setItem(
+			"sidebar:collapsedSections",
+			JSON.stringify(collapsedSections),
+		);
+	}, [collapsedSections]);
 
 	const currentRoute = route().current?.() ?? "";
 	const roleMeta = ROLE_BADGE[user.role] ?? ROLE_BADGE.admin;
@@ -361,10 +388,13 @@ const Sidebar = () => {
 								}}
 							>
 								{section.items.map((item) => {
-									const isActive =
-										currentRoute === item.id ||
-										route().current(item.id) ||
-										route().current(item.id + ".*");
+									const activeRoutes = item.activeRoutes || [item.id];
+									const isActive = activeRoutes.some(
+										(routeName) =>
+											currentRoute === routeName ||
+											route().current(routeName) ||
+											route().current(routeName + ".*"),
+									);
 
 									return (
 										<NavItem

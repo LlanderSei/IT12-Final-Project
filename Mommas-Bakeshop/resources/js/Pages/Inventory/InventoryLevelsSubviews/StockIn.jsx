@@ -1,25 +1,25 @@
 import React, { useState, useMemo } from "react";
 
-export default function StockOutTab({ stockOuts }) {
+export default function StockIn({ stockIns }) {
 	const [searchQuery, setSearchQuery] = useState("");
 
-	const filteredStockOuts = useMemo(() => {
-		if (!searchQuery) return stockOuts || [];
+	const filteredStockIns = useMemo(() => {
+		if (!searchQuery) return stockIns || [];
 		const query = searchQuery.toLowerCase();
-		return (stockOuts || []).filter(
+		return (stockIns || []).filter(
 			(record) =>
 				record.inventory?.ItemName.toLowerCase().includes(query) ||
 				record.user?.FullName.toLowerCase().includes(query) ||
-				record.Reason.toLowerCase().includes(query),
+				record.Supplier.toLowerCase().includes(query),
 		);
-	}, [stockOuts, searchQuery]);
+	}, [stockIns, searchQuery]);
 
 	return (
 		<div className="flex flex-col flex-1 overflow-hidden min-h-0">
 			<div className="flex justify-between items-center mb-6">
-				<h3 className="text-xl font-bold text-gray-900">Stock-Out History</h3>
+				<h3 className="text-xl font-bold text-gray-900">Stock-In History</h3>
 				<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-					{filteredStockOuts.length} Records
+					{filteredStockIns.length} Records
 				</div>
 			</div>
 
@@ -43,7 +43,7 @@ export default function StockOutTab({ stockOuts }) {
 					<input
 						type="text"
 						className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
-						placeholder="Search by item name, user, or reason..."
+						placeholder="Search by item name, user, or supplier..."
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}
 					/>
@@ -58,7 +58,7 @@ export default function StockOutTab({ stockOuts }) {
 								scope="col"
 								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
 							>
-								Used By
+								Handled By
 							</th>
 							<th
 								scope="col"
@@ -70,24 +70,42 @@ export default function StockOutTab({ stockOuts }) {
 								scope="col"
 								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
 							>
-								Quantity Removed
+								Supplier
 							</th>
 							<th
 								scope="col"
 								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
 							>
-								Reason
+								Price Per Unit
 							</th>
 							<th
 								scope="col"
 								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
 							>
-								Date Used
+								Quantity Added
+							</th>
+							<th
+								scope="col"
+								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+							>
+								Total Amount
+							</th>
+							<th
+								scope="col"
+								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+							>
+								Additional Details
+							</th>
+							<th
+								scope="col"
+								className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+							>
+								Date Added
 							</th>
 						</tr>
 					</thead>
 					<tbody className="bg-white divide-y divide-gray-200">
-						{filteredStockOuts.map((record) => (
+						{filteredStockIns.map((record) => (
 							<tr key={record.ID} className="hover:bg-gray-50">
 								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 									{record.user?.FullName || "Unknown"}
@@ -95,24 +113,33 @@ export default function StockOutTab({ stockOuts }) {
 								<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
 									{record.inventory?.ItemName || "Deleted Item"}
 								</td>
-								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-red-600 font-semibold">
-									-{record.QuantityRemoved} {record.inventory?.Measurement}
-								</td>
 								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-									{record.Reason}
+									{record.Supplier}
+								</td>
+								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+									₱{Number(record.PricePerUnit).toFixed(2)}
+								</td>
+								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+									{record.QuantityAdded} {record.inventory?.Measurement}
+								</td>
+								<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+									₱{Number(record.TotalAmount).toFixed(2)}
+								</td>
+								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate max-w-xs">
+									{record.AdditionalDetails || "-"}
 								</td>
 								<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 									{new Date(record.DateAdded).toLocaleString()}
 								</td>
 							</tr>
 						))}
-						{filteredStockOuts.length === 0 && (
+						{filteredStockIns.length === 0 && (
 							<tr>
 								<td
-									colSpan="5"
+									colSpan="8"
 									className="px-6 py-4 text-center text-sm text-gray-500"
 								>
-									No stock-out records found.
+									No stock-in records found.
 								</td>
 							</tr>
 						)}

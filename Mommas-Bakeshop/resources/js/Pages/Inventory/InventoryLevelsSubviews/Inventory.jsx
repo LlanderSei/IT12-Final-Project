@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 
-export default function InventoryTab({ inventory, onEdit, getStatus }) {
+export default function Inventory({ inventory, onEdit, getStatus }) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortConfig, setSortConfig] = useState({
 		key: "ItemName",

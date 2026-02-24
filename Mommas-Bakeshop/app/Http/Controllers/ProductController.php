@@ -13,7 +13,7 @@ class ProductController extends Controller {
     $categories = Category::all();
     $batches = \App\Models\ProductionBatch::with(['product', 'user'])->orderBy('DateAdded', 'desc')->get();
 
-    return Inertia::render('Inventory/ProductsBatches', [
+    return Inertia::render('Inventory/ProductsAndBatchesTabs', [
       'products' => $products,
       'categories' => $categories,
       'batches' => $batches,
