@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller {
   public function index() {
-    return Inertia::render('Inventory/InventoryLevels', [
+    return Inertia::render('Inventory/InventoryLevelsTabs', [
       'inventory' => Inventory::orderBy('ItemName', 'asc')->get(),
       'stockIns' => StockIn::with(['inventory', 'user'])->orderBy('DateAdded', 'desc')->get(),
       'stockOuts' => StockOut::with(['inventory', 'user'])->orderBy('DateAdded', 'desc')->get(),

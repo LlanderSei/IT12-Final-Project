@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PosController;
+use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -22,8 +24,13 @@ Route::middleware('auth')->group(function () {
 
   // Point of Sale
   Route::get('/pos/cashier', function () {
-    return Inertia::render('PointOfSale/Cashier');
+    return redirect()->route('pos.cash-sale');
   })->name('pos.cashier');
+  Route::get('/pos/cash-sale', [PosController::class, 'cashSale'])->name('pos.cash-sale');
+  Route::get('/pos/consignments', [PosController::class, 'consignments'])->name('pos.consignments');
+  Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->name('pos.checkout.walk-in');
+  Route::post('/pos/checkout/consignment', [PosController::class, 'checkoutConsignment'])->name('pos.checkout.consignment');
+  Route::post('/pos/checkout/spoilage', [PosController::class, 'recordSpoilage'])->name('pos.checkout.spoilage');
 
   // Inventory
   Route::get('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'index'])->name('inventory.levels');
@@ -49,9 +56,10 @@ Route::middleware('auth')->group(function () {
   Route::get('/admin/reports', function () {
     return Inertia::render('Administration/Reports');
   })->name('admin.reports');
-  Route::get('/admin/users', function () {
-    return Inertia::render('Administration/UserManagement');
-  })->name('admin.users');
+  Route::get('/admin/users', [UserManagementController::class, 'index'])->name('admin.users');
+  Route::post('/admin/users', [UserManagementController::class, 'store'])->name('admin.users.store');
+  Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->name('admin.users.update');
+  Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->name('admin.users.destroy');
   Route::get('/admin/audits', [\App\Http\Controllers\AuditController::class, 'index'])->name('admin.audits');
 });
 

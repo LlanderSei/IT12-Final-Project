@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, useForm } from "@inertiajs/react";
-import InventoryTab from "./InventoryTab";
-import StockInTab from "./StockInTab";
-import StockOutTab from "./StockOutTab";
+import Inventory from "./InventoryLevelsSubviews/Inventory";
+import StockIn from "./InventoryLevelsSubviews/StockIn";
+import StockOut from "./InventoryLevelsSubviews/StockOut";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 
-export default function InventoryLevels({
+export default function InventoryLevelsTabs({
 	inventory,
 	stockIns,
 	stockOuts,
@@ -150,17 +150,17 @@ export default function InventoryLevels({
 					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
 							{activeTab === "Inventory" && (
-								<InventoryTab
+								<Inventory
 									inventory={inventory}
 									onEdit={openEditItemModal}
 									getStatus={getStatus}
 								/>
 							)}
 							{activeTab === "Stock-In (Raw)" && (
-								<StockInTab stockIns={stockIns} />
+								<StockIn stockIns={stockIns} />
 							)}
 							{activeTab === "Stock-Out (Kitchen)" && (
-								<StockOutTab stockOuts={stockOuts} />
+								<StockOut stockOuts={stockOuts} />
 							)}
 						</div>
 					</div>

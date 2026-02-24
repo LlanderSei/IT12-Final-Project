@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useForm } from "@inertiajs/react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 
-export default function ProductsTab({ products, categories }) {
+export default function Products({ products, categories }) {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState(null);
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);

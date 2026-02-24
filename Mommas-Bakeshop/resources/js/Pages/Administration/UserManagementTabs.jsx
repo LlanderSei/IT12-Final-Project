@@ -1,20 +1,23 @@
 import React, { useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head } from "@inertiajs/react";
+import Users from "./UserManagementSubviews/Users";
+import Permissions from "./UserManagementSubviews/Permissions";
 
-export default function Cashier() {
-	const tabs = ["Cash Sale", "Record Spoilage", "Customers"];
+export default function UserManagementTabs({ users }) {
+	const tabs = ["Users", "Permissions"];
 	const [activeTab, setActiveTab] = useState(tabs[0]);
 
 	return (
 		<AuthenticatedLayout
 			header={
 				<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-					Cashier
+					User Management
 				</h2>
 			}
+			disableScroll={true}
 		>
-			<Head title="Cashier" />
+			<Head title="User Management" />
 
 			<div className="bg-white border-b border-gray-200 mt-0">
 				<div className="mx-auto px-4">
@@ -36,19 +39,9 @@ export default function Cashier() {
 				</div>
 			</div>
 
-			<div className="py-6">
-				<div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-					<div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-						<div className="p-6 text-gray-900">
-							<h3 className="text-lg font-medium text-[#D97736] mb-4">
-								{activeTab}
-							</h3>
-							<p className="text-gray-600">
-								The content for {activeTab} will be implemented here.
-							</p>
-						</div>
-					</div>
-				</div>
+			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
+				{activeTab === "Users" && <Users users={users} />}
+				{activeTab === "Permissions" && <Permissions />}
 			</div>
 		</AuthenticatedLayout>
 	);
