@@ -50,7 +50,11 @@ export default function ProductsAndBatchesTabs({
 				)}
 
 				{activeTab === "Production Batches" && (
-					<ProductionBatches products={products} batches={batches} />
+					<ProductionBatches
+						products={products}
+						categories={categories}
+						batches={batches}
+					/>
 				)}
 			</div>
 		</AuthenticatedLayout>

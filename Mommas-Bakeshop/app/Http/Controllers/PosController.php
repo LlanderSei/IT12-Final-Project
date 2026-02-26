@@ -7,8 +7,8 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SoldProduct;
-use App\Models\Spoilage;
-use App\Models\SpoiledProduct;
+use App\Models\Shrinkage;
+use App\Models\ShrinkedProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -31,7 +31,7 @@ class PosController extends Controller {
     try {
       $payload = $request->validate([
         'items' => 'required|array|min:1',
-        'items.*.ProductID' => 'required|integer|exists:Products,ID',
+        'items.*.ProductID' => 'required|integer|exists:products,ID',
         'items.*.Quantity' => 'required|integer|min:1',
         'paidAmount' => 'nullable|numeric|min:0',
       ]);
@@ -62,10 +62,7 @@ class PosController extends Controller {
             'SubAmount' => $line['subAmount'],
           ]);
 
-          $newQuantity = (int)$line['product']->Quantity - $line['quantity'];
           $line['product']->update([
-            'Quantity' => $newQuantity,
-            'Status' => $this->resolveProductStatus($newQuantity, (int)($line['product']->LowStockThreshold ?? 10)),
             'DateModified' => now(),
           ]);
         }
@@ -77,7 +74,6 @@ class PosController extends Controller {
           'PaidAmount' => $finalPaid,
           'TotalAmount' => $totalAmount,
           'Change' => max(0, $finalPaid - $totalAmount),
-          'PaymentMethod' => 'Walk-In',
           'PaymentStatus' => 'Paid',
           'PaymentDueDate' => null,
           'DateAdded' => now(),
@@ -97,10 +93,10 @@ class PosController extends Controller {
     try {
       $payload = $request->validate([
         'items' => 'required|array|min:1',
-        'items.*.ProductID' => 'required|integer|exists:Products,ID',
+        'items.*.ProductID' => 'required|integer|exists:products,ID',
         'items.*.Quantity' => 'required|integer|min:1',
         'customerMode' => 'required|in:existing,new',
-        'CustomerID' => 'nullable|integer|exists:Customers,ID',
+        'CustomerID' => 'nullable|integer|exists:customers,ID',
         'newCustomer.CustomerName' => 'nullable|string|max:255',
         'newCustomer.CustomerType' => 'nullable|in:Retail,Business',
         'newCustomer.ContactDetails' => 'nullable|string|max:255',
@@ -157,10 +153,7 @@ class PosController extends Controller {
             'SubAmount' => $line['subAmount'],
           ]);
 
-          $newQuantity = (int)$line['product']->Quantity - $line['quantity'];
           $line['product']->update([
-            'Quantity' => $newQuantity,
-            'Status' => $this->resolveProductStatus($newQuantity, (int)($line['product']->LowStockThreshold ?? 10)),
             'DateModified' => now(),
           ]);
         }
@@ -170,7 +163,6 @@ class PosController extends Controller {
           'PaidAmount' => 0,
           'TotalAmount' => $totalAmount,
           'Change' => 0,
-          'PaymentMethod' => 'Consignment',
           'PaymentStatus' => 'Unpaid',
           'PaymentDueDate' => $payload['dueDate'],
           'DateAdded' => now(),
@@ -186,42 +178,39 @@ class PosController extends Controller {
     }
   }
 
-  public function recordSpoilage(Request $request) {
+  public function recordShrinkage(Request $request) {
     try {
       $payload = $request->validate([
         'items' => 'required|array|min:1',
-        'items.*.ProductID' => 'required|integer|exists:Products,ID',
+        'items.*.ProductID' => 'required|integer|exists:products,ID',
         'items.*.Quantity' => 'required|integer|min:1',
       ]);
 
       DB::transaction(function () use ($payload, $request) {
         [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
 
-        $spoilage = Spoilage::create([
+        $shrinkage = Shrinkage::create([
           'UserID' => $request->user()->id,
           'Quantity' => $totalQuantity,
-          'SubAmount' => $totalAmount,
+          'TotalAmount' => $totalAmount,
           'DateAdded' => now(),
         ]);
 
         foreach ($lines as $line) {
-          SpoiledProduct::create([
-            'SpoilageID' => $spoilage->ID,
+          ShrinkedProduct::create([
+            'ShrinkageID' => $shrinkage->ID,
             'ProductID' => $line['product']->ID,
             'Quantity' => $line['quantity'],
             'SubAmount' => $line['subAmount'],
           ]);
 
-          $newQuantity = (int)$line['product']->Quantity - $line['quantity'];
           $line['product']->update([
-            'Quantity' => $newQuantity,
-            'Status' => $this->resolveProductStatus($newQuantity, (int)($line['product']->LowStockThreshold ?? 10)),
             'DateModified' => now(),
           ]);
         }
       });
 
-      return redirect()->back()->with('success', 'Spoilage recorded successfully.');
+      return redirect()->back()->with('success', 'Shrinkage recorded successfully.');
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
@@ -283,15 +272,5 @@ class PosController extends Controller {
     return $products;
   }
 
-  private function resolveProductStatus(int $newQty, int $lowStockThreshold): string {
-    if ($newQty <= 0) {
-      return 'No Stock';
-    }
-
-    if ($newQty <= $lowStockThreshold) {
-      return 'Low Stock';
-    }
-
-    return 'On Stock';
-  }
 }
+

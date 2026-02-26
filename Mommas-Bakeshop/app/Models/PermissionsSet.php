@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 class PermissionsSet extends Model {
-  protected $table = 'PermissionsSet';
+  protected $table = 'permissions_set';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 

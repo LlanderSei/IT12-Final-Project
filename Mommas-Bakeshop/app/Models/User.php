@@ -18,7 +18,7 @@ class User extends Authenticatable {
     'FullName',
     'email',
     'password',
-    'Roles',
+    'RoleID',
   ];
 
   protected $hidden = [
@@ -30,10 +30,19 @@ class User extends Authenticatable {
     return [
       'email_verified_at' => 'datetime',
       'password' => 'hashed',
+      'RoleID' => 'integer',
     ];
   }
 
   // Relationships
+  public function role() {
+    return $this->belongsTo(Role::class, 'RoleID', 'ID');
+  }
+
+  public function getRolesAttribute(): ?string {
+    return $this->role?->RoleName;
+  }
+
   public function permissionsSet() {
     return $this->hasMany(PermissionsSet::class, 'UserID');
   }
@@ -43,22 +52,23 @@ class User extends Authenticatable {
   }
 
   public function productionBatches() {
-    return $this->hasMany(ProductionBatch::class, 'UserID');
+    return $this->hasMany(ProductionBatchDetail::class, 'UserID');
   }
 
   public function sales() {
     return $this->hasMany(Sale::class, 'UserID');
   }
 
-  public function spoilages() {
-    return $this->hasMany(Spoilage::class, 'UserID');
+  public function shrinkages() {
+    return $this->hasMany(Shrinkage::class, 'UserID');
   }
 
   public function stockIns() {
-    return $this->hasMany(StockIn::class, 'UserID');
+    return $this->hasMany(StockInDetail::class, 'UserID');
   }
 
   public function stockOuts() {
-    return $this->hasMany(StockOut::class, 'UserID');
+    return $this->hasMany(StockOutDetail::class, 'UserID');
   }
 }
+

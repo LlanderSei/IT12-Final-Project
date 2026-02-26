@@ -4,7 +4,7 @@ import { Head } from "@inertiajs/react";
 import Users from "./UserManagementSubviews/Users";
 import Permissions from "./UserManagementSubviews/Permissions";
 
-export default function UserManagementTabs({ users }) {
+export default function UserManagementTabs({ users, roles }) {
 	const tabs = ["Users", "Permissions"];
 	const [activeTab, setActiveTab] = useState(tabs[0]);
 
@@ -40,7 +40,7 @@ export default function UserManagementTabs({ users }) {
 			</div>
 
 			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
-				{activeTab === "Users" && <Users users={users} />}
+				{activeTab === "Users" && <Users users={users} roles={roles} />}
 				{activeTab === "Permissions" && <Permissions />}
 			</div>
 		</AuthenticatedLayout>

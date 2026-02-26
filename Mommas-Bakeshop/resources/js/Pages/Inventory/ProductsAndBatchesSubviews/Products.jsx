@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 
@@ -11,6 +11,23 @@ export default function Products({ products, categories }) {
 		key: "ProductName",
 		direction: "asc",
 	});
+	const [categoryFilter, setCategoryFilter] = useState("all");
+	const [productFromFilter, setProductFromFilter] = useState("all");
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [minPrice, setMinPrice] = useState("");
+	const [maxPrice, setMaxPrice] = useState("");
+	const [minQty, setMinQty] = useState("");
+	const [maxQty, setMaxQty] = useState("");
+
+	const categoryOptions = useMemo(
+		() => [...new Set((products || []).map((p) => p.category?.CategoryName).filter(Boolean))],
+		[products],
+	);
+
+	const productFromOptions = useMemo(
+		() => [...new Set((products || []).map((p) => p.ProductFrom).filter(Boolean))],
+		[products],
+	);
 
 	// Form handling
 	const {
@@ -163,13 +180,43 @@ export default function Products({ products, categories }) {
 		setSortConfig({ key, direction });
 	};
 
+	const resetFilters = () => {
+		setSearchQuery("");
+		setCategoryFilter("all");
+		setProductFromFilter("all");
+		setStatusFilter("all");
+		setMinPrice("");
+		setMaxPrice("");
+		setMinQty("");
+		setMaxQty("");
+	};
+
 	const getStatus = (product) => {
 		if (product.Quantity == 0) return "No Stock";
 		if (product.Quantity <= product.LowStockThreshold) return "Low Stock";
 		return "On Stock";
 	};
 
-	const filteredAndSortedProducts = React.useMemo(() => {
+	const getSortValue = (product, key) => {
+		switch (key) {
+			case "ProductName":
+				return String(product.ProductName || "").toLowerCase();
+			case "ProductFrom":
+				return String(product.ProductFrom || "").toLowerCase();
+			case "Price":
+				return Number(product.Price || 0);
+			case "Quantity":
+				return Number(product.Quantity || 0);
+			case "LowStockThreshold":
+				return Number(product.LowStockThreshold || 0);
+			case "Status":
+				return String(getStatus(product) || "").toLowerCase();
+			default:
+				return "";
+		}
+	};
+
+	const filteredAndSortedProducts = useMemo(() => {
 		let items = [...(products || [])];
 
 		// Search filtering
@@ -179,6 +226,10 @@ export default function Products({ products, categories }) {
 				const status = getStatus(product).toLowerCase();
 				return (
 					product.ProductName.toLowerCase().includes(query) ||
+					String(product.category?.CategoryName || "")
+						.toLowerCase()
+						.includes(query) ||
+					String(product.ProductFrom || "").toLowerCase().includes(query) ||
 					product.Price.toString().includes(query) ||
 					product.Quantity.toString().includes(query) ||
 					status.includes(query)
@@ -186,22 +237,46 @@ export default function Products({ products, categories }) {
 			});
 		}
 
+		if (categoryFilter !== "all") {
+			items = items.filter((product) => product.category?.CategoryName === categoryFilter);
+		}
+
+		if (productFromFilter !== "all") {
+			items = items.filter((product) => product.ProductFrom === productFromFilter);
+		}
+
+		if (statusFilter !== "all") {
+			items = items.filter((product) => {
+				const status = getStatus(product);
+				if (statusFilter === "on_stock") return status === "On Stock";
+				if (statusFilter === "low_stock") return status === "Low Stock";
+				if (statusFilter === "no_stock") return status === "No Stock";
+				return true;
+			});
+		}
+
+		const minPriceNum = Number(minPrice);
+		const maxPriceNum = Number(maxPrice);
+		const minQtyNum = Number(minQty);
+		const maxQtyNum = Number(maxQty);
+		if (String(minPrice).trim() !== "" && !Number.isNaN(minPriceNum)) {
+			items = items.filter((product) => Number(product.Price || 0) >= minPriceNum);
+		}
+		if (String(maxPrice).trim() !== "" && !Number.isNaN(maxPriceNum)) {
+			items = items.filter((product) => Number(product.Price || 0) <= maxPriceNum);
+		}
+		if (String(minQty).trim() !== "" && !Number.isNaN(minQtyNum)) {
+			items = items.filter((product) => Number(product.Quantity || 0) >= minQtyNum);
+		}
+		if (String(maxQty).trim() !== "" && !Number.isNaN(maxQtyNum)) {
+			items = items.filter((product) => Number(product.Quantity || 0) <= maxQtyNum);
+		}
+
 		// Sorting
 		if (sortConfig.key) {
 			items.sort((a, b) => {
-				let aValue = a[sortConfig.key];
-				let bValue = b[sortConfig.key];
-
-				// Handle numeric values
-				if (
-					["Price", "Quantity", "LowStockThreshold"].includes(sortConfig.key)
-				) {
-					aValue = Number(aValue);
-					bValue = Number(bValue);
-				} else {
-					aValue = (aValue || "").toString().toLowerCase();
-					bValue = (bValue || "").toString().toLowerCase();
-				}
+				const aValue = getSortValue(a, sortConfig.key);
+				const bValue = getSortValue(b, sortConfig.key);
 
 				if (aValue < bValue) {
 					return sortConfig.direction === "asc" ? -1 : 1;
@@ -214,7 +289,18 @@ export default function Products({ products, categories }) {
 		}
 
 		return items;
-	}, [products, searchQuery, sortConfig]);
+	}, [
+		products,
+		searchQuery,
+		categoryFilter,
+		productFromFilter,
+		statusFilter,
+		minPrice,
+		maxPrice,
+		minQty,
+		maxQty,
+		sortConfig,
+	]);
 
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
@@ -232,9 +318,9 @@ export default function Products({ products, categories }) {
 								</div>
 							</div>
 
-							{/* Search Bar */}
-							<div className="mb-6">
-								<div className="relative">
+							{/* Search + Filters */}
+							<div className="mb-6 flex items-start gap-3">
+								<div className="relative w-full max-w-xl shrink-0">
 									<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 										<svg
 											className="h-5 w-5 text-gray-400"
@@ -258,6 +344,90 @@ export default function Products({ products, categories }) {
 										onChange={(e) => setSearchQuery(e.target.value)}
 									/>
 								</div>
+								<div className="flex flex-1 min-w-0 items-center gap-2">
+									<div className="relative flex-1 min-w-0">
+										<div className="overflow-x-auto pb-1 pr-4">
+											<div className="flex min-w-max items-center gap-2 pr-3">
+												<select
+													value={categoryFilter}
+													onChange={(e) => setCategoryFilter(e.target.value)}
+													className="w-44 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												>
+													<option value="all">All Categories</option>
+													{categoryOptions.map((categoryName) => (
+														<option key={categoryName} value={categoryName}>
+															{categoryName}
+														</option>
+													))}
+												</select>
+												<select
+													value={productFromFilter}
+													onChange={(e) => setProductFromFilter(e.target.value)}
+													className="w-40 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												>
+													<option value="all">All Sources</option>
+													{productFromOptions.map((value) => (
+														<option key={value} value={value}>
+															{value}
+														</option>
+													))}
+												</select>
+												<select
+													value={statusFilter}
+													onChange={(e) => setStatusFilter(e.target.value)}
+													className="w-36 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												>
+													<option value="all">All Status</option>
+													<option value="on_stock">On Stock</option>
+													<option value="low_stock">Low Stock</option>
+													<option value="no_stock">No Stock</option>
+												</select>
+												<input
+													type="number"
+													min="0"
+													step="0.01"
+													placeholder="Min Price"
+													value={minPrice}
+													onChange={(e) => setMinPrice(e.target.value)}
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												/>
+												<input
+													type="number"
+													min="0"
+													step="0.01"
+													placeholder="Max Price"
+													value={maxPrice}
+													onChange={(e) => setMaxPrice(e.target.value)}
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												/>
+												<input
+													type="number"
+													min="0"
+													placeholder="Min Qty"
+													value={minQty}
+													onChange={(e) => setMinQty(e.target.value)}
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												/>
+												<input
+													type="number"
+													min="0"
+													placeholder="Max Qty"
+													value={maxQty}
+													onChange={(e) => setMaxQty(e.target.value)}
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												/>
+											</div>
+										</div>
+										<div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+									</div>
+									<button
+										type="button"
+										onClick={resetFilters}
+										className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+									>
+										Reset Filters
+									</button>
+								</div>
 							</div>
 
 							{/* Table */}
@@ -273,8 +443,22 @@ export default function Products({ products, categories }) {
 												<div className="flex items-center">
 													Product Name
 													{sortConfig.key === "ProductName" && (
-														<span className="ml-1">
-															{sortConfig.direction === "asc" ? "↑" : "↓"}
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
+														</span>
+													)}
+												</div>
+											</th>
+											<th
+												scope="col"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+												onClick={() => requestSort("ProductFrom")}
+											>
+												<div className="flex items-center">
+													Source
+													{sortConfig.key === "ProductFrom" && (
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
 														</span>
 													)}
 												</div>
@@ -287,8 +471,8 @@ export default function Products({ products, categories }) {
 												<div className="flex items-center">
 													Price
 													{sortConfig.key === "Price" && (
-														<span className="ml-1">
-															{sortConfig.direction === "asc" ? "↑" : "↓"}
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
 														</span>
 													)}
 												</div>
@@ -301,8 +485,8 @@ export default function Products({ products, categories }) {
 												<div className="flex items-center">
 													Quantity
 													{sortConfig.key === "Quantity" && (
-														<span className="ml-1">
-															{sortConfig.direction === "asc" ? "↑" : "↓"}
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
 														</span>
 													)}
 												</div>
@@ -315,20 +499,31 @@ export default function Products({ products, categories }) {
 												<div className="flex items-center">
 													Low Stock Threshold
 													{sortConfig.key === "LowStockThreshold" && (
-														<span className="ml-1">
-															{sortConfig.direction === "asc" ? "↑" : "↓"}
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
 														</span>
 													)}
 												</div>
 											</th>
 											<th
 												scope="col"
-												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+												onClick={() => requestSort("Status")}
 											>
-												Status
+												<div className="flex items-center">
+													Status
+													{sortConfig.key === "Status" && (
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
+														</span>
+													)}
+												</div>
 											</th>
-											<th scope="col" className="relative px-6 py-3">
-												<span className="sr-only">Edit</span>
+											<th
+												scope="col"
+												className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider"
+											>
+												Actions
 											</th>
 										</tr>
 									</thead>
@@ -338,6 +533,11 @@ export default function Products({ products, categories }) {
 												<td className="px-6 py-4 whitespace-nowrap">
 													<div className="text-sm font-medium text-gray-900">
 														{product.ProductName}
+													</div>
+												</td>
+												<td className="px-6 py-4 whitespace-nowrap">
+													<div className="text-sm text-gray-500">
+														{product.ProductFrom || "N/A"}
 													</div>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
@@ -371,22 +571,9 @@ export default function Products({ products, categories }) {
 												<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
 													<button
 														onClick={() => openEditModal(product)}
-														className="text-gray-400 hover:text-[#D97736]"
+														className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
 													>
-														<svg
-															xmlns="http://www.w3.org/2000/svg"
-															className="h-5 w-5 inline-block"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor"
-															strokeWidth={2}
-														>
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-															/>
-														</svg>
+														Edit
 													</button>
 												</td>
 											</tr>
@@ -394,7 +581,7 @@ export default function Products({ products, categories }) {
 										{filteredAndSortedProducts.length === 0 && (
 											<tr>
 												<td
-													colSpan="6"
+													colSpan="7"
 													className="px-6 py-4 text-center text-sm text-gray-500"
 												>
 													No products found.

@@ -1,19 +1,37 @@
 import React, { useMemo, useState } from "react";
 import { useForm, usePage } from "@inertiajs/react";
 
-const ROLE_OPTIONS = ["Owner", "Admin", "Cashier", "Clerk"];
-const ROLE_RANK = {
-	owner: 4,
-	admin: 3,
-	cashier: 2,
-	clerk: 1,
-};
-
-const getRoleRank = (role) => ROLE_RANK[(role || "").toLowerCase()] ?? 0;
-
-export default function Users({ users = [] }) {
+export default function Users({ users = [], roles = [] }) {
 	const { auth } = usePage().props;
 	const currentUser = auth?.user;
+
+	const normalizedRoles = useMemo(() => {
+		if (Array.isArray(roles) && roles.length > 0) {
+			return [...roles]
+				.filter((role) => role?.ID)
+				.sort((a, b) => {
+					const rankDelta = Number(a?.RoleRank ?? 0) - Number(b?.RoleRank ?? 0);
+					if (rankDelta !== 0) return rankDelta;
+					return String(a?.RoleName || "").localeCompare(String(b?.RoleName || ""));
+				});
+		}
+
+		const mapped = new Map();
+		(users || []).forEach((user) => {
+			if (!user?.RoleID || !user?.Roles) return;
+			mapped.set(String(user.RoleID), {
+				ID: user.RoleID,
+				RoleName: user.Roles,
+				RoleRank: user.RoleRank ?? null,
+			});
+		});
+		return [...mapped.values()];
+	}, [roles, users]);
+
+	const defaultRoleId = useMemo(
+		() => String(normalizedRoles[0]?.ID ?? ""),
+		[normalizedRoles],
+	);
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [roleFilter, setRoleFilter] = useState("all");
@@ -28,37 +46,40 @@ export default function Users({ users = [] }) {
 	const form = useForm({
 		FullName: "",
 		email: "",
-		Roles: "Cashier",
+		RoleID: defaultRoleId,
 		password: "",
 		password_confirmation: "",
 	});
 
-	const roleOptions = useMemo(() => {
-		const existingRoles = [...new Set(users.map((user) => user.Roles).filter(Boolean))];
-		const merged = [...new Set([...ROLE_OPTIONS, ...existingRoles])];
-		return merged.sort((a, b) => a.localeCompare(b));
-	}, [users]);
+	const currentUserRecord = useMemo(
+		() => users.find((user) => Number(user?.id) === Number(currentUser?.id)) || null,
+		[users, currentUser?.id],
+	);
 
 	const getSortValue = (user, key) => {
-		if (key === "Records") return user.RelationCount || 0;
+		if (key === "Records") return Number(user.RelationCount || 0);
+		if (key === "Roles") return user.Roles || "";
 		return user[key] || "";
 	};
 
 	const filteredUsers = useMemo(() => {
 		const searchLower = searchQuery.toLowerCase().trim();
+
 		const result = users.filter((user) => {
 			const matchesSearch =
 				!searchLower ||
 				user.FullName?.toLowerCase().includes(searchLower) ||
 				user.email?.toLowerCase().includes(searchLower) ||
 				user.Roles?.toLowerCase().includes(searchLower);
-			const matchesRole = roleFilter === "all" || user.Roles === roleFilter;
+			const matchesRole =
+				roleFilter === "all" || String(user.RoleID || "") === String(roleFilter);
 			return matchesSearch && matchesRole;
 		});
 
 		result.sort((a, b) => {
 			const aValue = getSortValue(a, sortConfig.key);
 			const bValue = getSortValue(b, sortConfig.key);
+
 			const comparison =
 				typeof aValue === "number" && typeof bValue === "number"
 					? aValue - bValue
@@ -72,21 +93,12 @@ export default function Users({ users = [] }) {
 		return result;
 	}, [users, searchQuery, roleFilter, sortConfig]);
 
-	const handleSort = (key) => {
-		setSortConfig((current) => {
-			if (current.key === key) {
-				return {
-					key,
-					direction: current.direction === "asc" ? "desc" : "asc",
-				};
-			}
-			return { key, direction: "asc" };
-		});
-	};
-
-	const getSortIndicator = (key) => {
-		if (sortConfig.key !== key) return "-";
-		return sortConfig.direction === "asc" ? "^" : "v";
+	const requestSort = (key) => {
+		let direction = "asc";
+		if (sortConfig.key === key && sortConfig.direction === "asc") {
+			direction = "desc";
+		}
+		setSortConfig({ key, direction });
 	};
 
 	const openAddModal = () => {
@@ -96,7 +108,7 @@ export default function Users({ users = [] }) {
 		form.setData({
 			FullName: "",
 			email: "",
-			Roles: "Cashier",
+			RoleID: defaultRoleId,
 			password: "",
 			password_confirmation: "",
 		});
@@ -109,7 +121,7 @@ export default function Users({ users = [] }) {
 		form.setData({
 			FullName: user.FullName || "",
 			email: user.email || "",
-			Roles: user.Roles || "Cashier",
+			RoleID: String(user.RoleID || defaultRoleId),
 			password: "",
 			password_confirmation: "",
 		});
@@ -122,6 +134,9 @@ export default function Users({ users = [] }) {
 		form.reset();
 		form.clearErrors();
 	};
+
+	const isEditingOwnAccount =
+		editingUser && Number(editingUser.id) === Number(currentUser?.id);
 
 	const submitUser = (e) => {
 		e.preventDefault();
@@ -141,15 +156,16 @@ export default function Users({ users = [] }) {
 
 	const canDeleteTarget = (user) => {
 		if (isSelf(user)) return false;
-		const currentRank = getRoleRank(currentUser?.role);
-		const targetRank = getRoleRank(user.Roles);
-		return currentRank >= targetRank;
+		const currentRank = Number(currentUserRecord?.RoleRank);
+		const targetRank = Number(user?.RoleRank);
+		if (!Number.isFinite(currentRank) || !Number.isFinite(targetRank)) return true;
+		return currentRank <= targetRank;
 	};
 
 	const getDeleteTooltip = (user) => {
 		if (isSelf(user)) return "You cannot delete your own account.";
 		if (!canDeleteTarget(user)) {
-			return "You can only delete users with the same role or lower.";
+			return "You can only delete users with the same role or lower privilege.";
 		}
 		return "Delete user";
 	};
@@ -176,12 +192,12 @@ export default function Users({ users = [] }) {
 							<div className="flex justify-between items-center mb-6">
 								<h3 className="text-xl font-bold text-gray-900">Users</h3>
 								<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-									{users.length || 0} Users
+									{filteredUsers.length} Users
 								</div>
 							</div>
 
-							<div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-								<div className="relative flex-1">
+							<div className="mb-6 flex items-start gap-3">
+								<div className="relative w-full max-w-xl shrink-0">
 									<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 										<svg
 											className="h-5 w-5 text-gray-400"
@@ -205,27 +221,32 @@ export default function Users({ users = [] }) {
 										onChange={(e) => setSearchQuery(e.target.value)}
 									/>
 								</div>
-
-								<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full lg:w-auto">
-									<select
-										className="py-2 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#D97736] focus:border-[#D97736]"
-										value={roleFilter}
-										onChange={(e) => setRoleFilter(e.target.value)}
-									>
-										<option value="all">All Roles</option>
-										{roleOptions.map((role) => (
-											<option key={role} value={role}>
-												{role}
-											</option>
-										))}
-									</select>
-
+								<div className="flex flex-1 min-w-0 items-center gap-2">
+									<div className="relative flex-1 min-w-0">
+										<div className="overflow-x-auto pb-1 pr-4">
+											<div className="flex min-w-max items-center gap-2 pr-3">
+												<select
+													value={roleFilter}
+													onChange={(e) => setRoleFilter(e.target.value)}
+													className="w-44 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+												>
+													<option value="all">All Roles</option>
+													{normalizedRoles.map((role) => (
+														<option key={role.ID} value={String(role.ID)}>
+															{role.RoleName}
+														</option>
+													))}
+												</select>
+											</div>
+										</div>
+										<div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
+									</div>
 									<button
 										type="button"
 										onClick={clearFilters}
-										className="py-2 px-3 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+										className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
 									>
-										Clear Filters
+										Reset Filters
 									</button>
 								</div>
 							</div>
@@ -234,43 +255,66 @@ export default function Users({ users = [] }) {
 								<table className="min-w-full divide-y divide-gray-200">
 									<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
 										<tr>
-											<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-												<button
-													type="button"
-													onClick={() => handleSort("FullName")}
-													className="flex items-center gap-1 hover:text-gray-700"
-												>
-													Full Name <span>{getSortIndicator("FullName")}</span>
-												</button>
+											<th
+												scope="col"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+												onClick={() => requestSort("FullName")}
+											>
+												<div className="flex items-center">
+													Full Name
+													{sortConfig.key === "FullName" && (
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
+														</span>
+													)}
+												</div>
 											</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-												<button
-													type="button"
-													onClick={() => handleSort("email")}
-													className="flex items-center gap-1 hover:text-gray-700"
-												>
-													Email <span>{getSortIndicator("email")}</span>
-												</button>
+											<th
+												scope="col"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+												onClick={() => requestSort("email")}
+											>
+												<div className="flex items-center">
+													Email
+													{sortConfig.key === "email" && (
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
+														</span>
+													)}
+												</div>
 											</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-												<button
-													type="button"
-													onClick={() => handleSort("Roles")}
-													className="flex items-center gap-1 hover:text-gray-700"
-												>
-													Role <span>{getSortIndicator("Roles")}</span>
-												</button>
+											<th
+												scope="col"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+												onClick={() => requestSort("Roles")}
+											>
+												<div className="flex items-center">
+													Role
+													{sortConfig.key === "Roles" && (
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
+														</span>
+													)}
+												</div>
 											</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-												<button
-													type="button"
-													onClick={() => handleSort("Records")}
-													className="flex items-center gap-1 hover:text-gray-700"
-												>
-													Linked Records <span>{getSortIndicator("Records")}</span>
-												</button>
+											<th
+												scope="col"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+												onClick={() => requestSort("Records")}
+											>
+												<div className="flex items-center">
+													Linked Records
+													{sortConfig.key === "Records" && (
+														<span className="ml-1 text-[10px] text-gray-400">
+															{sortConfig.direction.toUpperCase()}
+														</span>
+													)}
+												</div>
 											</th>
-											<th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+											<th
+												scope="col"
+												className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider"
+											>
 												Actions
 											</th>
 										</tr>
@@ -287,17 +331,17 @@ export default function Users({ users = [] }) {
 														{user.email}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-														{user.Roles}
+														{user.Roles || "N/A"}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
 														{user.RelationCount || 0}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-														<div className="inline-flex items-center gap-3">
+														<div className="inline-flex items-center gap-2">
 															<button
 																type="button"
 																onClick={() => openEditModal(user)}
-																className="text-[#D97736] hover:text-[#c2682e]"
+																className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
 															>
 																Edit
 															</button>
@@ -306,7 +350,11 @@ export default function Users({ users = [] }) {
 																onClick={() => setDeleteCandidate(user)}
 																disabled={!canDelete}
 																title={getDeleteTooltip(user)}
-																className={canDelete ? "text-red-600 hover:text-red-700" : "text-gray-300 cursor-not-allowed"}
+																className={
+																	canDelete
+																		? "rounded border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+																		: "rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300 cursor-not-allowed"
+																}
 															>
 																Delete
 															</button>
@@ -334,7 +382,8 @@ export default function Users({ users = [] }) {
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<button
 						onClick={openAddModal}
-						className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e]"
+						disabled={!defaultRoleId}
+						className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] disabled:opacity-60 disabled:cursor-not-allowed"
 					>
 						Add User
 					</button>
@@ -344,98 +393,108 @@ export default function Users({ users = [] }) {
 			{isModalOpen && (
 				<div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
 					<div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-						<div
-							className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-							onClick={closeModal}
-						/>
+						<div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={closeModal} />
 						<span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
 							&#8203;
 						</span>
 						<div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
 							<form onSubmit={submitUser}>
 								<div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-									<h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-										{editingUser ? "Edit User" : "Add User"}
-									</h3>
-									<div className="mt-4 space-y-4">
-										<div>
-											<label className="block text-sm font-medium text-gray-700" htmlFor="FullName">
-												Full Name
-											</label>
-											<input
-												type="text"
-												id="FullName"
-												value={form.data.FullName}
-												onChange={(e) => form.setData("FullName", e.target.value)}
-												required
-												className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
-											/>
-											{form.errors.FullName && <p className="mt-2 text-sm text-red-600">{form.errors.FullName}</p>}
-										</div>
+									<div className="sm:flex sm:items-start">
+										<div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+											<h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+												{editingUser ? "Edit User" : "Add User"}
+											</h3>
+											<div className="mt-4 space-y-4">
+												<div>
+													<label className="block text-sm font-medium text-gray-700" htmlFor="FullName">
+														Full Name
+													</label>
+													<input
+														type="text"
+														id="FullName"
+														value={form.data.FullName}
+														onChange={(e) => form.setData("FullName", e.target.value)}
+														required
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+													/>
+													{form.errors.FullName && <p className="mt-2 text-sm text-red-600">{form.errors.FullName}</p>}
+												</div>
 
-										<div>
-											<label className="block text-sm font-medium text-gray-700" htmlFor="email">
-												Email
-											</label>
-											<input
-												type="email"
-												id="email"
-												value={form.data.email}
-												onChange={(e) => form.setData("email", e.target.value)}
-												required
-												className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
-											/>
-											{form.errors.email && <p className="mt-2 text-sm text-red-600">{form.errors.email}</p>}
-										</div>
+												<div>
+													<label className="block text-sm font-medium text-gray-700" htmlFor="email">
+														Email
+													</label>
+													<input
+														type="email"
+														id="email"
+														value={form.data.email}
+														onChange={(e) => form.setData("email", e.target.value)}
+														required
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+													/>
+													{form.errors.email && <p className="mt-2 text-sm text-red-600">{form.errors.email}</p>}
+												</div>
 
-										<div>
-											<label className="block text-sm font-medium text-gray-700" htmlFor="Roles">
-												Role
-											</label>
-											<select
-												id="Roles"
-												value={form.data.Roles}
-												onChange={(e) => form.setData("Roles", e.target.value)}
-												required
-												className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
-											>
-												{roleOptions.map((role) => (
-													<option key={role} value={role}>
-														{role}
-													</option>
-												))}
-											</select>
-											{form.errors.Roles && <p className="mt-2 text-sm text-red-600">{form.errors.Roles}</p>}
-										</div>
+												<div>
+													<label className="block text-sm font-medium text-gray-700" htmlFor="RoleID">
+														Role
+													</label>
+													<select
+														id="RoleID"
+														value={form.data.RoleID}
+														onChange={(e) => form.setData("RoleID", e.target.value)}
+														required
+														disabled={Boolean(isEditingOwnAccount)}
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+													>
+														<option value="" disabled>
+															Select role
+														</option>
+														{normalizedRoles.map((role) => (
+															<option key={role.ID} value={String(role.ID)}>
+																{role.RoleName} {role.RoleRank ? `(Rank ${role.RoleRank})` : ""}
+															</option>
+														))}
+													</select>
+													{isEditingOwnAccount && (
+														<p className="mt-2 text-xs text-amber-700">
+															Your own role rank cannot be changed.
+														</p>
+													)}
+													{form.errors.RoleID && <p className="mt-2 text-sm text-red-600">{form.errors.RoleID}</p>}
+												</div>
 
-										<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-											<div>
-												<label className="block text-sm font-medium text-gray-700" htmlFor="password">
-													Password {editingUser ? "(optional)" : ""}
-												</label>
-												<input
-													type="password"
-													id="password"
-													value={form.data.password}
-													onChange={(e) => form.setData("password", e.target.value)}
-													required={!editingUser}
-													className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
-												/>
-												{form.errors.password && <p className="mt-2 text-sm text-red-600">{form.errors.password}</p>}
-											</div>
+												<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+													<div>
+														<label className="block text-sm font-medium text-gray-700" htmlFor="password">
+															Password {editingUser ? "(optional)" : ""}
+														</label>
+														<input
+															type="password"
+															id="password"
+															value={form.data.password}
+															onChange={(e) => form.setData("password", e.target.value)}
+															required={!editingUser}
+															className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														/>
+														{form.errors.password && <p className="mt-2 text-sm text-red-600">{form.errors.password}</p>}
+													</div>
 
-											<div>
-												<label className="block text-sm font-medium text-gray-700" htmlFor="password_confirmation">
-													Confirm Password
-												</label>
-												<input
-													type="password"
-													id="password_confirmation"
-													value={form.data.password_confirmation}
-													onChange={(e) => form.setData("password_confirmation", e.target.value)}
-													required={!editingUser || Boolean(form.data.password)}
-													className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
-												/>
+													<div>
+														<label className="block text-sm font-medium text-gray-700" htmlFor="password_confirmation">
+															Confirm Password
+														</label>
+														<input
+															type="password"
+															id="password_confirmation"
+															value={form.data.password_confirmation}
+															onChange={(e) => form.setData("password_confirmation", e.target.value)}
+															required={!editingUser || Boolean(form.data.password)}
+															className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														/>
+													</div>
+												</div>
 											</div>
 										</div>
 									</div>
@@ -465,10 +524,7 @@ export default function Users({ users = [] }) {
 			{deleteCandidate && (
 				<div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
 					<div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-						<div
-							className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-							onClick={() => setDeleteCandidate(null)}
-						/>
+						<div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setDeleteCandidate(null)} />
 						<span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
 							&#8203;
 						</span>

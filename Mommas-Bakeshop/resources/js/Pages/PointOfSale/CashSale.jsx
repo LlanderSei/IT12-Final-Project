@@ -25,10 +25,10 @@ export default function CashSale({ products = [], categories = [], customers = [
 	const [transactionType, setTransactionType] = useState("Walk-In");
 	const [walkInOpen, setWalkInOpen] = useState(false);
 	const [consignmentOpen, setConsignmentOpen] = useState(false);
-	const [spoilageOpen, setSpoilageOpen] = useState(false);
+	const [shrinkageOpen, setShrinkageOpen] = useState(false);
 	const [walkInSubmitError, setWalkInSubmitError] = useState("");
 	const [consignmentSubmitError, setConsignmentSubmitError] = useState("");
-	const [spoilageSubmitError, setSpoilageSubmitError] = useState("");
+	const [shrinkageSubmitError, setShrinkageSubmitError] = useState("");
 
 	const walkInForm = useForm({
 		items: [],
@@ -48,7 +48,7 @@ export default function CashSale({ products = [], categories = [], customers = [
 		dueDate: plusThirtyDaysISO(),
 	});
 
-	const spoilageForm = useForm({
+	const shrinkageForm = useForm({
 		items: [],
 	});
 
@@ -154,10 +154,10 @@ export default function CashSale({ products = [], categories = [], customers = [
 			return;
 		}
 
-		spoilageForm.setData("items", cartToPayload());
-		spoilageForm.clearErrors();
-		setSpoilageSubmitError("");
-		setSpoilageOpen(true);
+		shrinkageForm.setData("items", cartToPayload());
+		shrinkageForm.clearErrors();
+		setShrinkageSubmitError("");
+		setShrinkageOpen(true);
 	};
 
 	const walkInPaidAmount = walkInForm.data.paidAmount;
@@ -230,24 +230,24 @@ export default function CashSale({ products = [], categories = [], customers = [
 		});
 	};
 
-	const submitSpoilage = (e) => {
+	const submitShrinkage = (e) => {
 		e.preventDefault();
-		spoilageForm.transform(() => ({
+		shrinkageForm.transform(() => ({
 			items: cartToPayload(),
 		}));
-		spoilageForm.post(route("pos.checkout.spoilage"), {
+		shrinkageForm.post(route("pos.checkout.shrinkage"), {
 			preserveScroll: true,
 			onSuccess: () => {
-				setSpoilageOpen(false);
+				setShrinkageOpen(false);
 				clearCart();
-				spoilageForm.reset();
-				setSpoilageSubmitError("");
+				shrinkageForm.reset();
+				setShrinkageSubmitError("");
 			},
 			onError: (errors) => {
-				setSpoilageSubmitError(
+				setShrinkageSubmitError(
 					firstErrorMessage(
 						errors,
-						"Failed to record spoilage. Please review your input.",
+						"Failed to record shrinkage. Please review your input.",
 					),
 				);
 			},
@@ -410,7 +410,7 @@ export default function CashSale({ products = [], categories = [], customers = [
 							>
 								<option value="Walk-In">Walk-In</option>
 								<option value="Consignment">Consignment</option>
-								<option value="Spoilage">Spoilage</option>
+								<option value="Shrinkage">Shrinkage</option>
 							</select>
 							<button
 								type="button"
@@ -418,8 +418,8 @@ export default function CashSale({ products = [], categories = [], customers = [
 								disabled={!cartItems.length}
 								className="w-full bg-[#D97736] text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-[#c2682e] disabled:opacity-40"
 							>
-								{transactionType === "Spoilage"
-									? "Record Spoilage"
+								{transactionType === "Shrinkage"
+									? "Record Shrinkage"
 									: "Proceed to Checkout"}
 							</button>
 						</div>
@@ -654,12 +654,12 @@ export default function CashSale({ products = [], categories = [], customers = [
 				</form>
 			</Modal>
 
-			<Modal show={spoilageOpen} onClose={() => setSpoilageOpen(false)} maxWidth="lg">
-				<form onSubmit={submitSpoilage} className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900 mb-4">Record Spoilage</h3>
+			<Modal show={shrinkageOpen} onClose={() => setShrinkageOpen(false)} maxWidth="lg">
+				<form onSubmit={submitShrinkage} className="p-6">
+					<h3 className="text-lg font-semibold text-gray-900 mb-4">Record Shrinkage</h3>
 					<div className="max-h-52 overflow-y-auto border border-gray-200 rounded-md p-3 mb-4 space-y-2">
 						{cartItems.map((item) => (
-							<div key={`spoilage-${item.ID}`} className="flex justify-between text-sm">
+							<div key={`shrinkage-${item.ID}`} className="flex justify-between text-sm">
 								<span>
 									{item.ProductName} x{item.quantity}
 								</span>
@@ -671,26 +671,26 @@ export default function CashSale({ products = [], categories = [], customers = [
 						<span className="text-gray-600">Shrinkage Total Amount</span>
 						<span className="font-semibold">{currency(cartTotal)}</span>
 					</p>
-					{spoilageForm.errors.items && (
-						<p className="mt-2 text-sm text-red-600">{spoilageForm.errors.items}</p>
+					{shrinkageForm.errors.items && (
+						<p className="mt-2 text-sm text-red-600">{shrinkageForm.errors.items}</p>
 					)}
-					{spoilageSubmitError && (
-						<p className="mt-2 text-sm text-red-600">{spoilageSubmitError}</p>
+					{shrinkageSubmitError && (
+						<p className="mt-2 text-sm text-red-600">{shrinkageSubmitError}</p>
 					)}
 					<div className="mt-6 flex justify-end gap-2">
 						<button
 							type="button"
-							onClick={() => setSpoilageOpen(false)}
+							onClick={() => setShrinkageOpen(false)}
 							className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
 						>
 							Cancel
 						</button>
 						<button
 							type="submit"
-							disabled={spoilageForm.processing}
+							disabled={shrinkageForm.processing}
 							className="px-4 py-2 text-sm rounded-md bg-[#D97736] text-white hover:bg-[#c2682e] disabled:opacity-50"
 						>
-							Record Spoilage
+							Record Shrinkage
 						</button>
 					</div>
 				</form>
@@ -698,3 +698,5 @@ export default function CashSale({ products = [], categories = [], customers = [
 		</AuthenticatedLayout>
 	);
 }
+
+

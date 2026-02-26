@@ -2,31 +2,30 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BuildsReadableAuditChanges;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
 class StockIn extends Model implements Auditable {
-  use AuditableTrait;
-  protected $table = 'StockIns';
+  use AuditableTrait, BuildsReadableAuditChanges;
+  protected $table = 'stock_ins';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
-    'UserID',
+    'StockInDetailsID',
     'InventoryID',
-    'Supplier',
-    'PricePerUnit',
+    'ProductID',
+    'ItemType',
     'QuantityAdded',
-    'TotalAmount',
-    'AdditionalDetails',
+    'SubAmount',
     'DateAdded',
   ];
 
   protected $casts = [
-    'PricePerUnit' => 'decimal:2',
     'QuantityAdded' => 'integer',
-    'TotalAmount' => 'decimal:2',
+    'SubAmount' => 'decimal:2',
     'DateAdded' => 'datetime',
   ];
 
@@ -42,17 +41,25 @@ class StockIn extends Model implements Auditable {
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
+    $data['ReadableChanges'] = $this->buildReadableChanges($data);
+    $data['Source'] = 'Application';
     $data['DateAdded'] = now();
 
     return $data;
   }
 
   // Relationships
-  public function user() {
-    return $this->belongsTo(User::class, 'UserID');
-  }
-
   public function inventory() {
     return $this->belongsTo(Inventory::class, 'InventoryID');
   }
+
+  public function product() {
+    return $this->belongsTo(Product::class, 'ProductID');
+  }
+
+  public function stockInDetails() {
+    return $this->belongsTo(StockInDetail::class, 'StockInDetailsID');
+  }
 }
+
+
