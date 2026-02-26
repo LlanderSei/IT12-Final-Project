@@ -3,7 +3,6 @@ import { Link } from "@inertiajs/react";
 
 const tabs = [
 	{ label: "Cash Sale", routeName: "pos.cash-sale" },
-	{ label: "Consignments", routeName: "pos.consignments" },
 ];
 
 export default function CashierTabs() {
