@@ -18,11 +18,19 @@ const plusThirtyDaysISO = () => {
 	return date.toISOString().split("T")[0];
 };
 
-export default function CashSale({ products = [], categories = [], customers = [] }) {
+export default function CashSale({
+	products = [],
+	categories = [],
+	customers = [],
+}) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedCategory, setSelectedCategory] = useState("all");
 	const [cartItems, setCartItems] = useState([]);
 	const [transactionType, setTransactionType] = useState("Walk-In");
+	const [editQtyOpen, setEditQtyOpen] = useState(false);
+	const [editQtyItem, setEditQtyItem] = useState(null);
+	const [editQtyValue, setEditQtyValue] = useState("");
+	const [editQtyError, setEditQtyError] = useState("");
 	const [walkInOpen, setWalkInOpen] = useState(false);
 	const [consignmentOpen, setConsignmentOpen] = useState(false);
 	const [shrinkageOpen, setShrinkageOpen] = useState(false);
@@ -50,6 +58,7 @@ export default function CashSale({ products = [], categories = [], customers = [
 
 	const shrinkageForm = useForm({
 		items: [],
+		reason: "Spoiled",
 	});
 
 	const availableProducts = useMemo(() => {
@@ -131,6 +140,44 @@ export default function CashSale({ products = [], categories = [], customers = [
 		);
 	};
 
+	const openEditQtyModal = (item) => {
+		setEditQtyItem(item);
+		setEditQtyValue(String(item.quantity));
+		setEditQtyError("");
+		setEditQtyOpen(true);
+	};
+
+	const closeEditQtyModal = () => {
+		setEditQtyOpen(false);
+		setEditQtyItem(null);
+		setEditQtyValue("");
+		setEditQtyError("");
+	};
+
+	const submitEditQty = (e) => {
+		e.preventDefault();
+		if (!editQtyItem) return;
+
+		const quantity = Number(editQtyValue);
+		if (!Number.isInteger(quantity) || quantity < 1) {
+			setEditQtyError("Quantity must be a whole number greater than 0.");
+			return;
+		}
+		if (quantity > editQtyItem.maxQuantity) {
+			setEditQtyError(
+				`Quantity cannot exceed available stock (${editQtyItem.maxQuantity}).`,
+			);
+			return;
+		}
+
+		setCartItems((prev) =>
+			prev.map((item) =>
+				item.ID === editQtyItem.ID ? { ...item, quantity } : item,
+			),
+		);
+		closeEditQtyModal();
+	};
+
 	const clearCart = () => setCartItems([]);
 	const firstErrorMessage = (errors, fallback) =>
 		(errors && Object.values(errors).find(Boolean)) || fallback;
@@ -146,15 +193,8 @@ export default function CashSale({ products = [], categories = [], customers = [
 			return;
 		}
 
-		if (transactionType === "Consignment") {
-			consignmentForm.setData("items", cartToPayload());
-			consignmentForm.clearErrors();
-			setConsignmentSubmitError("");
-			setConsignmentOpen(true);
-			return;
-		}
-
 		shrinkageForm.setData("items", cartToPayload());
+		shrinkageForm.setData("reason", "Spoiled");
 		shrinkageForm.clearErrors();
 		setShrinkageSubmitError("");
 		setShrinkageOpen(true);
@@ -192,7 +232,12 @@ export default function CashSale({ products = [], categories = [], customers = [
 					setWalkInSubmitError("");
 					return;
 				}
-				setWalkInSubmitError(firstErrorMessage(errors, "Failed to process walk-in sale. Please review your input."));
+				setWalkInSubmitError(
+					firstErrorMessage(
+						errors,
+						"Failed to process walk-in sale. Please review your input.",
+					),
+				);
 			},
 		});
 	};
@@ -232,15 +277,17 @@ export default function CashSale({ products = [], categories = [], customers = [
 
 	const submitShrinkage = (e) => {
 		e.preventDefault();
-		shrinkageForm.transform(() => ({
+		shrinkageForm.transform((data) => ({
 			items: cartToPayload(),
+			reason: data.reason,
 		}));
 		shrinkageForm.post(route("pos.checkout.shrinkage"), {
 			preserveScroll: true,
 			onSuccess: () => {
 				setShrinkageOpen(false);
 				clearCart();
-				shrinkageForm.reset();
+				shrinkageForm.reset("items");
+				shrinkageForm.setData("reason", "Spoiled");
 				setShrinkageSubmitError("");
 			},
 			onError: (errors) => {
@@ -314,7 +361,9 @@ export default function CashSale({ products = [], categories = [], customers = [
 											) : null}
 											<div
 												className="w-full h-full flex items-center justify-center text-xs text-gray-500"
-												style={{ display: product.ProductImage ? "none" : "flex" }}
+												style={{
+													display: product.ProductImage ? "none" : "flex",
+												}}
 											>
 												No Image
 											</div>
@@ -344,7 +393,10 @@ export default function CashSale({ products = [], categories = [], customers = [
 
 						<div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
 							{cartItems.map((item) => (
-								<div key={item.ID} className="border border-gray-200 rounded-md p-3">
+								<div
+									key={item.ID}
+									className="border border-gray-200 rounded-md p-3"
+								>
 									<div className="flex justify-between gap-3">
 										<p className="font-semibold text-sm text-gray-900 truncate">
 											{item.ProductName}
@@ -354,7 +406,8 @@ export default function CashSale({ products = [], categories = [], customers = [
 										</p>
 									</div>
 									<div className="mt-1 text-xs text-gray-600">
-										Price: {currency(item.pricePerUnit)} | Quantity: {item.quantity}
+										Price: {currency(item.pricePerUnit)} | Quantity:{" "}
+										{item.quantity}
 									</div>
 									<div className="mt-2 flex gap-2">
 										<button
@@ -377,6 +430,13 @@ export default function CashSale({ products = [], categories = [], customers = [
 											className="px-2 py-1 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
 										>
 											+
+										</button>
+										<button
+											type="button"
+											onClick={() => openEditQtyModal(item)}
+											className="px-2 py-1 text-xs rounded-md border border-[#D97736] text-[#D97736] hover:bg-[#fffaf6]"
+										>
+											Edit Qty.
 										</button>
 									</div>
 								</div>
@@ -409,7 +469,6 @@ export default function CashSale({ products = [], categories = [], customers = [
 								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
 							>
 								<option value="Walk-In">Walk-In</option>
-								<option value="Consignment">Consignment</option>
 								<option value="Shrinkage">Shrinkage</option>
 							</select>
 							<button
@@ -427,12 +486,65 @@ export default function CashSale({ products = [], categories = [], customers = [
 				</div>
 			</div>
 
-			<Modal show={walkInOpen} onClose={() => setWalkInOpen(false)} maxWidth="lg">
+			<Modal show={editQtyOpen} onClose={closeEditQtyModal} maxWidth="md">
+				<form onSubmit={submitEditQty} className="p-6">
+					<h3 className="text-lg font-semibold text-gray-900 mb-4">
+						Edit Quantity
+					</h3>
+					<p className="text-sm text-gray-700">
+						{editQtyItem?.ProductName || "Selected item"}
+					</p>
+					<p className="text-xs text-gray-500 mt-1 mb-4">
+						Available stock: {editQtyItem?.maxQuantity ?? 0}
+					</p>
+					<label className="block text-sm font-medium text-gray-700 mb-1">
+						Quantity
+					</label>
+					<input
+						type="number"
+						step="1"
+						min="1"
+						max={editQtyItem?.maxQuantity || 1}
+						value={editQtyValue}
+						onChange={(e) => setEditQtyValue(e.target.value)}
+						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+					/>
+					{editQtyError && (
+						<p className="mt-2 text-sm text-red-600">{editQtyError}</p>
+					)}
+					<div className="mt-6 flex justify-end gap-2">
+						<button
+							type="button"
+							onClick={closeEditQtyModal}
+							className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+						>
+							Cancel
+						</button>
+						<button
+							type="submit"
+							className="px-4 py-2 text-sm rounded-md bg-[#D97736] text-white hover:bg-[#c2682e]"
+						>
+							Save Quantity
+						</button>
+					</div>
+				</form>
+			</Modal>
+
+			<Modal
+				show={walkInOpen}
+				onClose={() => setWalkInOpen(false)}
+				maxWidth="lg"
+			>
 				<form onSubmit={submitWalkIn} className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900 mb-4">Walk-In Sale</h3>
+					<h3 className="text-lg font-semibold text-gray-900 mb-4">
+						Walk-In Sale
+					</h3>
 					<div className="max-h-52 overflow-y-auto border border-gray-200 rounded-md p-3 mb-4 space-y-2">
 						{cartItems.map((item) => (
-							<div key={`walk-${item.ID}`} className="flex justify-between text-sm">
+							<div
+								key={`walk-${item.ID}`}
+								className="flex justify-between text-sm"
+							>
 								<span>
 									{item.ProductName} x{item.quantity}
 								</span>
@@ -440,7 +552,9 @@ export default function CashSale({ products = [], categories = [], customers = [
 							</div>
 						))}
 					</div>
-					<label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+					<label className="block text-sm font-medium text-gray-700 mb-1">
+						Amount
+					</label>
 					<input
 						type="number"
 						step="0.01"
@@ -448,9 +562,12 @@ export default function CashSale({ products = [], categories = [], customers = [
 						value={walkInForm.data.paidAmount}
 						onChange={(e) => walkInForm.setData("paidAmount", e.target.value)}
 						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+						placeholder="Cash Amount"
 					/>
 					{walkInForm.errors.paidAmount && (
-						<p className="mt-1 text-sm text-red-600">{walkInForm.errors.paidAmount}</p>
+						<p className="mt-1 text-sm text-red-600">
+							{walkInForm.errors.paidAmount}
+						</p>
 					)}
 					{!walkInForm.errors.paidAmount && walkInSubmitError && (
 						<p className="mt-1 text-sm text-red-600">{walkInSubmitError}</p>
@@ -466,7 +583,9 @@ export default function CashSale({ products = [], categories = [], customers = [
 						</p>
 					</div>
 					{walkInForm.errors.items && (
-						<p className="mt-2 text-sm text-red-600">{walkInForm.errors.items}</p>
+						<p className="mt-2 text-sm text-red-600">
+							{walkInForm.errors.items}
+						</p>
 					)}
 					<div className="mt-6 flex justify-end gap-2">
 						<button
@@ -493,9 +612,13 @@ export default function CashSale({ products = [], categories = [], customers = [
 				maxWidth="2xl"
 			>
 				<form onSubmit={submitConsignment} className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900 mb-4">Consignment Sale</h3>
+					<h3 className="text-lg font-semibold text-gray-900 mb-4">
+						Consignment Sale
+					</h3>
 
-					<label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+					<label className="block text-sm font-medium text-gray-700 mb-1">
+						Customer
+					</label>
 					<select
 						value={
 							consignmentForm.data.customerMode === "new"
@@ -522,7 +645,9 @@ export default function CashSale({ products = [], categories = [], customers = [
 						<option value="new">New Customer</option>
 					</select>
 					{consignmentForm.errors.CustomerID && (
-						<p className="mt-1 text-sm text-red-600">{consignmentForm.errors.CustomerID}</p>
+						<p className="mt-1 text-sm text-red-600">
+							{consignmentForm.errors.CustomerID}
+						</p>
 					)}
 
 					{consignmentForm.data.customerMode === "new" && (
@@ -581,7 +706,10 @@ export default function CashSale({ products = [], categories = [], customers = [
 							{newCustomerFieldErrors.length > 0 && (
 								<div className="mt-2 space-y-1">
 									{newCustomerFieldErrors.map((message, index) => (
-										<p key={`new-customer-error-${index}`} className="text-sm text-red-600">
+										<p
+											key={`new-customer-error-${index}`}
+											className="text-sm text-red-600"
+										>
 											{message}
 										</p>
 									))}
@@ -590,10 +718,15 @@ export default function CashSale({ products = [], categories = [], customers = [
 						</div>
 					)}
 
-					<p className="mt-4 text-sm font-semibold text-gray-700">Item Summaries</p>
+					<p className="mt-4 text-sm font-semibold text-gray-700">
+						Item Summaries
+					</p>
 					<div className="mt-2 max-h-44 overflow-y-auto border border-gray-200 rounded-md p-3 mb-4 space-y-2">
 						{cartItems.map((item) => (
-							<div key={`consign-${item.ID}`} className="flex justify-between text-sm">
+							<div
+								key={`consign-${item.ID}`}
+								className="flex justify-between text-sm"
+							>
 								<span>
 									{item.ProductName} x{item.quantity}
 								</span>
@@ -619,20 +752,28 @@ export default function CashSale({ products = [], categories = [], customers = [
 								type="date"
 								min={tomorrowISO()}
 								value={consignmentForm.data.dueDate}
-								onChange={(e) => consignmentForm.setData("dueDate", e.target.value)}
+								onChange={(e) =>
+									consignmentForm.setData("dueDate", e.target.value)
+								}
 								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
 							/>
 							{consignmentForm.errors.dueDate && (
-								<p className="mt-1 text-sm text-red-600">{consignmentForm.errors.dueDate}</p>
+								<p className="mt-1 text-sm text-red-600">
+									{consignmentForm.errors.dueDate}
+								</p>
 							)}
 						</div>
 					</div>
 
 					{consignmentForm.errors.items && (
-						<p className="mt-2 text-sm text-red-600">{consignmentForm.errors.items}</p>
+						<p className="mt-2 text-sm text-red-600">
+							{consignmentForm.errors.items}
+						</p>
 					)}
 					{consignmentSubmitError && (
-						<p className="mt-2 text-sm text-red-600">{consignmentSubmitError}</p>
+						<p className="mt-2 text-sm text-red-600">
+							{consignmentSubmitError}
+						</p>
 					)}
 
 					<div className="mt-6 flex justify-end gap-2">
@@ -654,12 +795,21 @@ export default function CashSale({ products = [], categories = [], customers = [
 				</form>
 			</Modal>
 
-			<Modal show={shrinkageOpen} onClose={() => setShrinkageOpen(false)} maxWidth="lg">
+			<Modal
+				show={shrinkageOpen}
+				onClose={() => setShrinkageOpen(false)}
+				maxWidth="lg"
+			>
 				<form onSubmit={submitShrinkage} className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900 mb-4">Record Shrinkage</h3>
+					<h3 className="text-lg font-semibold text-gray-900 mb-4">
+						Record Shrinkage
+					</h3>
 					<div className="max-h-52 overflow-y-auto border border-gray-200 rounded-md p-3 mb-4 space-y-2">
 						{cartItems.map((item) => (
-							<div key={`shrinkage-${item.ID}`} className="flex justify-between text-sm">
+							<div
+								key={`shrinkage-${item.ID}`}
+								className="flex justify-between text-sm"
+							>
 								<span>
 									{item.ProductName} x{item.quantity}
 								</span>
@@ -671,8 +821,27 @@ export default function CashSale({ products = [], categories = [], customers = [
 						<span className="text-gray-600">Shrinkage Total Amount</span>
 						<span className="font-semibold">{currency(cartTotal)}</span>
 					</p>
+					<div className="mt-4">
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Shrinkage Reason
+						</label>
+						<select
+							value={shrinkageForm.data.reason}
+							onChange={(e) => shrinkageForm.setData("reason", e.target.value)}
+							className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+						>
+							<option value="Spoiled">Spoilage</option>
+						</select>
+					</div>
+					{shrinkageForm.errors.reason && (
+						<p className="mt-2 text-sm text-red-600">
+							{shrinkageForm.errors.reason}
+						</p>
+					)}
 					{shrinkageForm.errors.items && (
-						<p className="mt-2 text-sm text-red-600">{shrinkageForm.errors.items}</p>
+						<p className="mt-2 text-sm text-red-600">
+							{shrinkageForm.errors.items}
+						</p>
 					)}
 					{shrinkageSubmitError && (
 						<p className="mt-2 text-sm text-red-600">{shrinkageSubmitError}</p>
@@ -698,5 +867,3 @@ export default function CashSale({ products = [], categories = [], customers = [
 		</AuthenticatedLayout>
 	);
 }
-
-

@@ -184,6 +184,7 @@ class PosController extends Controller {
         'items' => 'required|array|min:1',
         'items.*.ProductID' => 'required|integer|exists:products,ID',
         'items.*.Quantity' => 'required|integer|min:1',
+        'reason' => 'required|in:Spoiled',
       ]);
 
       DB::transaction(function () use ($payload, $request) {
@@ -193,6 +194,7 @@ class PosController extends Controller {
           'UserID' => $request->user()->id,
           'Quantity' => $totalQuantity,
           'TotalAmount' => $totalAmount,
+          'Reason' => $payload['reason'],
           'DateAdded' => now(),
         ]);
 
