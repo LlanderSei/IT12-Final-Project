@@ -7,21 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
-class Sale extends Model implements Auditable {
+class Shrinkage extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
 
-  protected $table = 'sales';
+  protected $table = 'shrinkages';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
     'UserID',
-    'CustomerID',
+    'Quantity',
     'TotalAmount',
+    'Reason',
     'DateAdded',
   ];
 
   protected $casts = [
+    'Quantity' => 'integer',
     'TotalAmount' => 'decimal:2',
     'DateAdded' => 'datetime',
   ];
@@ -34,7 +36,7 @@ class Sale extends Model implements Auditable {
 
   public function transformAudit(array $data): array {
     $data['UserID'] = \Illuminate\Support\Facades\Auth::id();
-    $data['TableEdited'] = 'Sales';
+    $data['TableEdited'] = 'Shrinkages';
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
@@ -50,16 +52,8 @@ class Sale extends Model implements Auditable {
     return $this->belongsTo(User::class, 'UserID');
   }
 
-  public function customer() {
-    return $this->belongsTo(Customer::class, 'CustomerID');
-  }
-
-  public function payment() {
-    return $this->hasOne(Payment::class, 'SalesID');
-  }
-
-  public function soldProducts() {
-    return $this->hasMany(SoldProduct::class, 'SalesID');
+  public function shrinkedProducts() {
+    return $this->hasMany(ShrinkedProduct::class, 'ShrinkageID');
   }
 }
 

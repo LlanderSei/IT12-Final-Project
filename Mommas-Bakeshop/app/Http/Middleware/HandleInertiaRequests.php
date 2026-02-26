@@ -27,6 +27,7 @@ class HandleInertiaRequests extends Middleware {
    */
   public function share(Request $request): array {
     $user = $request->user();
+    $user?->loadMissing('role');
 
     return [
       ...parent::share($request),
@@ -35,7 +36,7 @@ class HandleInertiaRequests extends Middleware {
           'id'    => $user->id,
           'name'  => $user->FullName,
           'email' => $user->email,
-          'role'  => strtolower($user->Roles ?? 'admin'),
+          'role'  => strtolower($user->role?->RoleName ?? 'admin'),
         ] : null,
       ],
       'flash' => [

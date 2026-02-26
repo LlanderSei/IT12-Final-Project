@@ -30,7 +30,7 @@ Route::middleware('auth')->group(function () {
   Route::get('/pos/consignments', [PosController::class, 'consignments'])->name('pos.consignments');
   Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->name('pos.checkout.walk-in');
   Route::post('/pos/checkout/consignment', [PosController::class, 'checkoutConsignment'])->name('pos.checkout.consignment');
-  Route::post('/pos/checkout/spoilage', [PosController::class, 'recordSpoilage'])->name('pos.checkout.spoilage');
+  Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->name('pos.checkout.shrinkage');
 
   // Inventory
   Route::get('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'index'])->name('inventory.levels');
@@ -39,7 +39,9 @@ Route::middleware('auth')->group(function () {
   Route::delete('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'destroy'])->name('inventory.levels.destroy');
 
   Route::post('/inventory/stock-in', [\App\Http\Controllers\InventoryController::class, 'storeStockIn'])->name('inventory.stock-in.store');
+  Route::put('/inventory/stock-in/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockIn'])->name('inventory.stock-in.update');
   Route::post('/inventory/stock-out', [\App\Http\Controllers\InventoryController::class, 'storeStockOut'])->name('inventory.stock-out.store');
+  Route::put('/inventory/stock-out/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockOut'])->name('inventory.stock-out.update');
 
   Route::get('/inventory/products', [\App\Http\Controllers\ProductController::class, 'index'])->name('inventory.products');
   Route::post('/inventory/products', [\App\Http\Controllers\ProductController::class, 'store'])->name('inventory.products.store');
@@ -65,3 +67,4 @@ Route::middleware('auth')->group(function () {
 
 
 require __DIR__ . '/auth.php';
+

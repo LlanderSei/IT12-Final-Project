@@ -1,18 +1,43 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, useForm } from "@inertiajs/react";
 import Inventory from "./InventoryLevelsSubviews/Inventory";
 import StockIn from "./InventoryLevelsSubviews/StockIn";
 import StockOut from "./InventoryLevelsSubviews/StockOut";
+import StockMovementModal, {
+	createDefaultStockInDraft,
+	createDefaultStockOutDraft,
+} from "./InventoryLevelsSubviews/StockMovementModal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 
 export default function InventoryLevelsTabs({
 	inventory,
+	products,
+	categories,
 	stockIns,
 	stockOuts,
-	users,
 }) {
-	const tabs = ["Inventory", "Stock-In (Raw)", "Stock-Out (Kitchen)"];
+	const parseStockOutReason = (reason) => {
+		const value = String(reason || "").trim();
+		if (!value) {
+			return { ReasonType: "", ReasonNote: "" };
+		}
+
+		const separator = " | ";
+		if (!value.includes(separator)) {
+			return { ReasonType: "", ReasonNote: value };
+		}
+
+		const [type, ...notes] = value.split(separator);
+		return {
+			ReasonType: String(type || "").trim(),
+			ReasonNote: notes.join(separator).trim(),
+		};
+	};
+
+	const STOCK_IN_DRAFT_KEY = "inventory.stock_in_draft.v1";
+	const STOCK_OUT_DRAFT_KEY = "inventory.stock_out_draft.v1";
+	const tabs = ["Inventory", "Stock-In", "Stock-Out"];
 	const [activeTab, setActiveTab] = useState(tabs[0]);
 
 	// Modal States
@@ -21,6 +46,45 @@ export default function InventoryLevelsTabs({
 	const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
 	const [isStockOutModalOpen, setIsStockOutModalOpen] = useState(false);
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+	const [stockInDraft, setStockInDraft] = useState(createDefaultStockInDraft);
+	const [editingStockInID, setEditingStockInID] = useState(null);
+	const [stockOutDraft, setStockOutDraft] = useState(
+		createDefaultStockOutDraft,
+	);
+	const [editingStockOutID, setEditingStockOutID] = useState(null);
+
+	useEffect(() => {
+		try {
+			const raw = sessionStorage.getItem(STOCK_IN_DRAFT_KEY);
+			if (raw) {
+				setStockInDraft(JSON.parse(raw));
+			}
+		} catch (_e) {}
+	}, []);
+
+	useEffect(() => {
+		try {
+			sessionStorage.setItem(STOCK_IN_DRAFT_KEY, JSON.stringify(stockInDraft));
+		} catch (_e) {}
+	}, [stockInDraft]);
+
+	useEffect(() => {
+		try {
+			const raw = sessionStorage.getItem(STOCK_OUT_DRAFT_KEY);
+			if (raw) {
+				setStockOutDraft(JSON.parse(raw));
+			}
+		} catch (_e) {}
+	}, []);
+
+	useEffect(() => {
+		try {
+			sessionStorage.setItem(
+				STOCK_OUT_DRAFT_KEY,
+				JSON.stringify(stockOutDraft),
+			);
+		} catch (_e) {}
+	}, [stockOutDraft]);
 
 	// Forms
 	const itemForm = useForm({
@@ -32,24 +96,15 @@ export default function InventoryLevelsTabs({
 		Quantity: 0,
 	});
 
-	const stockInForm = useForm({
-		InventoryID: "",
-		Supplier: "",
-		PricePerUnit: "",
-		QuantityAdded: "",
-		AdditionalDetails: "",
-	});
+	const stockInForm = useForm({});
 
-	const stockOutForm = useForm({
-		InventoryID: "",
-		QuantityRemoved: "",
-		Reason: "",
-	});
+	const stockOutForm = useForm({});
 
 	// Handlers
 	const openAddItemModal = () => {
 		setEditingItem(null);
 		itemForm.reset();
+		itemForm.setData("Quantity", 0);
 		setIsItemModalOpen(true);
 	};
 
@@ -88,24 +143,151 @@ export default function InventoryLevelsTabs({
 		});
 	};
 
-	const submitStockIn = (e) => {
-		e.preventDefault();
-		stockInForm.post(route("inventory.stock-in.store"), {
+	const handleRecordStockIn = (payload) => {
+		stockInForm.transform(() => payload);
+		const routeName = editingStockInID
+			? route("inventory.stock-in.update", editingStockInID)
+			: route("inventory.stock-in.store");
+		const method = editingStockInID ? "put" : "post";
+
+		stockInForm[method](routeName, {
 			onSuccess: () => {
+				setStockInDraft(createDefaultStockInDraft());
+				sessionStorage.removeItem(STOCK_IN_DRAFT_KEY);
+				setEditingStockInID(null);
 				setIsStockInModalOpen(false);
-				stockInForm.reset();
 			},
+			preserveScroll: true,
 		});
 	};
 
-	const submitStockOut = (e) => {
-		e.preventDefault();
-		stockOutForm.post(route("inventory.stock-out.store"), {
-			onSuccess: () => {
-				setIsStockOutModalOpen(false);
-				stockOutForm.reset();
-			},
+	const handleSaveAndCloseStockIn = (draft) => {
+		setStockInDraft(draft);
+		setIsStockInModalOpen(false);
+	};
+
+	const handleCancelAndClearStockIn = () => {
+		setStockInDraft(createDefaultStockInDraft());
+		sessionStorage.removeItem(STOCK_IN_DRAFT_KEY);
+		setEditingStockInID(null);
+		setIsStockInModalOpen(false);
+	};
+
+	const openStockInCreateModal = () => {
+		setEditingStockInID(null);
+		setIsStockInModalOpen(true);
+	};
+
+	const openEditStockInModal = (record) => {
+		const inventoryLines = [];
+		const productLines = [];
+
+		(record?.ItemsPurchased || []).forEach((item, idx) => {
+			const line = {
+				key: `edit-${record.ID}-${idx}-${Date.now()}`,
+				ItemType: item.ItemType,
+				InventoryID: item.InventoryID || null,
+				ProductID: item.ProductID || null,
+				ItemName: item.ItemName,
+				QuantityAdded: item.QuantityAdded,
+				UnitCost: item.UnitCost,
+				SubAmount: item.SubAmount,
+			};
+
+			if (item.ItemType === "Inventory") {
+				const inventoryItem = (inventory || []).find(
+					(x) => x.ID === item.InventoryID,
+				);
+				line.Measurement = inventoryItem?.Measurement || "units";
+				inventoryLines.push(line);
+			} else {
+				productLines.push(line);
+			}
 		});
+
+		setStockInDraft({
+			...createDefaultStockInDraft(),
+			details: {
+				Supplier: record.Supplier || "",
+				Source: record.Source || "Purchased",
+				PurchaseDate: record.PurchaseDate
+					? String(record.PurchaseDate).slice(0, 10)
+					: "",
+				ReceiptNumber: record.ReceiptNumber || "",
+				InvoiceNumber: record.InvoiceNumber || "",
+				AdditionalDetails: record.AdditionalDetails || "",
+			},
+			inventoryLines,
+			productLines,
+		});
+		setEditingStockInID(record.ID);
+		setIsStockInModalOpen(true);
+	};
+
+	const handleRecordStockOut = (payload) => {
+		stockOutForm.transform(() => payload);
+		const routeName = editingStockOutID
+			? route("inventory.stock-out.update", editingStockOutID)
+			: route("inventory.stock-out.store");
+		const method = editingStockOutID ? "put" : "post";
+
+		stockOutForm[method](routeName, {
+			onSuccess: () => {
+				setStockOutDraft(createDefaultStockOutDraft());
+				sessionStorage.removeItem(STOCK_OUT_DRAFT_KEY);
+				setEditingStockOutID(null);
+				setIsStockOutModalOpen(false);
+			},
+			preserveScroll: true,
+		});
+	};
+
+	const handleSaveAndCloseStockOut = (draft) => {
+		setStockOutDraft(draft);
+		setIsStockOutModalOpen(false);
+	};
+
+	const handleCancelAndClearStockOut = () => {
+		setStockOutDraft(createDefaultStockOutDraft());
+		sessionStorage.removeItem(STOCK_OUT_DRAFT_KEY);
+		setEditingStockOutID(null);
+		setIsStockOutModalOpen(false);
+	};
+
+	const openEditStockOutModal = (record) => {
+		const inventoryLines = [];
+		const productLines = [];
+		const parsedReason = parseStockOutReason(record?.Reason);
+
+		(record?.ItemsUsed || []).forEach((item, idx) => {
+			const line = {
+				key: `edit-out-${record.ID}-${idx}-${Date.now()}`,
+				ItemType: item.ItemType,
+				InventoryID: item.InventoryID || null,
+				ProductID: item.ProductID || null,
+				ItemName: item.ItemName,
+				QuantityRemoved: item.QuantityRemoved,
+			};
+
+			if (item.ItemType === "Inventory") {
+				inventoryLines.push(line);
+			} else {
+				productLines.push(line);
+			}
+		});
+
+		setStockOutDraft({
+			...createDefaultStockOutDraft(),
+			details: {
+				Source: "Business",
+				ReasonType: parsedReason.ReasonType,
+				ReasonNote: parsedReason.ReasonNote,
+			},
+			inventoryLines,
+			productLines,
+		});
+		setEditingStockOutID(record.ID);
+		setIsStockOutModalOpen(true);
 	};
 
 	const getStatus = (item) => {
@@ -156,11 +338,14 @@ export default function InventoryLevelsTabs({
 									getStatus={getStatus}
 								/>
 							)}
-							{activeTab === "Stock-In (Raw)" && (
-								<StockIn stockIns={stockIns} />
+							{activeTab === "Stock-In" && (
+								<StockIn stockIns={stockIns} onEdit={openEditStockInModal} />
 							)}
-							{activeTab === "Stock-Out (Kitchen)" && (
-								<StockOut stockOuts={stockOuts} />
+							{activeTab === "Stock-Out" && (
+								<StockOut
+									stockOuts={stockOuts}
+									onEdit={openEditStockOutModal}
+								/>
 							)}
 						</div>
 					</div>
@@ -177,13 +362,16 @@ export default function InventoryLevelsTabs({
 						Add Item
 					</button>
 					<button
-						onClick={() => setIsStockInModalOpen(true)}
+						onClick={openStockInCreateModal}
 						className="flex justify-center py-3 px-4 border border-[#D97736] rounded-md shadow-sm text-sm font-medium text-[#D97736] bg-white hover:bg-[#FDEFE6] transition-colors"
 					>
 						Stock-In
 					</button>
 					<button
-						onClick={() => setIsStockOutModalOpen(true)}
+						onClick={() => {
+							setEditingStockOutID(null);
+							setIsStockOutModalOpen(true);
+						}}
 						className="flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
 					>
 						Stock-Out
@@ -272,40 +460,20 @@ export default function InventoryLevelsTabs({
 												/>
 											</div>
 										</div>
-										<div className="grid grid-cols-2 gap-4">
-											<div>
-												<label className="block text-sm font-medium text-gray-700">
-													Initial Quantity
-												</label>
-												<input
-													type="number"
-													value={itemForm.data.Quantity}
-													onChange={(e) =>
-														itemForm.setData("Quantity", e.target.value)
-													}
-													min="0"
-													required
-													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-												/>
-											</div>
-											<div>
-												<label className="block text-sm font-medium text-gray-700">
-													Low Stock Threshold
-												</label>
-												<input
-													type="number"
-													value={itemForm.data.LowCountThreshold}
-													onChange={(e) =>
-														itemForm.setData(
-															"LowCountThreshold",
-															e.target.value,
-														)
-													}
-													min="0"
-													required
-													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-												/>
-											</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700">
+												Low Stock Threshold
+											</label>
+											<input
+												type="number"
+												value={itemForm.data.LowCountThreshold}
+												onChange={(e) =>
+													itemForm.setData("LowCountThreshold", e.target.value)
+												}
+												min="0"
+												required
+												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
+											/>
 										</div>
 									</div>
 								</div>
@@ -340,244 +508,42 @@ export default function InventoryLevelsTabs({
 				</div>
 			)}
 
-			{/* Stock-In Modal */}
-			{isStockInModalOpen && (
-				<div
-					className="fixed inset-0 z-50 overflow-y-auto"
-					aria-modal="true"
-					role="dialog"
-				>
-					<div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-						<div
-							className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-							onClick={() => setIsStockInModalOpen(false)}
-						/>
-						<div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
-							<form onSubmit={submitStockIn}>
-								<div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-									<h3 className="text-lg font-medium text-gray-900 border-b pb-3">
-										Stock-In (Restock)
-									</h3>
-									<div className="mt-4 space-y-4">
-										<div>
-											<label className="block text-sm font-medium text-gray-700">
-												Select Item
-											</label>
-											<select
-												value={stockInForm.data.InventoryID}
-												onChange={(e) =>
-													stockInForm.setData("InventoryID", e.target.value)
-												}
-												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-											>
-												<option value="">Select an Item</option>
-												{inventory?.map((item) => (
-													<option key={item.ID} value={item.ID}>
-														{item.ItemName} ({item.Quantity} {item.Measurement}{" "}
-														on hand)
-													</option>
-												))}
-											</select>
-										</div>
-										<div>
-											<label className="block text-sm font-medium text-gray-700">
-												Supplier
-											</label>
-											<input
-												type="text"
-												value={stockInForm.data.Supplier}
-												onChange={(e) =>
-													stockInForm.setData("Supplier", e.target.value)
-												}
-												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-											/>
-										</div>
-										<div className="grid grid-cols-2 gap-4">
-											<div>
-												<label className="block text-sm font-medium text-gray-700">
-													Price Per Unit (₱)
-												</label>
-												<input
-													type="number"
-													step="0.01"
-													value={stockInForm.data.PricePerUnit}
-													onChange={(e) =>
-														stockInForm.setData("PricePerUnit", e.target.value)
-													}
-													required
-													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-												/>
-											</div>
-											<div>
-												<label className="block text-sm font-medium text-gray-700">
-													Quantity Added
-												</label>
-												<input
-													type="number"
-													value={stockInForm.data.QuantityAdded}
-													onChange={(e) =>
-														stockInForm.setData("QuantityAdded", e.target.value)
-													}
-													min="1"
-													required
-													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-												/>
-											</div>
-										</div>
-										<div>
-											<label className="block text-sm font-medium text-gray-700">
-												Additional Details
-											</label>
-											<textarea
-												value={stockInForm.data.AdditionalDetails}
-												onChange={(e) =>
-													stockInForm.setData(
-														"AdditionalDetails",
-														e.target.value,
-													)
-												}
-												rows={2}
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-												placeholder="OR#, Lot#, etc."
-											/>
-										</div>
-									</div>
-								</div>
-								<div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-									<button
-										type="submit"
-										disabled={stockInForm.processing}
-										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-base font-medium text-white hover:bg-[#c2682e] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-									>
-										Record Stock-In
-									</button>
-									<button
-										type="button"
-										onClick={() => setIsStockInModalOpen(false)}
-										className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-									>
-										Cancel
-									</button>
-								</div>
-							</form>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* Stock-Out Modal */}
-			{isStockOutModalOpen && (
-				<div
-					className="fixed inset-0 z-50 overflow-y-auto"
-					aria-modal="true"
-					role="dialog"
-				>
-					<div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-						<div
-							className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-							onClick={() => setIsStockOutModalOpen(false)}
-						/>
-						<div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
-							<form onSubmit={submitStockOut}>
-								<div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-									<h3 className="text-lg font-medium text-gray-900 border-b pb-3">
-										Stock-Out (Usage)
-									</h3>
-									<div className="mt-4 space-y-4">
-										<div>
-											<label className="block text-sm font-medium text-gray-700">
-												Select Item
-											</label>
-											<select
-												value={stockOutForm.data.InventoryID}
-												onChange={(e) =>
-													stockOutForm.setData("InventoryID", e.target.value)
-												}
-												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-											>
-												<option value="">Select an Item</option>
-												{inventory?.map((item) => (
-													<option
-														key={item.ID}
-														value={item.ID}
-														disabled={item.Quantity <= 0}
-													>
-														{item.ItemName} ({item.Quantity} {item.Measurement}{" "}
-														available)
-													</option>
-												))}
-											</select>
-										</div>
-										<div>
-											<label className="block text-sm font-medium text-gray-700">
-												Quantity to Remove
-											</label>
-											<input
-												type="number"
-												value={stockOutForm.data.QuantityRemoved}
-												onChange={(e) =>
-													stockOutForm.setData(
-														"QuantityRemoved",
-														e.target.value,
-													)
-												}
-												min="1"
-												max={
-													inventory?.find(
-														(i) => i.ID == stockOutForm.data.InventoryID,
-													)?.Quantity
-												}
-												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-											/>
-										</div>
-										<div>
-											<label className="block text-sm font-medium text-gray-700">
-												Reason
-											</label>
-											<select
-												value={stockOutForm.data.Reason}
-												onChange={(e) =>
-													stockOutForm.setData("Reason", e.target.value)
-												}
-												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
-											>
-												<option value="">Select Reason</option>
-												<option value="Kitchen Usage">Kitchen Usage</option>
-												<option value="Damaged/Spoiled">Damaged/Spoiled</option>
-												<option value="Inventory Correction">
-													Inventory Correction
-												</option>
-												<option value="Expired">Expired</option>
-											</select>
-										</div>
-									</div>
-								</div>
-								<div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-									<button
-										type="submit"
-										disabled={stockOutForm.processing}
-										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-base font-medium text-white hover:bg-[#c2682e] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-									>
-										Record Stock-Out
-									</button>
-									<button
-										type="button"
-										onClick={() => setIsStockOutModalOpen(false)}
-										className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-									>
-										Cancel
-									</button>
-								</div>
-							</form>
-						</div>
-					</div>
-				</div>
-			)}
+			<StockMovementModal
+				mode="in"
+				show={isStockInModalOpen}
+				draft={stockInDraft}
+				setDraft={setStockInDraft}
+				inventory={inventory}
+				products={products}
+				categories={categories}
+				processing={stockInForm.processing}
+				errors={stockInForm.errors}
+				onRecord={handleRecordStockIn}
+				onSaveAndClose={handleSaveAndCloseStockIn}
+				onCancelAndClear={handleCancelAndClearStockIn}
+				title={editingStockInID ? "Edit Stock-In Batch" : "Stock-In Batch"}
+				submitLabel={
+					editingStockInID ? "Save Stock-In Changes" : "Record Stock-In"
+				}
+			/>
+			<StockMovementModal
+				mode="out"
+				show={isStockOutModalOpen}
+				draft={stockOutDraft}
+				setDraft={setStockOutDraft}
+				inventory={inventory}
+				products={products}
+				categories={categories}
+				processing={stockOutForm.processing}
+				errors={stockOutForm.errors}
+				onRecord={handleRecordStockOut}
+				onSaveAndClose={handleSaveAndCloseStockOut}
+				onCancelAndClear={handleCancelAndClearStockOut}
+				title={editingStockOutID ? "Edit Stock-Out Batch" : "Stock-Out Batch"}
+				submitLabel={
+					editingStockOutID ? "Save Stock-Out Changes" : "Record Stock-Out"
+				}
+			/>
 
 			{/* Delete Confirmation */}
 			<ConfirmationModal

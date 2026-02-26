@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BuildsReadableAuditChanges;
 use Illuminate\Database\Eloquent\Model;
 
 use OwenIt\Auditing\Contracts\Auditable;
 
 class Category extends Model implements Auditable {
-  use \OwenIt\Auditing\Auditable;
-  protected $table = 'Categories';
+  use \OwenIt\Auditing\Auditable, BuildsReadableAuditChanges;
+  protected $table = 'categories';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
@@ -36,6 +37,8 @@ class Category extends Model implements Auditable {
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
+    $data['ReadableChanges'] = $this->buildReadableChanges($data);
+    $data['Source'] = 'Application';
     $data['DateAdded'] = now();
 
     return $data;
@@ -46,3 +49,5 @@ class Category extends Model implements Auditable {
     return $this->hasMany(Product::class, 'CategoryID');
   }
 }
+
+

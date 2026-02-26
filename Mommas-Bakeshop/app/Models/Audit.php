@@ -5,7 +5,7 @@ namespace App\Models;
 use OwenIt\Auditing\Models\Audit as BaseAudit;
 
 class Audit extends BaseAudit {
-  protected $table = 'Audits';
+  protected $table = 'audits';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
@@ -14,7 +14,9 @@ class Audit extends BaseAudit {
     'TableEdited',
     'PreviousChanges',
     'SavedChanges',
+    'ReadableChanges',
     'Action',
+    'Source',
     'DateAdded',
   ];
 

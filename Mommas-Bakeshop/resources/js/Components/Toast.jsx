@@ -5,23 +5,55 @@ export default function Toast() {
 	const { flash } = usePage().props;
 	const [visible, setVisible] = useState(false);
 	const [message, setMessage] = useState("");
+	const [messages, setMessages] = useState([]);
 	const [type, setType] = useState("success"); // 'success' or 'error'
 
 	useEffect(() => {
 		if (flash.success) {
 			setMessage(flash.success);
+			setMessages([]);
 			setType("success");
 			setVisible(true);
 			const timer = setTimeout(() => setVisible(false), 3000);
 			return () => clearTimeout(timer);
 		} else if (flash.error) {
 			setMessage(flash.error);
+			setMessages([]);
 			setType("error");
 			setVisible(true);
 			const timer = setTimeout(() => setVisible(false), 3000);
 			return () => clearTimeout(timer);
 		}
 	}, [flash]);
+
+	useEffect(() => {
+		const handler = (event) => {
+			const detail = event?.detail || {};
+			const incomingMessages = (detail.messages || [])
+				.flatMap((v) => (Array.isArray(v) ? v : [v]))
+				.filter(Boolean)
+				.map(String);
+
+			setType(detail.type === "success" ? "success" : "error");
+			if (incomingMessages.length > 0) {
+				setMessages(incomingMessages);
+				setMessage("");
+			} else {
+				setMessages([]);
+				setMessage(String(detail.message || ""));
+			}
+			setVisible(true);
+		};
+
+		window.addEventListener("app-toast", handler);
+		return () => window.removeEventListener("app-toast", handler);
+	}, []);
+
+	useEffect(() => {
+		if (!visible) return;
+		const timer = setTimeout(() => setVisible(false), 5000);
+		return () => clearTimeout(timer);
+	}, [visible, message, messages, type]);
 
 	if (!visible) return null;
 
@@ -91,7 +123,20 @@ export default function Toast() {
 						<line x1="9" y1="9" x2="15" y2="15"></line>
 					</svg>
 				)}
-				{message}
+				{messages.length > 0 ? (
+					<div>
+						<div style={{ fontWeight: 700, marginBottom: "4px" }}>
+							Please fix the following:
+						</div>
+						<ul style={{ margin: 0, paddingLeft: "18px" }}>
+							{messages.map((msg, i) => (
+								<li key={i}>{msg}</li>
+							))}
+						</ul>
+					</div>
+				) : (
+					message
+				)}
 			</div>
 		</>
 	);

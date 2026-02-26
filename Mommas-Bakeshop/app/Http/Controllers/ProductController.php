@@ -4,14 +4,39 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\ProductionBatch;
+use App\Models\ProductionBatchDetail;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller {
   public function index() {
     $products = Product::with('category')->get();
     $categories = Category::all();
-    $batches = \App\Models\ProductionBatch::with(['product', 'user'])->orderBy('DateAdded', 'desc')->get();
+    $batches = ProductionBatchDetail::with(['user', 'batches.product'])
+      ->orderBy('DateAdded', 'desc')
+      ->get()
+      ->map(function ($detail) {
+        $items = $detail->batches->map(function ($line) {
+          return [
+            'ProductID' => $line->ProductID,
+            'ItemName' => $line->product?->ProductName ?? 'Deleted Product',
+            'QuantityProduced' => (int) ($line->QuantityProduced ?? 0),
+          ];
+        })->values();
+
+        return [
+          'ID' => $detail->ID,
+          'user' => $detail->user,
+          'BatchDescription' => $detail->BatchDescription,
+          // Always derive from actual batch lines to avoid stale/legacy counter mismatches.
+          'TotalQuantity' => (int) $items->sum('QuantityProduced'),
+          'DateAdded' => $detail->DateAdded,
+          'ItemsProduced' => $items,
+        ];
+      });
 
     return Inertia::render('Inventory/ProductsAndBatchesTabs', [
       'products' => $products,
@@ -24,7 +49,7 @@ class ProductController extends Controller {
     $data = $request->validate([
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
-      'CategoryID' => 'required|exists:Categories,ID',
+      'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
       'ProductImage' => 'nullable|string',
       'LowStockThreshold' => 'nullable|integer|min:0',
@@ -37,7 +62,6 @@ class ProductController extends Controller {
       'ProductImage' => $data['ProductImage'] ?? 'default.png',
       'Price' => $data['Price'],
       'Quantity' => '0',
-      'Status' => 'No Stock',
       'LowStockThreshold' => $data['LowStockThreshold'] ?? 10,
       'DateAdded' => now(),
       'DateModified' => now(),
@@ -52,7 +76,7 @@ class ProductController extends Controller {
     $data = $request->validate([
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
-      'CategoryID' => 'required|exists:Categories,ID',
+      'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
       'ProductImage' => 'nullable|string',
       'LowStockThreshold' => 'nullable|integer|min:0',
@@ -80,39 +104,96 @@ class ProductController extends Controller {
 
   public function storeBatch(Request $request) {
     $data = $request->validate([
-      'ProductID' => 'required|exists:Products,ID',
-      'QuantityAdded' => 'required|integer|min:1',
+      'items' => 'required|array|min:1',
+      'items.*.ProductID' => 'nullable|integer',
+      'items.*.QuantityProduced' => 'required|integer|min:1',
+      'items.*.CreateProduct' => 'nullable|array',
       'BatchDescription' => 'nullable|string',
     ]);
 
-    \Illuminate\Support\Facades\DB::transaction(function () use ($data, $request) {
-      // Create the batch record
-      \App\Models\ProductionBatch::create([
+    DB::transaction(function () use ($data, $request) {
+      [$rows, $totalQuantity] = $this->parseBatchItems($data['items']);
+
+      $batchDetails = ProductionBatchDetail::create([
         'UserID' => $request->user()->id,
-        'ProductID' => $data['ProductID'],
         'BatchDescription' => $data['BatchDescription'] ?? null,
-        'QuantityAdded' => $data['QuantityAdded'],
+        // DB trigger updates this as each production_batch row is inserted.
+        'TotalProductsProduced' => 0,
         'DateAdded' => now(),
       ]);
 
-      // Update the product quantity and status
-      $product = Product::findOrFail($data['ProductID']);
-      $newQuantity = (int)$product->Quantity + (int)$data['QuantityAdded'];
+      foreach ($rows as $row) {
+        ProductionBatch::create([
+          'BatchDetailsID' => $batchDetails->ID,
+          'ProductID' => $row['ProductID'],
+          'QuantityProduced' => $row['QuantityProduced'],
+          'DateAdded' => now(),
+        ]);
 
-      $status = 'On Stock';
-      if ($newQuantity == 0) {
-        $status = 'No Stock';
-      } elseif ($newQuantity <= ($product->LowStockThreshold ?? 10)) {
-        $status = 'Low Stock';
+        // Trigger updates quantity. Keep DateModified in sync.
+        $product = Product::findOrFail($row['ProductID']);
+        $product->update([
+          'DateModified' => now(),
+        ]);
       }
-
-      $product->update([
-        'Quantity' => $newQuantity,
-        'Status' => $status,
-        'DateModified' => now(),
-      ]);
     });
 
     return redirect()->back()->with('success', 'Batch recorded successfully and inventory updated.');
+  }
+
+  private function parseBatchItems(array $items): array {
+    $rows = [];
+    $totalQuantity = 0;
+
+    foreach ($items as $item) {
+      $quantityProduced = (int) ($item['QuantityProduced'] ?? 0);
+      $productID = null;
+
+      if (!empty($item['CreateProduct'])) {
+        $create = $item['CreateProduct'];
+        $required = ['ProductName', 'CategoryID', 'Price'];
+        foreach ($required as $field) {
+          if (empty($create[$field])) {
+            throw ValidationException::withMessages([
+              "items.$field" => "Product $field is required.",
+            ]);
+          }
+        }
+
+        Category::findOrFail((int) $create['CategoryID']);
+
+        $product = Product::create([
+          'ProductName' => $create['ProductName'],
+          'ProductDescription' => $create['ProductDescription'] ?? '',
+          'CategoryID' => (int) $create['CategoryID'],
+          'ProductImage' => $create['ProductImage'] ?? null,
+          'ProductFrom' => 'Produced',
+          'Price' => (string) $create['Price'],
+          'Quantity' => 0,
+          'LowStockThreshold' => (int) ($create['LowStockThreshold'] ?? 10),
+          'DateAdded' => now(),
+          'DateModified' => now(),
+        ]);
+
+        $productID = $product->ID;
+      } else {
+        $productID = (int) ($item['ProductID'] ?? 0);
+        $product = Product::findOrFail($productID);
+        if (strtolower((string) $product->ProductFrom) !== 'produced') {
+          throw ValidationException::withMessages([
+            'items' => 'Only products tagged as Produced can be added in Production Batches existing items.',
+          ]);
+        }
+      }
+
+      $rows[] = [
+        'ProductID' => $productID,
+        'QuantityProduced' => $quantityProduced,
+      ];
+
+      $totalQuantity += $quantityProduced;
+    }
+
+    return [$rows, $totalQuantity];
   }
 }

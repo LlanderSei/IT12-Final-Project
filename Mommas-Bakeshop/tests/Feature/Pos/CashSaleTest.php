@@ -7,8 +7,8 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SoldProduct;
-use App\Models\Spoilage;
-use App\Models\SpoiledProduct;
+use App\Models\Shrinkage;
+use App\Models\ShrinkedProduct;
 use App\Models\User;
 
 function createPosProduct(int $quantity = 20, float $price = 100): Product {
@@ -173,19 +173,19 @@ test('consignment due date today is rejected', function () {
     ->assertSessionHasErrors('dueDate');
 });
 
-test('spoilage creates spoilage spoiled-products and decrements stock', function () {
+test('shrinkage creates shrinkage shrinked-products and decrements stock', function () {
   $user = User::factory()->create();
   $this->actingAs($user);
   $product = createPosProduct(10, 60);
 
-  $this->post(route('pos.checkout.spoilage'), [
+  $this->post(route('pos.checkout.shrinkage'), [
     'items' => [
       ['ProductID' => $product->ID, 'Quantity' => 4],
     ],
   ])->assertSessionHasNoErrors();
 
-  expect(Spoilage::count())->toBe(1);
-  expect(SpoiledProduct::count())->toBe(1);
+  expect(Shrinkage::count())->toBe(1);
+  expect(ShrinkedProduct::count())->toBe(1);
   expect((int)$product->fresh()->Quantity)->toBe(6);
 });
 
@@ -223,3 +223,4 @@ test('audits are written for checkout related records and product update', funct
   expect(Audit::where('TableEdited', 'SoldProducts')->exists())->toBeTrue();
   expect(Audit::where('TableEdited', 'Products')->exists())->toBeTrue();
 });
+

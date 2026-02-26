@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BuildsReadableAuditChanges;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
 class Product extends Model implements Auditable {
-  use AuditableTrait;
+  use AuditableTrait, BuildsReadableAuditChanges;
 
-  protected $table = 'Products';
+  protected $table = 'products';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
@@ -18,9 +19,9 @@ class Product extends Model implements Auditable {
     'ProductDescription',
     'CategoryID',
     'ProductImage',
+    'ProductFrom',
     'Price',
     'Quantity',
-    'Status',
     'LowStockThreshold',
     'DateAdded',
     'DateModified',
@@ -38,6 +39,8 @@ class Product extends Model implements Auditable {
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
+    $data['ReadableChanges'] = $this->buildReadableChanges($data);
+    $data['Source'] = 'Application';
     $data['DateAdded'] = now();
 
     // Remove default keys to avoid confusion, though our Audit model will only fill what's in $fillable
@@ -62,7 +65,10 @@ class Product extends Model implements Auditable {
     return $this->hasMany(SoldProduct::class, 'ProductID');
   }
 
-  public function spoiledProducts() {
-    return $this->hasMany(SpoiledProduct::class, 'ProductID');
+  public function shrinkedProducts() {
+    return $this->hasMany(ShrinkedProduct::class, 'ProductID');
   }
 }
+
+
+
