@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
+import { useEffect } from "react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 
 export default function Products({ products, categories }) {
@@ -18,6 +19,8 @@ export default function Products({ products, categories }) {
 	const [maxPrice, setMaxPrice] = useState("");
 	const [minQty, setMinQty] = useState("");
 	const [maxQty, setMaxQty] = useState("");
+	const [currentPage, setCurrentPage] = useState(1);
+	const [itemsPerPage, setItemsPerPage] = useState(25);
 
 	const categoryOptions = useMemo(
 		() => [...new Set((products || []).map((p) => p.category?.CategoryName).filter(Boolean))],
@@ -302,6 +305,25 @@ export default function Products({ products, categories }) {
 		sortConfig,
 	]);
 
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [searchQuery, categoryFilter, productFromFilter, statusFilter, minPrice, maxPrice, minQty, maxQty, sortConfig, itemsPerPage]);
+
+	const totalPages = Math.max(1, Math.ceil(filteredAndSortedProducts.length / itemsPerPage));
+	const safeCurrentPage = Math.min(currentPage, totalPages);
+	const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+	const paginatedProducts = filteredAndSortedProducts.slice(startIndex, startIndex + itemsPerPage);
+	const pageNumberWindow = 2;
+	const pageStart = Math.max(1, safeCurrentPage - pageNumberWindow);
+	const pageEnd = Math.min(totalPages, safeCurrentPage + pageNumberWindow);
+	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
+	const canGoPrevious = safeCurrentPage > 1;
+	const canGoNext = safeCurrentPage < totalPages;
+
+	const goToPage = (page) => {
+		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
+	};
+
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
 			<div className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -338,7 +360,7 @@ export default function Products({ products, categories }) {
 									</div>
 									<input
 										type="text"
-										className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+										className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
 										placeholder="Search products by name, price, quantity, or status..."
 										value={searchQuery}
 										onChange={(e) => setSearchQuery(e.target.value)}
@@ -351,7 +373,7 @@ export default function Products({ products, categories }) {
 												<select
 													value={categoryFilter}
 													onChange={(e) => setCategoryFilter(e.target.value)}
-													className="w-44 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-44 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												>
 													<option value="all">All Categories</option>
 													{categoryOptions.map((categoryName) => (
@@ -363,7 +385,7 @@ export default function Products({ products, categories }) {
 												<select
 													value={productFromFilter}
 													onChange={(e) => setProductFromFilter(e.target.value)}
-													className="w-40 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												>
 													<option value="all">All Sources</option>
 													{productFromOptions.map((value) => (
@@ -375,7 +397,7 @@ export default function Products({ products, categories }) {
 												<select
 													value={statusFilter}
 													onChange={(e) => setStatusFilter(e.target.value)}
-													className="w-36 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-36 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												>
 													<option value="all">All Status</option>
 													<option value="on_stock">On Stock</option>
@@ -389,7 +411,7 @@ export default function Products({ products, categories }) {
 													placeholder="Min Price"
 													value={minPrice}
 													onChange={(e) => setMinPrice(e.target.value)}
-													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												/>
 												<input
 													type="number"
@@ -398,7 +420,7 @@ export default function Products({ products, categories }) {
 													placeholder="Max Price"
 													value={maxPrice}
 													onChange={(e) => setMaxPrice(e.target.value)}
-													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												/>
 												<input
 													type="number"
@@ -406,7 +428,7 @@ export default function Products({ products, categories }) {
 													placeholder="Min Qty"
 													value={minQty}
 													onChange={(e) => setMinQty(e.target.value)}
-													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												/>
 												<input
 													type="number"
@@ -414,7 +436,7 @@ export default function Products({ products, categories }) {
 													placeholder="Max Qty"
 													value={maxQty}
 													onChange={(e) => setMaxQty(e.target.value)}
-													className="w-32 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-32 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												/>
 											</div>
 										</div>
@@ -423,7 +445,7 @@ export default function Products({ products, categories }) {
 									<button
 										type="button"
 										onClick={resetFilters}
-										className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+										className="shrink-0 rounded-md border border-primary bg-white px-3 py-2 text-xs font-medium text-primary shadow-sm hover:bg-primary-soft"
 									>
 										Reset Filters
 									</button>
@@ -431,8 +453,9 @@ export default function Products({ products, categories }) {
 							</div>
 
 							{/* Table */}
-							<div className="border rounded-lg border-gray-200 flex-1 overflow-y-auto">
-								<table className="min-w-full divide-y divide-gray-200">
+								<div className="border rounded-lg border-gray-200 flex-1 min-h-0 flex flex-col overflow-hidden">
+									<div className="flex-1 overflow-y-auto">
+									<table className="min-w-full divide-y divide-gray-200">
 									<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
 										<tr>
 											<th
@@ -528,7 +551,7 @@ export default function Products({ products, categories }) {
 										</tr>
 									</thead>
 									<tbody className="bg-white divide-y divide-gray-200">
-										{filteredAndSortedProducts.map((product) => (
+											{paginatedProducts.map((product) => (
 											<tr key={product.ID} className="hover:bg-gray-50">
 												<td className="px-6 py-4 whitespace-nowrap">
 													<div className="text-sm font-medium text-gray-900">
@@ -571,7 +594,7 @@ export default function Products({ products, categories }) {
 												<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
 													<button
 														onClick={() => openEditModal(product)}
-														className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+														className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
 													>
 														Edit
 													</button>
@@ -589,8 +612,76 @@ export default function Products({ products, categories }) {
 											</tr>
 										)}
 									</tbody>
-								</table>
-							</div>
+									</table>
+									</div>
+									<div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+										<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+											<div className="text-sm text-gray-600">
+												Showing {filteredAndSortedProducts.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredAndSortedProducts.length)} of {filteredAndSortedProducts.length}
+											</div>
+											<div className="flex flex-wrap items-center gap-2">
+												<label htmlFor="products-items-per-page" className="text-sm text-gray-600">Items per page</label>
+												<select
+													id="products-items-per-page"
+													value={itemsPerPage}
+													onChange={(e) => setItemsPerPage(Number(e.target.value))}
+													className="rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+												>
+													<option value={25}>25</option>
+													<option value={50}>50</option>
+													<option value={100}>100</option>
+													<option value={500}>500</option>
+												</select>
+												<button
+													type="button"
+													onClick={() => goToPage(1)}
+													disabled={!canGoPrevious}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													First
+												</button>
+												<button
+													type="button"
+													onClick={() => goToPage(safeCurrentPage - 1)}
+													disabled={!canGoPrevious}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													Previous
+												</button>
+												{pageNumbers.map((page) => (
+													<button
+														key={page}
+														type="button"
+														onClick={() => goToPage(page)}
+														className={`rounded-md px-3 py-1.5 text-sm ${
+															page === safeCurrentPage
+																? "border border-primary bg-primary text-white"
+																: "border border-gray-300 text-gray-700 hover:bg-gray-50"
+														}`}
+													>
+														{page}
+													</button>
+												))}
+												<button
+													type="button"
+													onClick={() => goToPage(safeCurrentPage + 1)}
+													disabled={!canGoNext}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													Next
+												</button>
+												<button
+													type="button"
+													onClick={() => goToPage(totalPages)}
+													disabled={!canGoNext}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													Last
+												</button>
+											</div>
+										</div>
+									</div>
+								</div>
 						</div>
 					</div>
 				</div>
@@ -601,13 +692,13 @@ export default function Products({ products, categories }) {
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4">
 					<button
 						onClick={openModifyCategories}
-						className="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+						className="flex-1 flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
 					>
 						Modify Categories
 					</button>
 					<button
 						onClick={openAddModal}
-						className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+						className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
 					>
 						Add Products
 					</button>
@@ -618,13 +709,13 @@ export default function Products({ products, categories }) {
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 sm:hidden flex flex-col space-y-2">
 				<button
 					onClick={openModifyCategories}
-					className="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+					className="w-full flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
 				>
 					Modify Categories
 				</button>
 				<button
 					onClick={openAddModal}
-					className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+					className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
 				>
 					Add Products
 				</button>
@@ -680,7 +771,7 @@ export default function Products({ products, categories }) {
 															setData("ProductName", e.target.value)
 														}
 														required
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													/>
 													{errors.ProductName && (
 														<p className="mt-2 text-sm text-red-600">
@@ -704,7 +795,7 @@ export default function Products({ products, categories }) {
 															setData("ProductDescription", e.target.value)
 														}
 														rows={2}
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													/>
 												</div>
 
@@ -724,7 +815,7 @@ export default function Products({ products, categories }) {
 																setData("CategoryID", e.target.value)
 															}
 															required
-															className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+															className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 														>
 															<option value="" disabled>
 																Select a category
@@ -759,7 +850,7 @@ export default function Products({ products, categories }) {
 														value={data.Price}
 														onChange={(e) => setData("Price", e.target.value)}
 														required
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													/>
 													{errors.Price && (
 														<p className="mt-2 text-sm text-red-600">
@@ -785,7 +876,7 @@ export default function Products({ products, categories }) {
 															setData("LowStockThreshold", e.target.value)
 														}
 														required
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													/>
 													{errors.LowStockThreshold && (
 														<p className="mt-2 text-sm text-red-600">
@@ -801,7 +892,7 @@ export default function Products({ products, categories }) {
 									<button
 										type="submit"
 										disabled={processing}
-										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-base font-medium text-white hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
 									>
 										{editingProduct ? "Save Changes" : "Add Product"}
 									</button>
@@ -817,7 +908,7 @@ export default function Products({ products, categories }) {
 									<button
 										type="button"
 										onClick={closeModal}
-										className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+										className="mt-3 w-full inline-flex justify-center rounded-md border border-primary shadow-sm px-4 py-2 bg-white text-base font-medium text-primary hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
 									>
 										Cancel
 									</button>
@@ -871,7 +962,7 @@ export default function Products({ products, categories }) {
 												<button
 													type="button"
 													onClick={() => editCategory(cat)}
-													className="p-1 text-gray-400 hover:text-[#D97736]"
+													className="p-1 text-gray-400 hover:text-primary"
 												>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
@@ -928,13 +1019,13 @@ export default function Products({ products, categories }) {
 												}
 												placeholder="Category Name"
 												required
-												className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+												className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 											/>
 										</div>
 										<button
 											type="submit"
 											disabled={catProcessing}
-											className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-sm font-medium text-white hover:bg-[#c2682e] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] disabled:opacity-50"
+											className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-sm font-medium text-white hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
 										>
 											{editingCategory ? "Update" : "Save"}
 										</button>
@@ -942,7 +1033,7 @@ export default function Products({ products, categories }) {
 											<button
 												type="button"
 												onClick={cancelEditCategory}
-												className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736]"
+												className="inline-flex justify-center rounded-md border border-primary shadow-sm px-4 py-2 bg-white text-sm font-medium text-primary hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
 											>
 												Cancel
 											</button>
@@ -959,7 +1050,7 @@ export default function Products({ products, categories }) {
 								<button
 									type="button"
 									onClick={() => setIsCategoryModalOpen(false)}
-									className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D97736] sm:w-auto sm:text-sm"
+									className="w-full inline-flex justify-center rounded-md border border-primary shadow-sm px-4 py-2 bg-white text-base font-medium text-primary hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:w-auto sm:text-sm"
 								>
 									Close
 								</button>
@@ -993,3 +1084,6 @@ export default function Products({ products, categories }) {
 		</div>
 	);
 }
+
+
+

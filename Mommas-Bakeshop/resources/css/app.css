@@ -1,3 +1,21 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+	--color-primary: 255 175 48;
+	--color-primary-hover: 224 160 51;
+	--color-primary-active: 204 143 45;
+	--color-primary-soft: 255 244 218;
+	--color-primary-hex: #ff9e30;
+}
+
+@layer components {
+	.btn-solid {
+		@apply inline-flex items-center justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white transition duration-150 ease-in-out hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50;
+	}
+
+	.btn-hollow {
+		@apply inline-flex items-center justify-center rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary transition duration-150 ease-in-out hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50;
+	}
+}

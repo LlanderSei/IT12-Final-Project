@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { Head, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
@@ -322,12 +322,12 @@ export default function CashSale({
 								value={searchQuery}
 								onChange={(e) => setSearchQuery(e.target.value)}
 								placeholder="Search products..."
-								className="w-full md:flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+								className="w-full md:flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							/>
 							<select
 								value={selectedCategory}
 								onChange={(e) => setSelectedCategory(e.target.value)}
-								className="w-full md:w-56 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+								className="w-full md:w-56 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							>
 								<option value="all">All Categories</option>
 								{categories.map((category) => (
@@ -345,7 +345,7 @@ export default function CashSale({
 										key={product.ID}
 										type="button"
 										onClick={() => addToCart(product)}
-										className="text-left border border-gray-200 rounded-lg p-3 hover:border-[#D97736] hover:bg-[#fffaf6] transition-colors"
+										className="text-left border border-gray-200 rounded-lg p-3 hover:border-primary hover:bg-primary-soft transition-colors"
 									>
 										<div className="h-28 bg-gray-100 rounded-md mb-2 overflow-hidden">
 											{product.ProductImage ? (
@@ -371,7 +371,7 @@ export default function CashSale({
 										<p className="font-semibold text-gray-900 text-sm truncate">
 											{product.ProductName}
 										</p>
-										<p className="text-[#D97736] font-bold text-sm">
+										<p className="text-primary font-bold text-sm">
 											{currency(product.Price)}
 										</p>
 										<p className="text-xs text-gray-500">
@@ -420,21 +420,21 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => decrementItem(item.ID)}
-											className="px-2 py-1 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+											className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 										>
 											-
 										</button>
 										<button
 											type="button"
 											onClick={() => incrementItem(item.ID)}
-											className="px-2 py-1 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+											className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 										>
 											+
 										</button>
 										<button
 											type="button"
 											onClick={() => openEditQtyModal(item)}
-											className="px-2 py-1 text-xs rounded-md border border-[#D97736] text-[#D97736] hover:bg-[#fffaf6]"
+											className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary-soft"
 										>
 											Edit Qty.
 										</button>
@@ -466,7 +466,7 @@ export default function CashSale({
 							<select
 								value={transactionType}
 								onChange={(e) => setTransactionType(e.target.value)}
-								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							>
 								<option value="Walk-In">Walk-In</option>
 								<option value="Shrinkage">Shrinkage</option>
@@ -475,7 +475,7 @@ export default function CashSale({
 								type="button"
 								onClick={openCheckoutModal}
 								disabled={!cartItems.length}
-								className="w-full bg-[#D97736] text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-[#c2682e] disabled:opacity-40"
+								className="w-full bg-primary text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-primary-hover disabled:opacity-40"
 							>
 								{transactionType === "Shrinkage"
 									? "Record Shrinkage"
@@ -507,7 +507,7 @@ export default function CashSale({
 						max={editQtyItem?.maxQuantity || 1}
 						value={editQtyValue}
 						onChange={(e) => setEditQtyValue(e.target.value)}
-						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 					/>
 					{editQtyError && (
 						<p className="mt-2 text-sm text-red-600">{editQtyError}</p>
@@ -516,13 +516,13 @@ export default function CashSale({
 						<button
 							type="button"
 							onClick={closeEditQtyModal}
-							className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+							className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 						>
 							Cancel
 						</button>
 						<button
 							type="submit"
-							className="px-4 py-2 text-sm rounded-md bg-[#D97736] text-white hover:bg-[#c2682e]"
+							className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary-hover"
 						>
 							Save Quantity
 						</button>
@@ -561,7 +561,7 @@ export default function CashSale({
 						min="0"
 						value={walkInForm.data.paidAmount}
 						onChange={(e) => walkInForm.setData("paidAmount", e.target.value)}
-						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 						placeholder="Cash Amount"
 					/>
 					{walkInForm.errors.paidAmount && (
@@ -591,14 +591,14 @@ export default function CashSale({
 						<button
 							type="button"
 							onClick={() => setWalkInOpen(false)}
-							className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+							className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 						>
 							Cancel
 						</button>
 						<button
 							type="submit"
 							disabled={walkInForm.processing}
-							className="px-4 py-2 text-sm rounded-md bg-[#D97736] text-white hover:bg-[#c2682e] disabled:opacity-50"
+							className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
 						>
 							Confirm Sale
 						</button>
@@ -634,7 +634,7 @@ export default function CashSale({
 							consignmentForm.setData("customerMode", "existing");
 							consignmentForm.setData("CustomerID", e.target.value);
 						}}
-						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 					>
 						<option value="">Select existing customer</option>
 						{customers.map((customer) => (
@@ -755,7 +755,7 @@ export default function CashSale({
 								onChange={(e) =>
 									consignmentForm.setData("dueDate", e.target.value)
 								}
-								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							/>
 							{consignmentForm.errors.dueDate && (
 								<p className="mt-1 text-sm text-red-600">
@@ -780,14 +780,14 @@ export default function CashSale({
 						<button
 							type="button"
 							onClick={() => setConsignmentOpen(false)}
-							className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+							className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 						>
 							Cancel
 						</button>
 						<button
 							type="submit"
 							disabled={consignmentForm.processing}
-							className="px-4 py-2 text-sm rounded-md bg-[#D97736] text-white hover:bg-[#c2682e] disabled:opacity-50"
+							className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
 						>
 							Confirm Sale
 						</button>
@@ -828,7 +828,7 @@ export default function CashSale({
 						<select
 							value={shrinkageForm.data.reason}
 							onChange={(e) => shrinkageForm.setData("reason", e.target.value)}
-							className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-[#D97736] focus:border-[#D97736]"
+							className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 						>
 							<option value="Spoiled">Spoilage</option>
 						</select>
@@ -850,14 +850,14 @@ export default function CashSale({
 						<button
 							type="button"
 							onClick={() => setShrinkageOpen(false)}
-							className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+							className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 						>
 							Cancel
 						</button>
 						<button
 							type="submit"
 							disabled={shrinkageForm.processing}
-							className="px-4 py-2 text-sm rounded-md bg-[#D97736] text-white hover:bg-[#c2682e] disabled:opacity-50"
+							className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
 						>
 							Record Shrinkage
 						</button>
@@ -867,3 +867,7 @@ export default function CashSale({
 		</AuthenticatedLayout>
 	);
 }
+
+
+
+

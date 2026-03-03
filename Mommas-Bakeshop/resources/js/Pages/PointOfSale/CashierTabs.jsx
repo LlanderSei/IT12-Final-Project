@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Link } from "@inertiajs/react";
 
 const tabs = [
@@ -19,7 +19,7 @@ export default function CashierTabs() {
 								href={route(tab.routeName)}
 								className={`${
 									active
-										? "bg-[#FDEFE6] border-[#D97736] text-[#D97736]"
+										? "bg-primary-soft border-primary text-primary"
 										: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
 								} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
 							>
@@ -32,3 +32,5 @@ export default function CashierTabs() {
 		</div>
 	);
 }
+
+

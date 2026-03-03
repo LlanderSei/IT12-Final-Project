@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { useForm, usePage } from "@inertiajs/react";
 
 export default function Users({ users = [], roles = [] }) {
@@ -215,7 +215,7 @@ export default function Users({ users = [], roles = [] }) {
 									</div>
 									<input
 										type="text"
-										className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+										className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
 										placeholder="Search users by name, email, or role..."
 										value={searchQuery}
 										onChange={(e) => setSearchQuery(e.target.value)}
@@ -228,7 +228,7 @@ export default function Users({ users = [], roles = [] }) {
 												<select
 													value={roleFilter}
 													onChange={(e) => setRoleFilter(e.target.value)}
-													className="w-44 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]"
+													className="w-44 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												>
 													<option value="all">All Roles</option>
 													{normalizedRoles.map((role) => (
@@ -244,7 +244,7 @@ export default function Users({ users = [], roles = [] }) {
 									<button
 										type="button"
 										onClick={clearFilters}
-										className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+										className="shrink-0 rounded-md border border-primary bg-white px-3 py-2 text-xs font-medium text-primary shadow-sm hover:bg-primary-soft"
 									>
 										Reset Filters
 									</button>
@@ -341,7 +341,7 @@ export default function Users({ users = [], roles = [] }) {
 															<button
 																type="button"
 																onClick={() => openEditModal(user)}
-																className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
 															>
 																Edit
 															</button>
@@ -383,7 +383,7 @@ export default function Users({ users = [], roles = [] }) {
 					<button
 						onClick={openAddModal}
 						disabled={!defaultRoleId}
-						className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] disabled:opacity-60 disabled:cursor-not-allowed"
+						className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
 					>
 						Add User
 					</button>
@@ -416,7 +416,7 @@ export default function Users({ users = [], roles = [] }) {
 														value={form.data.FullName}
 														onChange={(e) => form.setData("FullName", e.target.value)}
 														required
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													/>
 													{form.errors.FullName && <p className="mt-2 text-sm text-red-600">{form.errors.FullName}</p>}
 												</div>
@@ -431,7 +431,7 @@ export default function Users({ users = [], roles = [] }) {
 														value={form.data.email}
 														onChange={(e) => form.setData("email", e.target.value)}
 														required
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													/>
 													{form.errors.email && <p className="mt-2 text-sm text-red-600">{form.errors.email}</p>}
 												</div>
@@ -446,7 +446,7 @@ export default function Users({ users = [], roles = [] }) {
 														onChange={(e) => form.setData("RoleID", e.target.value)}
 														required
 														disabled={Boolean(isEditingOwnAccount)}
-														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+														className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 													>
 														<option value="" disabled>
 															Select role
@@ -476,7 +476,7 @@ export default function Users({ users = [], roles = [] }) {
 															value={form.data.password}
 															onChange={(e) => form.setData("password", e.target.value)}
 															required={!editingUser}
-															className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+															className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 														/>
 														{form.errors.password && <p className="mt-2 text-sm text-red-600">{form.errors.password}</p>}
 													</div>
@@ -491,7 +491,7 @@ export default function Users({ users = [], roles = [] }) {
 															value={form.data.password_confirmation}
 															onChange={(e) => form.setData("password_confirmation", e.target.value)}
 															required={!editingUser || Boolean(form.data.password)}
-															className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+															className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 														/>
 													</div>
 												</div>
@@ -503,14 +503,14 @@ export default function Users({ users = [], roles = [] }) {
 									<button
 										type="submit"
 										disabled={form.processing}
-										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-base font-medium text-white hover:bg-[#c2682e] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary-hover sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
 									>
 										{editingUser ? "Save Changes" : "Add User"}
 									</button>
 									<button
 										type="button"
 										onClick={closeModal}
-										className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+										className="mt-3 w-full inline-flex justify-center rounded-md border border-primary shadow-sm px-4 py-2 bg-white text-base font-medium text-primary hover:bg-primary-soft sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
 									>
 										Cancel
 									</button>
@@ -547,7 +547,7 @@ export default function Users({ users = [], roles = [] }) {
 								<button
 									type="button"
 									onClick={() => setDeleteCandidate(null)}
-									className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+									className="mt-3 w-full inline-flex justify-center rounded-md border border-primary shadow-sm px-4 py-2 bg-white text-base font-medium text-primary hover:bg-primary-soft sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
 								>
 									Cancel
 								</button>
@@ -559,3 +559,6 @@ export default function Users({ users = [], roles = [] }) {
 		</div>
 	);
 }
+
+
+

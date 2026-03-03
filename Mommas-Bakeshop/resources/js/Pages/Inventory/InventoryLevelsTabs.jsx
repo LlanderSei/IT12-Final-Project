@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, useForm } from "@inertiajs/react";
+import { Head, Link, useForm } from "@inertiajs/react";
 import Inventory from "./InventoryLevelsSubviews/Inventory";
 import StockIn from "./InventoryLevelsSubviews/StockIn";
 import StockOut from "./InventoryLevelsSubviews/StockOut";
@@ -16,6 +16,7 @@ export default function InventoryLevelsTabs({
 	categories,
 	stockIns,
 	stockOuts,
+	initialTab = "Inventory",
 }) {
 	const parseStockOutReason = (reason) => {
 		const value = String(reason || "").trim();
@@ -37,8 +38,13 @@ export default function InventoryLevelsTabs({
 
 	const STOCK_IN_DRAFT_KEY = "inventory.stock_in_draft.v1";
 	const STOCK_OUT_DRAFT_KEY = "inventory.stock_out_draft.v1";
-	const tabs = ["Inventory", "Stock-In", "Stock-Out"];
-	const [activeTab, setActiveTab] = useState(tabs[0]);
+	const tabs = [
+		{ label: "Inventory", href: route("inventory.index") },
+		{ label: "Stock-In", href: route("inventory.stock-in") },
+		{ label: "Stock-Out", href: route("inventory.stock-out") },
+	];
+	const tabLabels = tabs.map((tab) => tab.label);
+	const activeTab = tabLabels.includes(initialTab) ? initialTab : tabLabels[0];
 
 	// Modal States
 	const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -311,17 +317,17 @@ export default function InventoryLevelsTabs({
 				<div className="mx-auto px-4">
 					<nav className="-mb-px flex gap-2" aria-label="Tabs">
 						{tabs.map((tab) => (
-							<button
-								key={tab}
-								onClick={() => setActiveTab(tab)}
+							<Link
+								key={tab.label}
+								href={tab.href}
 								className={`${
-									activeTab === tab
-										? "bg-[#FDEFE6] border-[#D97736] text-[#D97736]"
+									activeTab === tab.label
+										? "bg-primary-soft border-primary text-primary"
 										: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
 								} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
 							>
-								{tab}
-							</button>
+								{tab.label}
+							</Link>
 						))}
 					</nav>
 				</div>
@@ -357,13 +363,13 @@ export default function InventoryLevelsTabs({
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 gap-4">
 					<button
 						onClick={openAddItemModal}
-						className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#D97736] hover:bg-[#c2682e] transition-colors"
+						className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover transition-colors"
 					>
 						Add Item
 					</button>
 					<button
 						onClick={openStockInCreateModal}
-						className="flex justify-center py-3 px-4 border border-[#D97736] rounded-md shadow-sm text-sm font-medium text-[#D97736] bg-white hover:bg-[#FDEFE6] transition-colors"
+						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors"
 					>
 						Stock-In
 					</button>
@@ -372,7 +378,7 @@ export default function InventoryLevelsTabs({
 							setEditingStockOutID(null);
 							setIsStockOutModalOpen(true);
 						}}
-						className="flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors"
 					>
 						Stock-Out
 					</button>
@@ -409,7 +415,7 @@ export default function InventoryLevelsTabs({
 													itemForm.setData("ItemName", e.target.value)
 												}
 												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
+												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
 											/>
 										</div>
 										<div>
@@ -422,7 +428,7 @@ export default function InventoryLevelsTabs({
 													itemForm.setData("ItemDescription", e.target.value)
 												}
 												rows={2}
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
+												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
 											/>
 										</div>
 										<div className="grid grid-cols-2 gap-4">
@@ -436,7 +442,7 @@ export default function InventoryLevelsTabs({
 														itemForm.setData("ItemType", e.target.value)
 													}
 													required
-													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
+													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
 												>
 													<option value="">Select Type</option>
 													<option value="Raw Material">Raw Material</option>
@@ -456,7 +462,7 @@ export default function InventoryLevelsTabs({
 													}
 													placeholder="e.g. kg, pcs, liters"
 													required
-													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
+													className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
 												/>
 											</div>
 										</div>
@@ -472,7 +478,7 @@ export default function InventoryLevelsTabs({
 												}
 												min="0"
 												required
-												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#D97736] focus:ring-[#D97736] sm:text-sm"
+												className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
 											/>
 										</div>
 									</div>
@@ -481,7 +487,7 @@ export default function InventoryLevelsTabs({
 									<button
 										type="submit"
 										disabled={itemForm.processing}
-										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#D97736] text-base font-medium text-white hover:bg-[#c2682e] sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary-hover sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
 									>
 										{editingItem ? "Save Changes" : "Add Item"}
 									</button>
@@ -497,7 +503,7 @@ export default function InventoryLevelsTabs({
 									<button
 										type="button"
 										onClick={() => setIsItemModalOpen(false)}
-										className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+										className="mt-3 w-full inline-flex justify-center rounded-md border border-primary shadow-sm px-4 py-2 bg-white text-base font-medium text-primary hover:bg-primary-soft sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
 									>
 										Cancel
 									</button>
@@ -558,3 +564,6 @@ export default function InventoryLevelsTabs({
 		</AuthenticatedLayout>
 	);
 }
+
+
+

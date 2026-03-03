@@ -1,6 +1,87 @@
 import React, { useEffect, useState } from "react";
 import { Link, usePage } from "@inertiajs/react";
 
+const Icon = ({ name, size = 20, style }) => {
+	const common = {
+		width: size,
+		height: size,
+		viewBox: "0 0 24 24",
+		fill: "none",
+		stroke: "currentColor",
+		strokeWidth: 1.9,
+		strokeLinecap: "round",
+		strokeLinejoin: "round",
+		style,
+		"aria-hidden": true,
+		focusable: false,
+	};
+
+	const icons = {
+		dashboard: (
+			<svg {...common}>
+				<rect x="3" y="3" width="7" height="7" rx="1.5" />
+				<rect x="14" y="3" width="7" height="4" rx="1.5" />
+				<rect x="14" y="10" width="7" height="11" rx="1.5" />
+				<rect x="3" y="13" width="7" height="8" rx="1.5" />
+			</svg>
+		),
+		cashier: (
+			<svg {...common}>
+				<circle cx="9" cy="20" r="1.5" />
+				<circle cx="18" cy="20" r="1.5" />
+				<path d="M3 4h2l2.4 10.5a1 1 0 0 0 1 .8h9.8a1 1 0 0 0 1-.8L21 8H7" />
+			</svg>
+		),
+		inventory: (
+			<svg {...common}>
+				<path d="M3 8.5 12 4l9 4.5-9 4.5L3 8.5Z" />
+				<path d="M3 8.5V16l9 4 9-4V8.5" />
+				<path d="M12 13v7" />
+			</svg>
+		),
+		products: (
+			<svg {...common}>
+				<rect x="3" y="4" width="8" height="8" rx="1.5" />
+				<rect x="13" y="4" width="8" height="8" rx="1.5" />
+				<rect x="8" y="14" width="8" height="6" rx="1.5" />
+			</svg>
+		),
+		reports: (
+			<svg {...common}>
+				<path d="M4 20V10" />
+				<path d="M10 20V6" />
+				<path d="M16 20v-8" />
+				<path d="M22 20V4" />
+			</svg>
+		),
+		users: (
+			<svg {...common}>
+				<circle cx="9" cy="9" r="3" />
+				<path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+				<circle cx="17.5" cy="10" r="2.5" />
+				<path d="M14.5 19a4.5 4.5 0 0 1 7 0" />
+			</svg>
+		),
+		audits: (
+			<svg {...common}>
+				<path d="M8 3h8l4 4v14H8z" />
+				<path d="M16 3v4h4" />
+				<path d="M11 12h6" />
+				<path d="M11 16h6" />
+			</svg>
+		),
+		logout: (
+			<svg {...common}>
+				<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+				<path d="M10 16l4-4-4-4" />
+				<path d="M14 12H3" />
+			</svg>
+		),
+	};
+
+	return icons[name] ?? null;
+};
+
 // ─── Navigation Structure (mirrors reference app.js navStructure) ────────────
 const NAV_STRUCTURE = [
 	{
@@ -9,7 +90,7 @@ const NAV_STRUCTURE = [
 			{
 				id: "dashboard",
 				label: "Overview",
-				icon: "📊",
+				icon: "dashboard",
 				href: route("dashboard"),
 			},
 		],
@@ -21,7 +102,7 @@ const NAV_STRUCTURE = [
 				id: "pos.cash-sale",
 				activeRoutes: ["pos.cash-sale", "pos.consignments", "pos.cashier"],
 				label: "Cashier",
-				icon: "🛒",
+				icon: "cashier",
 				href: route("pos.cash-sale"),
 			},
 		],
@@ -31,15 +112,22 @@ const NAV_STRUCTURE = [
 		items: [
 			{
 				id: "inventory.levels",
+				activeRoutes: [
+					"inventory.levels",
+					"inventory.index",
+					"inventory.stock-in",
+					"inventory.stock-out",
+				],
 				label: "Inventory Levels",
-				icon: "📋",
-				href: route("inventory.levels"),
+				icon: "inventory",
+				href: route("inventory.index"),
 			},
 			{
 				id: "inventory.products",
+				activeRoutes: ["inventory.products", "products.index", "products.batches"],
 				label: "Products & Batches",
-				icon: "📦",
-				href: route("inventory.products"),
+				icon: "products",
+				href: route("products.index"),
 			},
 		],
 	},
@@ -48,20 +136,22 @@ const NAV_STRUCTURE = [
 		items: [
 			{
 				id: "admin.reports",
+				activeRoutes: ["admin.reports", "admin.reports.sales", "admin.reports.shrinkage"],
 				label: "Reports",
-				icon: "📈",
+				icon: "reports",
 				href: route("admin.reports"),
 			},
 			{
 				id: "admin.users",
+				activeRoutes: ["admin.users", "admin.permissions"],
 				label: "User Management",
-				icon: "👥",
+				icon: "users",
 				href: route("admin.users"),
 			},
 			{
 				id: "admin.audits",
 				label: "Audits",
-				icon: "📜",
+				icon: "audits",
 				href: route("admin.audits"),
 			},
 		],
@@ -80,7 +170,7 @@ const ROLE_BADGE = {
 		bg: "rgba(139,92,246,0.12)",
 		color: "#7C3AED",
 	},
-	cashier: { label: "Cashier", bg: "rgba(217,119,54,0.12)", color: "#D97736" },
+	cashier: { label: "Cashier", bg: "rgb(var(--color-primary) / 0.12)", color: "var(--color-primary-hex)" },
 	clerk: {
 		label: "Inventory Clerk",
 		bg: "rgba(16,185,129,0.12)",
@@ -166,7 +256,7 @@ const Sidebar = () => {
 						height: "38px",
 						minWidth: "38px",
 						borderRadius: "9999px",
-						backgroundColor: "#FDEFE6",
+						backgroundColor: "rgb(var(--color-primary-soft))",
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
@@ -189,7 +279,7 @@ const Sidebar = () => {
 								fontFamily: "'Outfit', sans-serif",
 								fontWeight: 700,
 								fontSize: "0.95rem",
-								color: "#D97736",
+								color: "var(--color-primary-hex)",
 								flex: 1,
 								lineHeight: 1.25,
 								display: "flex",
@@ -217,7 +307,7 @@ const Sidebar = () => {
 							}}
 							onMouseEnter={(e) => {
 								e.currentTarget.style.backgroundColor = "#F9FAFB";
-								e.currentTarget.style.color = "#D97736";
+								e.currentTarget.style.color = "var(--color-primary-hex)";
 							}}
 							onMouseLeave={(e) => {
 								e.currentTarget.style.backgroundColor = "transparent";
@@ -262,8 +352,8 @@ const Sidebar = () => {
 						height: "42px",
 						minWidth: "42px",
 						borderRadius: "9999px",
-						backgroundColor: "#FDEFE6",
-						color: "#D97736",
+						backgroundColor: "rgb(var(--color-primary-soft))",
+						color: "var(--color-primary-hex)",
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
@@ -449,7 +539,7 @@ const Sidebar = () => {
 					}
 					title="Logout"
 				>
-					<span style={{ fontSize: "1.1rem" }}>🚪</span>
+					<Icon name="logout" size={19} />
 					{isExpanded && <span>Logout</span>}
 				</Link>
 			</div>
@@ -461,9 +551,9 @@ const Sidebar = () => {
 const NavItem = ({ item, isActive, isExpanded }) => {
 	const [hovered, setHovered] = useState(false);
 
-	const bgColor = isActive ? "#FDEFE6" : hovered ? "#F9FAFB" : "transparent";
+	const bgColor = isActive ? "rgb(var(--color-primary-soft))" : hovered ? "#F9FAFB" : "transparent";
 
-	const textColor = isActive || hovered ? "#D97736" : "#374151";
+	const textColor = isActive || hovered ? "var(--color-primary-hex)" : "#374151";
 
 	return (
 		<Link
@@ -480,7 +570,7 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 				fontSize: "0.9rem",
 				fontWeight: 500,
 				cursor: "pointer",
-				borderRight: isActive ? "3px solid #D97736" : "3px solid transparent",
+				borderRight: isActive ? "3px solid var(--color-primary-hex)" : "3px solid transparent",
 				transition: "background 0.15s, color 0.15s, border-color 0.15s",
 				whiteSpace: "nowrap",
 				overflow: "hidden",
@@ -489,16 +579,15 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 			onMouseLeave={() => setHovered(false)}
 			title={!isExpanded ? item.label : undefined}
 		>
-			<span
+			<Icon
+				name={item.icon}
+				size={20}
 				style={{
-					fontSize: "1.2rem",
 					opacity: isActive ? 1 : 0.75,
 					flexShrink: 0,
 					lineHeight: 1,
 				}}
-			>
-				{item.icon}
-			</span>
+			/>
 			{isExpanded && (
 				<span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
 					{item.label}
@@ -509,3 +598,8 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 };
 
 export default Sidebar;
+
+
+
+
+

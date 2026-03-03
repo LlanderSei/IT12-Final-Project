@@ -1,4 +1,4 @@
-import Sidebar from "@/Layouts/Partials/Sidebar";
+﻿import Sidebar from "@/Layouts/Partials/Sidebar";
 import { Head } from "@inertiajs/react";
 
 export default function Dashboard() {
@@ -39,7 +39,7 @@ export default function Dashboard() {
 				<main style={{ padding: "2rem" }}>
 					<div
 						style={{
-							background: "linear-gradient(135deg, #D97736, #E5B25D)",
+							background: "linear-gradient(135deg, var(--color-primary-hex), #E5B25D)",
 							borderRadius: "0.75rem",
 							padding: "2rem",
 							color: "white",
@@ -85,3 +85,5 @@ export default function Dashboard() {
 		</div>
 	);
 }
+
+

@@ -34,6 +34,15 @@ Route::middleware('auth')->group(function () {
 
   // Inventory
   Route::get('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'index'])->name('inventory.levels');
+  Route::get('/inventory', [\App\Http\Controllers\InventoryController::class, 'index'])
+    ->defaults('tab', 'Inventory')
+    ->name('inventory.index');
+  Route::get('/inventory/stockin', [\App\Http\Controllers\InventoryController::class, 'index'])
+    ->defaults('tab', 'Stock-In')
+    ->name('inventory.stock-in');
+  Route::get('/inventory/stockout', [\App\Http\Controllers\InventoryController::class, 'index'])
+    ->defaults('tab', 'Stock-Out')
+    ->name('inventory.stock-out');
   Route::post('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'store'])->name('inventory.levels.store');
   Route::put('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'update'])->name('inventory.levels.update');
   Route::delete('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'destroy'])->name('inventory.levels.destroy');
@@ -44,6 +53,12 @@ Route::middleware('auth')->group(function () {
   Route::put('/inventory/stock-out/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockOut'])->name('inventory.stock-out.update');
 
   Route::get('/inventory/products', [\App\Http\Controllers\ProductController::class, 'index'])->name('inventory.products');
+  Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index'])
+    ->defaults('tab', 'Products')
+    ->name('products.index');
+  Route::get('/products/batches', [\App\Http\Controllers\ProductController::class, 'index'])
+    ->defaults('tab', 'Production Batches')
+    ->name('products.batches');
   Route::post('/inventory/products', [\App\Http\Controllers\ProductController::class, 'store'])->name('inventory.products.store');
   Route::put('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'update'])->name('inventory.products.update');
   Route::delete('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'destroy'])->name('inventory.products.destroy');
@@ -56,9 +71,20 @@ Route::middleware('auth')->group(function () {
 
   // Administration
   Route::get('/admin/reports', function () {
-    return Inertia::render('Administration/Reports');
+    return Inertia::render('Administration/Reports', ['initialTab' => 'Overview']);
   })->name('admin.reports');
-  Route::get('/admin/users', [UserManagementController::class, 'index'])->name('admin.users');
+  Route::get('/admin/reports/sales', function () {
+    return Inertia::render('Administration/Reports', ['initialTab' => 'Sales']);
+  })->name('admin.reports.sales');
+  Route::get('/admin/reports/shrinkage', function () {
+    return Inertia::render('Administration/Reports', ['initialTab' => 'Shrinkage']);
+  })->name('admin.reports.shrinkage');
+  Route::get('/admin/users', [UserManagementController::class, 'index'])
+    ->defaults('tab', 'Users')
+    ->name('admin.users');
+  Route::get('/admin/permissions', [UserManagementController::class, 'index'])
+    ->defaults('tab', 'Permissions')
+    ->name('admin.permissions');
   Route::post('/admin/users', [UserManagementController::class, 'store'])->name('admin.users.store');
   Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->name('admin.users.update');
   Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->name('admin.users.destroy');
@@ -67,4 +93,3 @@ Route::middleware('auth')->group(function () {
 
 
 require __DIR__ . '/auth.php';
-
