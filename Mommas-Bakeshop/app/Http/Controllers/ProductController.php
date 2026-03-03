@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller {
-  public function index() {
+  public function index(Request $request) {
     $products = Product::with('category')->get();
     $categories = Category::all();
     $batches = ProductionBatchDetail::with(['user', 'batches.product'])
@@ -42,6 +42,7 @@ class ProductController extends Controller {
       'products' => $products,
       'categories' => $categories,
       'batches' => $batches,
+      'initialTab' => $request->route('tab') ?? 'Products',
     ]);
   }
 

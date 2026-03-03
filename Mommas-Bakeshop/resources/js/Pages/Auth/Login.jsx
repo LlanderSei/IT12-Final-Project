@@ -1,4 +1,4 @@
-import { Head, useForm } from "@inertiajs/react";
+﻿import { Head, useForm } from "@inertiajs/react";
 import { useState } from "react";
 
 export default function Login({ status }) {
@@ -57,10 +57,10 @@ export default function Login({ status }) {
 								onBlur={() => setFocusedField(null)}
 								style={{
 									...styles.input,
-									borderColor: focusedField === "email" ? "#D97736" : "#D1D5DB",
+									borderColor: focusedField === "email" ? "var(--color-primary-hex)" : "#D1D5DB",
 									boxShadow:
 										focusedField === "email"
-											? "0 0 0 3px rgba(217,119,54,0.15)"
+											? "0 0 0 3px rgb(var(--color-primary) / 0.15)"
 											: "none",
 								}}
 							/>
@@ -84,10 +84,10 @@ export default function Login({ status }) {
 								style={{
 									...styles.input,
 									borderColor:
-										focusedField === "password" ? "#D97736" : "#D1D5DB",
+										focusedField === "password" ? "var(--color-primary-hex)" : "#D1D5DB",
 									boxShadow:
 										focusedField === "password"
-											? "0 0 0 3px rgba(217,119,54,0.15)"
+											? "0 0 0 3px rgb(var(--color-primary) / 0.15)"
 											: "none",
 								}}
 							/>
@@ -118,11 +118,11 @@ export default function Login({ status }) {
 							}}
 							onMouseEnter={(e) => {
 								if (!processing)
-									e.currentTarget.style.backgroundColor = "#B8622A";
+									e.currentTarget.style.backgroundColor = "rgb(var(--color-primary-hover))";
 							}}
 							onMouseLeave={(e) => {
 								if (!processing)
-									e.currentTarget.style.backgroundColor = "#D97736";
+									e.currentTarget.style.backgroundColor = "var(--color-primary-hex)";
 							}}
 						>
 							{processing ? "Signing in…" : "Sign in"}
@@ -157,7 +157,7 @@ const styles = {
 		backgroundColor: "#FFFFFF",
 		borderRadius: "16px",
 		border: "1px solid #E5E7EB",
-		boxShadow: "0 4px 24px rgba(217,119,54,0.08), 0 1px 4px rgba(0,0,0,0.04)",
+		boxShadow: "0 4px 24px rgb(var(--color-primary) / 0.08), 0 1px 4px rgba(0,0,0,0.04)",
 		padding: "2.5rem 2rem 2rem",
 	},
 	brandRow: {
@@ -171,12 +171,12 @@ const styles = {
 		width: "48px",
 		height: "48px",
 		borderRadius: "9999px",
-		backgroundColor: "#FDEFE6",
+		backgroundColor: "rgb(var(--color-primary-soft))",
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
 		fontSize: "1.5rem",
-		boxShadow: "0 2px 6px rgba(217,119,54,0.12)",
+		boxShadow: "0 2px 6px rgb(var(--color-primary) / 0.12)",
 	},
 	brandText: {
 		display: "flex",
@@ -187,7 +187,7 @@ const styles = {
 		fontFamily: "'Outfit', sans-serif",
 		fontWeight: 700,
 		fontSize: "1.15rem",
-		color: "#D97736",
+		color: "var(--color-primary-hex)",
 	},
 	heading: {
 		fontFamily: "'Outfit', sans-serif",
@@ -257,7 +257,7 @@ const styles = {
 		cursor: "pointer",
 	},
 	checkbox: {
-		accentColor: "#D97736",
+		accentColor: "var(--color-primary-hex)",
 		width: "16px",
 		height: "16px",
 		cursor: "pointer",
@@ -271,7 +271,7 @@ const styles = {
 		padding: "0.7rem",
 		borderRadius: "10px",
 		border: "none",
-		backgroundColor: "#D97736",
+		backgroundColor: "var(--color-primary-hex)",
 		color: "#FFFFFF",
 		fontFamily: "'Inter', sans-serif",
 		fontWeight: 600,
@@ -285,3 +285,9 @@ const styles = {
 		color: "#9CA3AF",
 	},
 };
+
+
+
+
+
+

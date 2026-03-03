@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 
 const money = (value) => Number(value || 0).toFixed(2);
 
@@ -529,7 +529,7 @@ function StockInMovementModal({
 													<button
 														type="button"
 														onClick={() => addInventoryExisting(item)}
-														className="w-full rounded bg-[#D97736] px-3 py-2 text-xs text-white sm:w-auto"
+														className="w-full rounded bg-primary px-3 py-2 text-xs text-white sm:w-auto"
 													>
 														Add
 													</button>
@@ -549,7 +549,7 @@ function StockInMovementModal({
 											<input type="number" min="1" placeholder="Qty" value={draft.newInventory.QuantityAdded} onChange={(e) => updateDraft("newInventory.QuantityAdded", e.target.value)} className="rounded border-gray-300" />
 											<input type="number" step="0.01" min="0" placeholder="Unit Cost" value={draft.newInventory.UnitCost} onChange={(e) => updateDraft("newInventory.UnitCost", e.target.value)} className="rounded border-gray-300" />
 										</div>
-										<button type="button" onClick={addInventoryNew} className="rounded bg-[#D97736] px-3 py-1 text-white">Add New Inventory Item</button>
+										<button type="button" onClick={addInventoryNew} className="rounded bg-primary px-3 py-1 text-white">Add New Inventory Item</button>
 									</div>
 								)}
 							</div>
@@ -590,7 +590,7 @@ function StockInMovementModal({
 												<div className="flex flex-wrap items-center gap-2">
 													<input type="number" min="1" placeholder="Qty" value={draft.productInputs[item.ID]?.QuantityAdded || ""} onChange={(e) => setInputValue("productInputs", item.ID, "QuantityAdded", e.target.value)} className="min-w-0 flex-1 rounded border-gray-300 text-sm" />
 													<input type="number" step="0.01" min="0" placeholder="Unit Cost" value={draft.productInputs[item.ID]?.UnitCost || ""} onChange={(e) => setInputValue("productInputs", item.ID, "UnitCost", e.target.value)} className="min-w-0 flex-1 rounded border-gray-300 text-sm" />
-													<button type="button" onClick={() => addProductExisting(item)} className="w-full rounded bg-[#D97736] px-3 py-2 text-xs text-white sm:w-auto">Add</button>
+													<button type="button" onClick={() => addProductExisting(item)} className="w-full rounded bg-primary px-3 py-2 text-xs text-white sm:w-auto">Add</button>
 												</div>
 											</div>
 										))}
@@ -612,7 +612,7 @@ function StockInMovementModal({
 											<input type="number" min="1" placeholder="Qty" value={draft.newProduct.QuantityAdded} onChange={(e) => updateDraft("newProduct.QuantityAdded", e.target.value)} className="rounded border-gray-300" />
 											<input type="number" step="0.01" min="0" placeholder="Unit Cost" value={draft.newProduct.UnitCost} onChange={(e) => updateDraft("newProduct.UnitCost", e.target.value)} className="rounded border-gray-300" />
 										</div>
-										<button type="button" onClick={addProductNew} className="rounded bg-[#D97736] px-3 py-1 text-white">Add New Product</button>
+										<button type="button" onClick={addProductNew} className="rounded bg-primary px-3 py-1 text-white">Add New Product</button>
 									</div>
 								)}
 							</div>
@@ -640,9 +640,9 @@ function StockInMovementModal({
 					</div>
 
 					<div className="flex justify-end gap-2 border-t bg-gray-50 px-6 py-3">
-						<button type="button" onClick={attemptClose} className="rounded border border-gray-300 px-4 py-2 text-sm">Cancel</button>
-						<button type="button" onClick={() => onSaveAndClose(draft)} className="rounded border border-[#D97736] px-4 py-2 text-sm text-[#D97736]">Save and Close</button>
-						<button type="submit" disabled={processing || allLines.length === 0} className="rounded bg-[#D97736] px-4 py-2 text-sm text-white disabled:opacity-50">{submitLabel}</button>
+						<button type="button" onClick={attemptClose} className="rounded border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft">Cancel</button>
+						<button type="button" onClick={() => onSaveAndClose(draft)} className="rounded border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft">Save and Close</button>
+						<button type="submit" disabled={processing || allLines.length === 0} className="rounded bg-primary px-4 py-2 text-sm text-white disabled:opacity-50">{submitLabel}</button>
 					</div>
 				</form>
 			</div>
@@ -676,8 +676,8 @@ function StockInMovementModal({
 							</div>
 						</div>
 						<div className="mt-4 flex justify-end gap-2">
-							<button type="button" className="rounded border border-gray-300 px-3 py-2 text-sm" onClick={() => setEditingLine(null)}>Cancel</button>
-							<button type="button" className="rounded bg-[#D97736] px-3 py-2 text-sm text-white" onClick={saveEditLine}>Save Changes</button>
+							<button type="button" className="rounded border border-primary bg-white px-3 py-2 text-sm text-primary hover:bg-primary-soft" onClick={() => setEditingLine(null)}>Cancel</button>
+							<button type="button" className="rounded bg-primary px-3 py-2 text-sm text-white" onClick={saveEditLine}>Save Changes</button>
 						</div>
 					</div>
 				</div>
@@ -691,8 +691,8 @@ function StockInMovementModal({
 						<p className="mt-2 text-sm text-gray-600">You have draft changes. What do you want to do?</p>
 						<div className="mt-4 flex flex-wrap justify-end gap-2">
 							<button type="button" onClick={() => { setShowExitWarning(false); onCancelAndClear(); }} className="rounded border border-red-300 px-3 py-2 text-sm text-red-600">Confirm Exit</button>
-							<button type="button" onClick={() => { setShowExitWarning(false); onSaveAndClose(draft); }} className="rounded border border-[#D97736] px-3 py-2 text-sm text-[#D97736]">Save and Exit</button>
-							<button type="button" onClick={() => setShowExitWarning(false)} className="rounded bg-gray-900 px-3 py-2 text-sm text-white">Continue</button>
+							<button type="button" onClick={() => { setShowExitWarning(false); onSaveAndClose(draft); }} className="rounded border border-primary bg-white px-3 py-2 text-sm text-primary hover:bg-primary-soft">Save and Exit</button>
+							<button type="button" onClick={() => setShowExitWarning(false)} className="rounded border border-primary bg-white px-3 py-2 text-sm text-primary hover:bg-primary-soft">Continue</button>
 						</div>
 					</div>
 				</div>
@@ -973,7 +973,7 @@ export default function StockMovementModal({
 										</div>
 										<div className="flex flex-wrap items-center gap-2">
 											<input type="number" min="1" placeholder="Qty" value={draft.inventoryInputs?.[item.ID]?.QuantityRemoved || ""} onChange={(e) => setInputValue("inventoryInputs", item.ID, e.target.value)} className="min-w-0 flex-1 rounded border-gray-300 text-sm" />
-											<button type="button" onClick={() => addInventoryItem(item)} className="shrink-0 rounded bg-[#D97736] px-3 py-2 text-xs text-white">Add</button>
+											<button type="button" onClick={() => addInventoryItem(item)} className="shrink-0 rounded bg-primary px-3 py-2 text-xs text-white">Add</button>
 										</div>
 									</div>
 								))}
@@ -1007,7 +1007,7 @@ export default function StockMovementModal({
 										</div>
 										<div className="flex flex-wrap items-center gap-2">
 											<input type="number" min="1" placeholder="Qty" value={draft.productInputs?.[item.ID]?.QuantityRemoved || ""} onChange={(e) => setInputValue("productInputs", item.ID, e.target.value)} className="min-w-0 flex-1 rounded border-gray-300 text-sm" />
-											<button type="button" onClick={() => addProductItem(item)} className="shrink-0 rounded bg-[#D97736] px-3 py-2 text-xs text-white">Add</button>
+											<button type="button" onClick={() => addProductItem(item)} className="shrink-0 rounded bg-primary px-3 py-2 text-xs text-white">Add</button>
 										</div>
 									</div>
 								))}
@@ -1068,9 +1068,9 @@ export default function StockMovementModal({
 					</div>
 
 					<div className="flex justify-end gap-2 border-t bg-gray-50 px-6 py-3">
-						<button type="button" onClick={attemptClose} className="rounded border border-gray-300 px-4 py-2 text-sm">Cancel</button>
-						<button type="button" onClick={() => onSaveAndClose(draft)} className="rounded border border-[#D97736] px-4 py-2 text-sm text-[#D97736]">Save and Close</button>
-						<button type="submit" disabled={processing || allLines.length === 0} className="rounded bg-[#D97736] px-4 py-2 text-sm text-white disabled:opacity-50">
+						<button type="button" onClick={attemptClose} className="rounded border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft">Cancel</button>
+						<button type="button" onClick={() => onSaveAndClose(draft)} className="rounded border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft">Save and Close</button>
+						<button type="submit" disabled={processing || allLines.length === 0} className="rounded bg-primary px-4 py-2 text-sm text-white disabled:opacity-50">
 							{submitLabel || "Record Stock-Out"}
 						</button>
 					</div>
@@ -1084,8 +1084,8 @@ export default function StockMovementModal({
 						<h4 className="mb-3 text-lg font-semibold">Edit Line Item</h4>
 						<input type="number" min="1" className="w-full rounded border-gray-300 text-sm" value={editingLine.QuantityRemoved} onChange={(e) => setEditingLine((p) => ({ ...p, QuantityRemoved: e.target.value }))} />
 						<div className="mt-4 flex justify-end gap-2">
-							<button type="button" className="rounded border border-gray-300 px-3 py-2 text-sm" onClick={() => setEditingLine(null)}>Cancel</button>
-							<button type="button" className="rounded bg-[#D97736] px-3 py-2 text-sm text-white" onClick={saveEditLine}>Save Changes</button>
+							<button type="button" className="rounded border border-primary bg-white px-3 py-2 text-sm text-primary hover:bg-primary-soft" onClick={() => setEditingLine(null)}>Cancel</button>
+							<button type="button" className="rounded bg-primary px-3 py-2 text-sm text-white" onClick={saveEditLine}>Save Changes</button>
 						</div>
 					</div>
 				</div>
@@ -1099,8 +1099,8 @@ export default function StockMovementModal({
 						<p className="mt-2 text-sm text-gray-600">You have draft changes. What do you want to do?</p>
 						<div className="mt-4 flex flex-wrap justify-end gap-2">
 							<button type="button" onClick={() => { setShowExitWarning(false); onCancelAndClear(); }} className="rounded border border-red-300 px-3 py-2 text-sm text-red-600">Confirm Exit</button>
-							<button type="button" onClick={() => { setShowExitWarning(false); onSaveAndClose(draft); }} className="rounded border border-[#D97736] px-3 py-2 text-sm text-[#D97736]">Save and Exit</button>
-							<button type="button" onClick={() => setShowExitWarning(false)} className="rounded bg-gray-900 px-3 py-2 text-sm text-white">Continue</button>
+							<button type="button" onClick={() => { setShowExitWarning(false); onSaveAndClose(draft); }} className="rounded border border-primary bg-white px-3 py-2 text-sm text-primary hover:bg-primary-soft">Save and Exit</button>
+							<button type="button" onClick={() => setShowExitWarning(false)} className="rounded border border-primary bg-white px-3 py-2 text-sm text-primary hover:bg-primary-soft">Continue</button>
 						</div>
 					</div>
 				</div>
@@ -1108,5 +1108,8 @@ export default function StockMovementModal({
 		</div>
 	);
 }
+
+
+
 
 

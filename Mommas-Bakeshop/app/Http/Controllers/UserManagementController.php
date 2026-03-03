@@ -10,7 +10,7 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class UserManagementController extends Controller {
-  public function index() {
+  public function index(Request $request) {
     $roles = Role::query()
       ->select(['ID', 'RoleName', 'RoleRank'])
       ->orderBy('RoleRank', 'asc')
@@ -49,6 +49,7 @@ class UserManagementController extends Controller {
     return Inertia::render('Administration/UserManagementTabs', [
       'users' => $users,
       'roles' => $roles,
+      'initialTab' => $request->route('tab') ?? 'Users',
     ]);
   }
 
@@ -154,4 +155,3 @@ class UserManagementController extends Controller {
     return $currentRank <= $targetRank;
   }
 }
-

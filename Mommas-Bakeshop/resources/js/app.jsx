@@ -1,4 +1,4 @@
-import "../css/app.css";
+﻿import "../css/app.css";
 import "./bootstrap";
 
 import { createInertiaApp } from "@inertiajs/react";
@@ -20,6 +20,8 @@ createInertiaApp({
 		root.render(<App {...props} />);
 	},
 	progress: {
-		color: "#D97736",
+		color: "var(--color-primary-hex)",
 	},
 });
+
+

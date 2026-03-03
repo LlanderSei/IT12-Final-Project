@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head } from "@inertiajs/react";
 
@@ -13,6 +13,8 @@ export default function Audits({ audits = [] }) {
 		direction: "desc",
 	});
 	const [selectedAudit, setSelectedAudit] = useState(null);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [itemsPerPage, setItemsPerPage] = useState(25);
 
 	const actionOptions = useMemo(
 		() => [...new Set(audits.map((audit) => audit.Action).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -112,6 +114,10 @@ export default function Audits({ audits = [] }) {
 		setSortConfig({ key, direction });
 	};
 
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [searchQuery, actionFilter, tableFilter, sourceFilter, dateRangeFilter, sortConfig, itemsPerPage]);
+
 	const clearFilters = () => {
 		setSearchQuery("");
 		setActionFilter("all");
@@ -156,6 +162,21 @@ export default function Audits({ audits = [] }) {
 		return "bg-blue-100 text-blue-800";
 	};
 
+	const totalPages = Math.max(1, Math.ceil(filteredAudits.length / itemsPerPage));
+	const safeCurrentPage = Math.min(currentPage, totalPages);
+	const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+	const paginatedAudits = filteredAudits.slice(startIndex, startIndex + itemsPerPage);
+	const pageNumberWindow = 2;
+	const pageStart = Math.max(1, safeCurrentPage - pageNumberWindow);
+	const pageEnd = Math.min(totalPages, safeCurrentPage + pageNumberWindow);
+	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
+	const canGoPrevious = safeCurrentPage > 1;
+	const canGoNext = safeCurrentPage < totalPages;
+
+	const goToPage = (page) => {
+		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
+	};
+
 	return (
 		<AuthenticatedLayout
 			header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Audit</h2>}
@@ -184,7 +205,7 @@ export default function Audits({ audits = [] }) {
 										</div>
 										<input
 											type="text"
-											className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-[#D97736] focus:border-[#D97736] sm:text-sm"
+											className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
 											placeholder="Search audits by user, action, table, source, or change..."
 											value={searchQuery}
 											onChange={(e) => setSearchQuery(e.target.value)}
@@ -194,25 +215,25 @@ export default function Audits({ audits = [] }) {
 										<div className="relative flex-1 min-w-0">
 											<div className="overflow-x-auto pb-1 pr-4">
 												<div className="flex min-w-max items-center gap-2 pr-3">
-													<select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]">
+													<select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
 														<option value="all">All Actions</option>
 														{actionOptions.map((action) => (
 															<option key={action} value={action}>{action}</option>
 														))}
 													</select>
-													<select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} className="w-44 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]">
+													<select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} className="w-44 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
 														<option value="all">All Tables</option>
 														{tableOptions.map((tableName) => (
 															<option key={tableName} value={tableName}>{tableName}</option>
 														))}
 													</select>
-													<select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]">
+													<select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
 														<option value="all">All Sources</option>
 														{sourceOptions.map((source) => (
 															<option key={source} value={source}>{source}</option>
 														))}
 													</select>
-													<select value={dateRangeFilter} onChange={(e) => setDateRangeFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-[#D97736] focus:ring-[#D97736]">
+													<select value={dateRangeFilter} onChange={(e) => setDateRangeFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
 														<option value="all">All Dates</option>
 														<option value="today">Today</option>
 														<option value="last7">Last 7 Days</option>
@@ -227,77 +248,146 @@ export default function Audits({ audits = [] }) {
 										<button
 											type="button"
 											onClick={clearFilters}
-											className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+											className="shrink-0 rounded-md border border-primary bg-white px-3 py-2 text-xs font-medium text-primary shadow-sm hover:bg-primary-soft"
 										>
 											Reset Filters
 										</button>
 									</div>
 								</div>
 
-								<div className="border rounded-lg border-gray-200 flex-1 overflow-y-auto">
-									<table className="min-w-full divide-y divide-gray-200">
-										<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-											<tr>
-												<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("User")}>
-													<div className="flex items-center">User{sortConfig.key === "User" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
-												</th>
-												<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("TableEdited")}>
-													<div className="flex items-center">Table Edited{sortConfig.key === "TableEdited" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
-												</th>
-												<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Action")}>
-													<div className="flex items-center">Action{sortConfig.key === "Action" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
-												</th>
-												<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Source")}>
-													<div className="flex items-center">Source{sortConfig.key === "Source" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
-												</th>
-												<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Summary</th>
-												<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("DateAdded")}>
-													<div className="flex items-center">Date Added{sortConfig.key === "DateAdded" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
-												</th>
-												<th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-											</tr>
-										</thead>
-										<tbody className="bg-white divide-y divide-gray-200">
-											{filteredAudits.map((audit) => (
-												<tr key={audit.ID} className="hover:bg-gray-50">
-													<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{audit.user?.FullName || "Unknown User"}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{audit.TableEdited}</td>
-													<td className="px-6 py-4 whitespace-nowrap">
-														<span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${actionBadgeClass(audit.Action)}`}>
-															{audit.Action}
-														</span>
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{audit.Source || "Application"}</td>
-													<td className="px-6 py-4 text-sm text-gray-700 max-w-md">
-														<div className="truncate">{audit.ReadableChanges || formatChanges(audit.SavedChanges) || "No summary"}</div>
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(audit.DateAdded).toLocaleString()}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-														<button
-															type="button"
-															onClick={() => setSelectedAudit(audit)}
-															className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-														>
-															View
-														</button>
-													</td>
-												</tr>
-											))}
-											{filteredAudits.length === 0 && (
+								<div className="border rounded-lg border-gray-200 flex-1 min-h-0 flex flex-col overflow-hidden">
+									<div className="flex-1 overflow-y-auto">
+										<table className="min-w-full divide-y divide-gray-200">
+											<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
 												<tr>
-													<td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
-														No audit records found.
-													</td>
+													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("User")}>
+														<div className="flex items-center">User{sortConfig.key === "User" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
+													</th>
+													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("TableEdited")}>
+														<div className="flex items-center">Table Edited{sortConfig.key === "TableEdited" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
+													</th>
+													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Action")}>
+														<div className="flex items-center">Action{sortConfig.key === "Action" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
+													</th>
+													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Source")}>
+														<div className="flex items-center">Source{sortConfig.key === "Source" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
+													</th>
+													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Summary</th>
+													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("DateAdded")}>
+														<div className="flex items-center">Date Added{sortConfig.key === "DateAdded" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
+													</th>
+													<th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
 												</tr>
-											)}
-										</tbody>
-									</table>
+											</thead>
+											<tbody className="bg-white divide-y divide-gray-200">
+												{paginatedAudits.map((audit) => (
+													<tr key={audit.ID} className="hover:bg-gray-50">
+														<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{audit.user?.FullName || "Unknown User"}</td>
+														<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{audit.TableEdited}</td>
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${actionBadgeClass(audit.Action)}`}>
+																{audit.Action}
+															</span>
+														</td>
+														<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{audit.Source || "Application"}</td>
+														<td className="px-6 py-4 text-sm text-gray-700 max-w-md">
+															<div className="truncate">{audit.ReadableChanges || formatChanges(audit.SavedChanges) || "No summary"}</div>
+														</td>
+														<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(audit.DateAdded).toLocaleString()}</td>
+														<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+															<button
+																type="button"
+																onClick={() => setSelectedAudit(audit)}
+																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+															>
+																View
+															</button>
+														</td>
+													</tr>
+												))}
+												{filteredAudits.length === 0 && (
+													<tr>
+														<td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+															No audit records found.
+														</td>
+													</tr>
+												)}
+											</tbody>
+										</table>
+									</div>
+									<div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+										<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+											<div className="text-sm text-gray-600">
+												Showing {filteredAudits.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredAudits.length)} of {filteredAudits.length}
+											</div>
+											<div className="flex flex-wrap items-center gap-2">
+												<label htmlFor="audits-items-per-page" className="text-sm text-gray-600">Items per page</label>
+												<select
+													id="audits-items-per-page"
+													value={itemsPerPage}
+													onChange={(e) => setItemsPerPage(Number(e.target.value))}
+													className="rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+												>
+													<option value={25}>25</option>
+													<option value={50}>50</option>
+													<option value={100}>100</option>
+													<option value={500}>500</option>
+												</select>
+												<button
+													type="button"
+													onClick={() => goToPage(1)}
+													disabled={!canGoPrevious}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													First
+												</button>
+												<button
+													type="button"
+													onClick={() => goToPage(safeCurrentPage - 1)}
+													disabled={!canGoPrevious}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													Previous
+												</button>
+												{pageNumbers.map((page) => (
+													<button
+														key={page}
+														type="button"
+														onClick={() => goToPage(page)}
+														className={`rounded-md px-3 py-1.5 text-sm ${
+															page === safeCurrentPage
+																? "border border-primary bg-primary text-white"
+																: "border border-gray-300 text-gray-700 hover:bg-gray-50"
+														}`}
+													>
+														{page}
+													</button>
+												))}
+												<button
+													type="button"
+													onClick={() => goToPage(safeCurrentPage + 1)}
+													disabled={!canGoNext}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													Next
+												</button>
+												<button
+													type="button"
+													onClick={() => goToPage(totalPages)}
+													disabled={!canGoNext}
+													className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+												>
+													Last
+												</button>
+											</div>
+										</div>
+									</div>
 								</div>
-							</div>
 						</div>
 					</div>
 				</div>
 			</div>
+		</div>
 
 			{selectedAudit && (
 				<div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
@@ -341,3 +431,6 @@ export default function Audits({ audits = [] }) {
 		</AuthenticatedLayout>
 	);
 }
+
+
+

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryController extends Controller {
-  public function index() {
+  public function index(Request $request) {
     $stockIns = StockInDetail::with(['user', 'stockIns.inventory', 'stockIns.product'])
       ->orderBy('DateAdded', 'desc')
       ->get()
@@ -89,6 +89,7 @@ class InventoryController extends Controller {
       'stockIns' => $stockIns,
       'stockOuts' => $stockOuts,
       'users' => User::all(),
+      'initialTab' => $request->route('tab') ?? 'Inventory',
     ]);
   }
 
