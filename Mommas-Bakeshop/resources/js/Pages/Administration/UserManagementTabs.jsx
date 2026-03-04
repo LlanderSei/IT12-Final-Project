@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import Users from "./UserManagementSubviews/Users";
 import Permissions from "./UserManagementSubviews/Permissions";
+import { formatCountLabel } from "@/utils/countLabel";
 
 export default function UserManagementTabs({
 	users,
@@ -18,13 +19,44 @@ export default function UserManagementTabs({
 		? initialTab
 		: tabLabels[0];
 	const activeTab = normalizedInitialTab;
+	const getDefaultHeaderMeta = (tab) => {
+		if (tab === "Users") {
+			return {
+				subtitle: "Users",
+				countLabel: formatCountLabel((users || []).length, "user"),
+			};
+		}
+		return {
+			subtitle: "Permissions",
+			countLabel: formatCountLabel(0, "permission"),
+		};
+	};
+	const [headerMeta, setHeaderMeta] = useState(() =>
+		getDefaultHeaderMeta(activeTab),
+	);
+
+	useEffect(() => {
+		setHeaderMeta(getDefaultHeaderMeta(activeTab));
+	}, [activeTab, users]);
 
 	return (
 		<AuthenticatedLayout
 			header={
-				<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-					User Management
-				</h2>
+				<div className="flex items-center justify-between gap-4">
+					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
+						User Management
+						{headerMeta?.subtitle && (
+							<span className="ml-2 text-base font-medium text-gray-500">
+								&gt; {headerMeta.subtitle}
+							</span>
+						)}
+					</h2>
+					{headerMeta?.countLabel && (
+						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+							{headerMeta.countLabel}
+						</div>
+					)}
+				</div>
 			}
 			disableScroll={true}
 		>
@@ -51,8 +83,16 @@ export default function UserManagementTabs({
 			</div>
 
 			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
-				{activeTab === "Users" && <Users users={users} roles={roles} />}
-				{activeTab === "Permissions" && <Permissions />}
+				{activeTab === "Users" && (
+					<Users
+						users={users}
+						roles={roles}
+						onHeaderMetaChange={setHeaderMeta}
+					/>
+				)}
+				{activeTab === "Permissions" && (
+					<Permissions onHeaderMetaChange={setHeaderMeta} />
+				)}
 			</div>
 		</AuthenticatedLayout>
 	);

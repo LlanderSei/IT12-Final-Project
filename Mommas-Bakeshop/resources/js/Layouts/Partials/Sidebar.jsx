@@ -32,6 +32,12 @@ const Icon = ({ name, size = 20, style }) => {
 				<path d="M3 4h2l2.4 10.5a1 1 0 0 0 1 .8h9.8a1 1 0 0 0 1-.8L21 8H7" />
 			</svg>
 		),
+		saleHistory: (
+			<svg {...common}>
+				<path d="M4 4v16h16" />
+				<path d="M8 14l3-3 2 2 4-5" />
+			</svg>
+		),
 		inventory: (
 			<svg {...common}>
 				<path d="M3 8.5 12 4l9 4.5-9 4.5L3 8.5Z" />
@@ -104,6 +110,13 @@ const NAV_STRUCTURE = [
 				label: "Cashier",
 				icon: "cashier",
 				href: route("pos.cash-sale"),
+			},
+			{
+				id: "pos.sale-history",
+				activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
+				label: "Sale History",
+				icon: "saleHistory",
+				href: route("pos.sale-history"),
 			},
 		],
 	},

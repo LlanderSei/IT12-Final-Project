@@ -3,6 +3,11 @@ import { Link } from "@inertiajs/react";
 
 const tabs = [
 	{ label: "Cash Sale", routeName: "pos.cash-sale" },
+	{
+		label: "Sale History",
+		routeName: "pos.sale-history",
+		activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
+	},
 ];
 
 export default function CashierTabs() {
@@ -11,7 +16,9 @@ export default function CashierTabs() {
 			<div className="mx-auto px-4">
 				<nav className="-mb-px flex gap-2" aria-label="Tabs">
 					{tabs.map((tab) => {
-						const active = route().current(tab.routeName);
+						const active = (tab.activeRoutes || [tab.routeName]).some((routeName) =>
+							route().current(routeName),
+						);
 
 						return (
 							<Link

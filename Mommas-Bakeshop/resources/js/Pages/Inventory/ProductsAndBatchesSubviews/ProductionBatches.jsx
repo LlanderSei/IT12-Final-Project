@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
+import { formatCountLabel } from "@/utils/countLabel";
 
 const BATCH_DRAFT_KEY = "inventory.production_batch_draft.v1";
 
@@ -46,7 +47,7 @@ function hasProgress(draft) {
 	);
 }
 
-export default function ProductionBatches({ products, categories, batches }) {
+export default function ProductionBatches({ products, categories, batches, onHeaderMetaChange }) {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [showExitWarning, setShowExitWarning] = useState(false);
 	const [editingLine, setEditingLine] = useState(null);
@@ -255,10 +256,18 @@ export default function ProductionBatches({ products, categories, batches }) {
 	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
+	const countLabel = formatCountLabel(filteredBatches.length, "record");
 
 	const goToPage = (page) => {
 		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
 	};
+
+	useEffect(() => {
+		onHeaderMetaChange?.({
+			subtitle: "Batches History",
+			countLabel,
+		});
+	}, [onHeaderMetaChange, countLabel]);
 
 	const openModal = () => setIsModalOpen(true);
 
@@ -506,13 +515,6 @@ export default function ProductionBatches({ products, categories, batches }) {
 				<div className="mx-auto w-full flex-1 flex flex-col overflow-hidden min-h-0">
 					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
-							<div className="flex justify-between items-center mb-6">
-								<h3 className="text-xl font-bold text-gray-900">Batches History</h3>
-								<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-									{filteredBatches.length} Records
-								</div>
-							</div>
-
 							<div className="mb-6 flex items-start gap-3">
 								<div className="relative w-full max-w-xl shrink-0">
 									<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
