@@ -28,7 +28,15 @@ Route::middleware('auth')->group(function () {
   })->name('pos.cashier');
   Route::get('/pos/cash-sale', [PosController::class, 'cashSale'])->name('pos.cash-sale');
   Route::get('/pos/consignments', [PosController::class, 'consignments'])->name('pos.consignments');
+  Route::get('/pos/sale-history', [PosController::class, 'saleHistory'])
+    ->defaults('tab', 'Sales')
+    ->name('pos.sale-history');
+  Route::get('/pos/sale-history/pending-payments', [PosController::class, 'saleHistory'])
+    ->defaults('tab', 'Pending Payments')
+    ->name('pos.sale-history.pending');
+  Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->name('pos.sale-history.payments.store');
   Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->name('pos.checkout.walk-in');
+  Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->name('pos.checkout.job-order');
   Route::post('/pos/checkout/consignment', [PosController::class, 'checkoutConsignment'])->name('pos.checkout.consignment');
   Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->name('pos.checkout.shrinkage');
 

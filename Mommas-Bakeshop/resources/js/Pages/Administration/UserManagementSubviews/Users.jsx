@@ -1,7 +1,8 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm, usePage } from "@inertiajs/react";
+import { formatCountLabel } from "@/utils/countLabel";
 
-export default function Users({ users = [], roles = [] }) {
+export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	const { auth } = usePage().props;
 	const currentUser = auth?.user;
 
@@ -182,6 +183,14 @@ export default function Users({ users = [], roles = [] }) {
 		setRoleFilter("all");
 		setSortConfig({ key: "FullName", direction: "asc" });
 	};
+	const countLabel = formatCountLabel(filteredUsers.length, "user");
+
+	useEffect(() => {
+		onHeaderMetaChange?.({
+			subtitle: "Users",
+			countLabel,
+		});
+	}, [onHeaderMetaChange, countLabel]);
 
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
@@ -189,13 +198,6 @@ export default function Users({ users = [], roles = [] }) {
 				<div className="mx-auto w-full flex-1 flex flex-col overflow-hidden min-h-0">
 					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
-							<div className="flex justify-between items-center mb-6">
-								<h3 className="text-xl font-bold text-gray-900">Users</h3>
-								<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-									{filteredUsers.length} Users
-								</div>
-							</div>
-
 							<div className="mb-6 flex items-start gap-3">
 								<div className="relative w-full max-w-xl shrink-0">
 									<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

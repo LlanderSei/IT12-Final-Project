@@ -148,11 +148,13 @@ return new class extends Migration {
 		Schema::create('payments', function (Blueprint $table) {
 			$table->id('ID');
 			$table->foreignId('SalesID')->references('ID')->on('sales')->onDelete('cascade');
+			$table->string('PaymentMethod')->default('Cash');
 			$table->decimal('PaidAmount', 10, 2);
 			$table->decimal('TotalAmount', 10, 2);
 			$table->decimal('Change', 10, 2);
 			$table->enum('PaymentStatus', ['Paid', 'Partially Paid', 'Unpaid'])->default('Unpaid');
 			$table->timestamp('PaymentDueDate')->nullable();
+			$table->text('AdditionalDetails')->nullable();
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
@@ -161,6 +163,7 @@ return new class extends Migration {
 			$table->foreignId('SalesID')->references('ID')->on('sales')->onDelete('cascade');
 			$table->decimal('PaidAmount', 10, 2);
 			$table->text('PaymentMethod');
+			$table->text('AdditionalDetails')->nullable();
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 

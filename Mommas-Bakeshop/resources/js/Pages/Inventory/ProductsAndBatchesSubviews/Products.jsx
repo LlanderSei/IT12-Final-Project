@@ -2,8 +2,9 @@
 import { useForm } from "@inertiajs/react";
 import { useEffect } from "react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
+import { formatCountLabel } from "@/utils/countLabel";
 
-export default function Products({ products, categories }) {
+export default function Products({ products, categories, onHeaderMetaChange }) {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState(null);
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -319,10 +320,18 @@ export default function Products({ products, categories }) {
 	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
+	const countLabel = formatCountLabel(filteredAndSortedProducts.length, "product");
 
 	const goToPage = (page) => {
 		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
 	};
+
+	useEffect(() => {
+		onHeaderMetaChange?.({
+			subtitle: "Finished Goods",
+			countLabel,
+		});
+	}, [onHeaderMetaChange, countLabel]);
 
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
@@ -330,16 +339,6 @@ export default function Products({ products, categories }) {
 				<div className="mx-auto w-full flex-1 flex flex-col overflow-hidden min-h-0">
 					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
-							{/* Header */}
-							<div className="flex justify-between items-center mb-6">
-								<h3 className="text-xl font-bold text-gray-900">
-									Finished Goods
-								</h3>
-								<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-									{filteredAndSortedProducts.length} Products
-								</div>
-							</div>
-
 							{/* Search + Filters */}
 							<div className="mb-6 flex items-start gap-3">
 								<div className="relative w-full max-w-xl shrink-0">

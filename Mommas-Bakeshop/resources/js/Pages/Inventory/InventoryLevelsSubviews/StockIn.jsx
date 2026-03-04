@@ -1,6 +1,7 @@
 ﻿import React, { useMemo, useState } from "react";
 
 import { useEffect } from "react";
+import { formatCountLabel } from "@/utils/countLabel";
 
 function toComparableDate(value) {
 	if (!value) return null;
@@ -9,7 +10,7 @@ function toComparableDate(value) {
 	return d;
 }
 
-export default function StockIn({ stockIns, onEdit }) {
+export default function StockIn({ stockIns, onEdit, onHeaderMetaChange }) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [addedByFilter, setAddedByFilter] = useState("all");
 	const [supplierFilter, setSupplierFilter] = useState("all");
@@ -183,20 +184,21 @@ export default function StockIn({ stockIns, onEdit }) {
 	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
+	const countLabel = formatCountLabel(filteredStockIns.length, "record");
 
 	const goToPage = (page) => {
 		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
 	};
 
+	useEffect(() => {
+		onHeaderMetaChange?.({
+			subtitle: "Stock-In History",
+			countLabel,
+		});
+	}, [onHeaderMetaChange, countLabel]);
+
 	return (
 		<div className="flex flex-col flex-1 overflow-hidden min-h-0">
-			<div className="flex justify-between items-center mb-6">
-				<h3 className="text-xl font-bold text-gray-900">Stock-In History</h3>
-				<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-					{filteredStockIns.length} Records
-				</div>
-			</div>
-
 			<div className="mb-6 flex items-start gap-3">
 				<div className="relative w-full max-w-xl shrink-0">
 					<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

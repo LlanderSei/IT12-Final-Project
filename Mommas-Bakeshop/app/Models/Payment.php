@@ -16,11 +16,13 @@ class Payment extends Model implements Auditable {
 
   protected $fillable = [
     'SalesID',
+    'PaymentMethod',
     'PaidAmount',
     'TotalAmount',
     'Change',
     'PaymentStatus',
     'PaymentDueDate',
+    'AdditionalDetails',
     'DateAdded',
   ];
 

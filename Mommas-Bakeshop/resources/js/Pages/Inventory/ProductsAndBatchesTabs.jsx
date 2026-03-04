@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import Products from "./ProductsAndBatchesSubviews/Products";
 import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
+import { formatCountLabel } from "@/utils/countLabel";
 
 export default function ProductsAndBatchesTabs({
 	products,
@@ -20,13 +21,44 @@ export default function ProductsAndBatchesTabs({
 		? initialTab
 		: tabLabels[0];
 	const activeTab = normalizedInitialTab;
+	const getDefaultHeaderMeta = (tab) => {
+		if (tab === "Products") {
+			return {
+				subtitle: "Finished Goods",
+				countLabel: formatCountLabel((products || []).length, "product"),
+			};
+		}
+		return {
+			subtitle: "Batches History",
+			countLabel: formatCountLabel((batches || []).length, "record"),
+		};
+	};
+	const [headerMeta, setHeaderMeta] = useState(() =>
+		getDefaultHeaderMeta(activeTab),
+	);
+
+	useEffect(() => {
+		setHeaderMeta(getDefaultHeaderMeta(activeTab));
+	}, [activeTab, products, batches]);
 
 	return (
 		<AuthenticatedLayout
 			header={
-				<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-					Products & Production Batches
-				</h2>
+				<div className="flex items-center justify-between gap-4">
+					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
+						Products & Production Batches
+						{headerMeta?.subtitle && (
+							<span className="ml-2 text-base font-medium text-gray-500">
+								&gt; {headerMeta.subtitle}
+							</span>
+						)}
+					</h2>
+					{headerMeta?.countLabel && (
+						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+							{headerMeta.countLabel}
+						</div>
+					)}
+				</div>
 			}
 			disableScroll={true}
 		>
@@ -54,7 +86,11 @@ export default function ProductsAndBatchesTabs({
 				</div>
 
 				{activeTab === "Products" && (
-					<Products products={products} categories={categories} />
+					<Products
+						products={products}
+						categories={categories}
+						onHeaderMetaChange={setHeaderMeta}
+					/>
 				)}
 
 				{activeTab === "Production Batches" && (
@@ -62,6 +98,7 @@ export default function ProductsAndBatchesTabs({
 						products={products}
 						categories={categories}
 						batches={batches}
+						onHeaderMetaChange={setHeaderMeta}
 					/>
 				)}
 			</div>

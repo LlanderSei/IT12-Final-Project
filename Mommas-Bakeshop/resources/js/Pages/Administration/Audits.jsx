@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head } from "@inertiajs/react";
+import { formatCountLabel } from "@/utils/countLabel";
 
 export default function Audits({ audits = [] }) {
 	const [searchQuery, setSearchQuery] = useState("");
@@ -172,6 +173,7 @@ export default function Audits({ audits = [] }) {
 	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
+	const countLabel = formatCountLabel(filteredAudits.length, "record");
 
 	const goToPage = (page) => {
 		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
@@ -179,7 +181,14 @@ export default function Audits({ audits = [] }) {
 
 	return (
 		<AuthenticatedLayout
-			header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Audit</h2>}
+			header={
+				<div className="flex items-center justify-between gap-4">
+					<h2 className="font-semibold text-xl text-gray-800 leading-tight">Audit History</h2>
+					<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+						{countLabel}
+					</div>
+				</div>
+			}
 			disableScroll={true}
 		>
 			<Head title="Audits" />
@@ -188,14 +197,7 @@ export default function Audits({ audits = [] }) {
 				<div className="flex-1 flex flex-col overflow-hidden min-h-0">
 					<div className="mx-auto w-full flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
-							<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
-								<div className="flex justify-between items-center mb-6">
-									<h3 className="text-xl font-bold text-gray-900">Audit History</h3>
-									<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-										{filteredAudits.length} Records
-									</div>
-								</div>
-
+								<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
 								<div className="mb-6 flex items-start gap-3">
 									<div className="relative w-full max-w-xl shrink-0">
 										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

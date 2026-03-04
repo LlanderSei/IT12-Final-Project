@@ -9,6 +9,7 @@ import StockMovementModal, {
 	createDefaultStockOutDraft,
 } from "./InventoryLevelsSubviews/StockMovementModal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
+import { formatCountLabel } from "@/utils/countLabel";
 
 export default function InventoryLevelsTabs({
 	inventory,
@@ -45,6 +46,27 @@ export default function InventoryLevelsTabs({
 	];
 	const tabLabels = tabs.map((tab) => tab.label);
 	const activeTab = tabLabels.includes(initialTab) ? initialTab : tabLabels[0];
+	const getDefaultHeaderMeta = (tab) => {
+		if (tab === "Inventory") {
+			return {
+				subtitle: "Raw Materials & Supplies",
+				countLabel: formatCountLabel((inventory || []).length, "item"),
+			};
+		}
+		if (tab === "Stock-In") {
+			return {
+				subtitle: "Stock-In History",
+				countLabel: formatCountLabel((stockIns || []).length, "record"),
+			};
+		}
+		return {
+			subtitle: "Stock-Out History",
+			countLabel: formatCountLabel((stockOuts || []).length, "record"),
+		};
+	};
+	const [headerMeta, setHeaderMeta] = useState(() =>
+		getDefaultHeaderMeta(activeTab),
+	);
 
 	// Modal States
 	const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -58,6 +80,10 @@ export default function InventoryLevelsTabs({
 		createDefaultStockOutDraft,
 	);
 	const [editingStockOutID, setEditingStockOutID] = useState(null);
+
+	useEffect(() => {
+		setHeaderMeta(getDefaultHeaderMeta(activeTab));
+	}, [activeTab, inventory, stockIns, stockOuts]);
 
 	useEffect(() => {
 		try {
@@ -305,9 +331,21 @@ export default function InventoryLevelsTabs({
 	return (
 		<AuthenticatedLayout
 			header={
-				<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-					Inventory Levels & Stock Movements
-				</h2>
+				<div className="flex items-center justify-between gap-4">
+					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
+						Inventory Levels & Stock Movements
+						{headerMeta?.subtitle && (
+							<span className="ml-2 text-base font-medium text-gray-500">
+								&gt; {headerMeta.subtitle}
+							</span>
+						)}
+					</h2>
+					{headerMeta?.countLabel && (
+						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+							{headerMeta.countLabel}
+						</div>
+					)}
+				</div>
 			}
 		>
 			<Head title="Inventory Levels" />
@@ -342,15 +380,21 @@ export default function InventoryLevelsTabs({
 									inventory={inventory}
 									onEdit={openEditItemModal}
 									getStatus={getStatus}
+									onHeaderMetaChange={setHeaderMeta}
 								/>
 							)}
 							{activeTab === "Stock-In" && (
-								<StockIn stockIns={stockIns} onEdit={openEditStockInModal} />
+								<StockIn
+									stockIns={stockIns}
+									onEdit={openEditStockInModal}
+									onHeaderMetaChange={setHeaderMeta}
+								/>
 							)}
 							{activeTab === "Stock-Out" && (
 								<StockOut
 									stockOuts={stockOuts}
 									onEdit={openEditStockOutModal}
+									onHeaderMetaChange={setHeaderMeta}
 								/>
 							)}
 						</div>
