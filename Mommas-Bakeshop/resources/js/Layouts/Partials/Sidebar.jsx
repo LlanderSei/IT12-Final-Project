@@ -15,6 +15,8 @@ import {
 	FileText,
 	LogOut,
 	Croissant,
+	Sun,
+	Moon,
 } from "lucide-react";
 
 const Icon = ({ name, size = 20, style }) => {
@@ -190,6 +192,11 @@ const Sidebar = () => {
 	});
 	const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 	const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+	const [theme, setTheme] = useState(() => {
+		if (typeof window === "undefined") return "light";
+		const stored = window.localStorage.getItem("site:theme");
+		return stored === "dark" ? "dark" : "light";
+	});
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
@@ -203,6 +210,13 @@ const Sidebar = () => {
 			JSON.stringify(collapsedSections),
 		);
 	}, [collapsedSections]);
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const root = window.document.documentElement;
+		root.classList.remove("theme-dark", "theme-light");
+		root.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
+		window.localStorage.setItem("site:theme", theme);
+	}, [theme]);
 
 	const currentRoute = route().current?.() ?? "";
 	const roleMeta = ROLE_BADGE[user.role] ?? ROLE_BADGE.admin;
@@ -219,11 +233,11 @@ const Sidebar = () => {
 
 	return (
 		<aside
-			style={{
-				width: isExpanded ? "260px" : "72px",
-				minWidth: isExpanded ? "260px" : "72px",
-				backgroundColor: "#FFFFFF",
-				borderRight: "1px solid #E5E7EB",
+				style={{
+					width: isExpanded ? "260px" : "72px",
+					minWidth: isExpanded ? "260px" : "72px",
+					backgroundColor: "var(--color-surface)",
+					borderRight: "1px solid var(--color-border)",
 				display: "flex",
 				flexDirection: "column",
 				height: "100vh",
@@ -237,12 +251,12 @@ const Sidebar = () => {
 		>
 			{/* ── Header ── */}
 			<div
-				style={{
-					height: "70px",
-					display: "flex",
-					alignItems: "center",
-					padding: "0 1.25rem",
-					borderBottom: "1px solid #E5E7EB",
+					style={{
+						height: "70px",
+						display: "flex",
+						alignItems: "center",
+						padding: "0 1.25rem",
+						borderBottom: "1px solid var(--color-border)",
 					gap: "0.75rem",
 					justifyContent: isExpanded ? "flex-start" : "center",
 					flexShrink: 0,
@@ -293,25 +307,25 @@ const Sidebar = () => {
 						<button
 							onClick={() => setIsExpanded(false)}
 							title="Collapse sidebar"
-							style={{
-								background: "none",
-								border: "none",
-								cursor: "pointer",
-								padding: "4px",
-								borderRadius: "6px",
-								color: "#6B7280",
+								style={{
+									background: "none",
+									border: "none",
+									cursor: "pointer",
+									padding: "4px",
+									borderRadius: "6px",
+									color: "var(--color-text-muted)",
 								display: "flex",
 								alignItems: "center",
 								transition: "background 0.2s, color 0.2s",
 							}}
-							onMouseEnter={(e) => {
-								e.currentTarget.style.backgroundColor = "#F9FAFB";
-								e.currentTarget.style.color = "var(--color-primary-hex)";
-							}}
-							onMouseLeave={(e) => {
-								e.currentTarget.style.backgroundColor = "transparent";
-								e.currentTarget.style.color = "#6B7280";
-							}}
+								onMouseEnter={(e) => {
+									e.currentTarget.style.backgroundColor = "rgba(156,163,175,0.15)";
+									e.currentTarget.style.color = "var(--color-primary-hex)";
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.backgroundColor = "transparent";
+									e.currentTarget.style.color = "var(--color-text-muted)";
+								}}
 						>
 							{/* Left-arrow chevron */}
 							<ChevronLeft size={18} strokeWidth={2} />
@@ -325,9 +339,9 @@ const Sidebar = () => {
 					style={{
 						padding: isExpanded ? "1.25rem 1.5rem" : "1.25rem 0",
 						display: "flex",
-					alignItems: "center",
-					gap: "0.875rem",
-					borderBottom: "1px solid #E5E7EB",
+						alignItems: "center",
+						gap: "0.875rem",
+						borderBottom: "1px solid var(--color-border)",
 						justifyContent: isExpanded ? "flex-start" : "center",
 						flexShrink: 0,
 						cursor: "pointer",
@@ -434,10 +448,10 @@ const Sidebar = () => {
 						}}
 					>
 						<span
-							style={{
-								fontWeight: 600,
-								fontSize: "0.9rem",
-								color: "#1F2937",
+								style={{
+									fontWeight: 600,
+									fontSize: "0.9rem",
+									color: "var(--color-text-strong)",
 								whiteSpace: "nowrap",
 								overflow: "hidden",
 								textOverflow: "ellipsis",
@@ -497,13 +511,13 @@ const Sidebar = () => {
 							{/* Section title */}
 							{isExpanded && (
 								<div
-									style={{
-										padding: "0 1.5rem",
-										fontSize: "0.7rem",
-										fontWeight: 700,
+										style={{
+											padding: "0 1.5rem",
+											fontSize: "0.7rem",
+											fontWeight: 700,
 										textTransform: "uppercase",
 										letterSpacing: "0.06em",
-										color: "#9CA3AF",
+											color: "var(--color-text-muted)",
 										marginBottom: "0.35rem",
 										fontFamily: "'Outfit', sans-serif",
 										display: "flex",
@@ -582,20 +596,60 @@ const Sidebar = () => {
 				<div
 					style={{
 						padding: isExpanded ? "1rem 1.25rem" : "1rem 0",
-					borderTop: "1px solid #E5E7EB",
-					display: "flex",
-					justifyContent: isExpanded ? "flex-start" : "center",
-					flexShrink: 0,
-				}}
+						borderTop: "1px solid var(--color-border)",
+						display: "flex",
+						flexDirection: "column",
+						alignItems: isExpanded ? "stretch" : "center",
+						gap: "0.5rem",
+						justifyContent: isExpanded ? "flex-start" : "center",
+						flexShrink: 0,
+					}}
 				>
-					<button
-						type="button"
-						onClick={() => setIsLogoutModalOpen(true)}
+						<button
+							type="button"
+							onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
+							style={{
+								display: "inline-flex",
+								alignItems: "center",
+								gap: "0.6rem",
+								padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
+								borderRadius: "8px",
+								background: "none",
+								border: "none",
+								cursor: "pointer",
+								color: "var(--color-text-muted)",
+								fontSize: "0.875rem",
+								fontWeight: 500,
+								fontFamily: "'Inter', sans-serif",
+								transition: "background 0.2s",
+								width: isExpanded ? "100%" : "40px",
+								justifyContent: "center",
+							}}
+							onMouseEnter={(e) =>
+								(e.currentTarget.style.backgroundColor = "rgba(156,163,175,0.15)")
+							}
+							onMouseLeave={(e) =>
+								(e.currentTarget.style.backgroundColor = "transparent")
+							}
+							title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
+						>
+							{theme === "dark" ? (
+								<Sun size={19} strokeWidth={1.9} />
+							) : (
+								<Moon size={19} strokeWidth={1.9} />
+							)}
+							{isExpanded && (
+								<span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+							)}
+						</button>
+						<button
+							type="button"
+							onClick={() => setIsLogoutModalOpen(true)}
 						style={{
 							display: "inline-flex",
 							alignItems: "center",
-						gap: "0.6rem",
-						padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
+							gap: "0.6rem",
+							padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
 						borderRadius: "8px",
 						background: "none",
 						border: "none",
@@ -603,10 +657,11 @@ const Sidebar = () => {
 						color: "#EF4444",
 						fontSize: "0.875rem",
 						fontWeight: 500,
-						fontFamily: "'Inter', sans-serif",
-						transition: "background 0.2s",
-						width: isExpanded ? "100%" : "auto",
-					}}
+							fontFamily: "'Inter', sans-serif",
+							transition: "background 0.2s",
+							width: isExpanded ? "100%" : "40px",
+							justifyContent: "center",
+						}}
 					onMouseEnter={(e) =>
 						(e.currentTarget.style.backgroundColor = "#FEE2E2")
 					}
@@ -651,9 +706,13 @@ const Sidebar = () => {
 const NavItem = ({ item, isActive, isExpanded }) => {
 	const [hovered, setHovered] = useState(false);
 
-	const bgColor = isActive ? "rgb(var(--color-primary-soft))" : hovered ? "#F9FAFB" : "transparent";
+	const bgColor = isActive
+		? "rgb(var(--color-primary-soft))"
+		: hovered
+			? "rgba(156,163,175,0.15)"
+			: "transparent";
 
-	const textColor = isActive || hovered ? "var(--color-primary-hex)" : "#374151";
+	const textColor = isActive || hovered ? "var(--color-primary-hex)" : "var(--color-text-muted)";
 
 	return (
 		<Link
