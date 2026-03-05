@@ -72,7 +72,9 @@ class RolePermissionSeeder extends Seeder {
 			// POS-focused access.
 			'Cashier' => [
 				'CanViewCashier',
-				'CanProcessSales',
+				'CanProcessSalesWalkIn',
+				'CanProcessSalesJobOrders',
+				'CanProcessSalesShrinkage',
 				'CanViewSalesHistory',
 				'CanViewSalesHistorySales',
 				'CanViewSalesHistoryPendingPayments',

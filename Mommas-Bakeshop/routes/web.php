@@ -37,10 +37,10 @@ Route::middleware('auth')->group(function () {
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistoryPendingPayments'])
     ->name('pos.sale-history.pending');
   Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->middleware('permission:CanRecordSalePayment')->name('pos.sale-history.payments.store');
-  Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware('permission:CanProcessSales')->name('pos.checkout.walk-in');
-  Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware('permission:CanProcessSales')->name('pos.checkout.job-order');
-  Route::post('/pos/checkout/consignment', [PosController::class, 'checkoutConsignment'])->middleware('permission:CanProcessSales')->name('pos.checkout.consignment');
-  Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->middleware('permission:CanProcessSales')->name('pos.checkout.shrinkage');
+  Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware('permission:CanProcessSalesWalkIn')->name('pos.checkout.walk-in');
+  Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware('permission:CanProcessSalesJobOrders')->name('pos.checkout.job-order');
+  Route::post('/pos/checkout/consignment', [PosController::class, 'checkoutConsignment'])->middleware('permission:CanProcessSalesJobOrders')->name('pos.checkout.consignment');
+  Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->middleware('permission:CanProcessSalesShrinkage')->name('pos.checkout.shrinkage');
 
   // Inventory
   Route::get('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'index'])->middleware('permission:CanViewInventoryLevels')->name('inventory.levels');

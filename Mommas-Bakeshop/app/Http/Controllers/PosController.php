@@ -12,6 +12,7 @@ use App\Models\Shrinkage;
 use App\Models\ShrinkedProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -422,11 +423,19 @@ class PosController extends Controller {
 
   public function recordShrinkage(Request $request) {
     try {
+      $request->user()?->loadMissing('role');
+      $isPrivilegedShrinkageUser = in_array(
+        strtolower((string) $request->user()?->role?->RoleName),
+        ['owner', 'admin'],
+        true
+      );
+      $allowedReasons = $isPrivilegedShrinkageUser ? ['Spoiled', 'Theft', 'Lost'] : ['Spoiled'];
+
       $payload = $request->validate([
         'items' => 'required|array|min:1',
         'items.*.ProductID' => 'required|integer|exists:products,ID',
         'items.*.Quantity' => 'required|integer|min:1',
-        'reason' => 'required|in:Spoiled',
+        'reason' => ['required', Rule::in($allowedReasons)],
       ]);
 
       DB::transaction(function () use ($payload, $request) {
