@@ -1,5 +1,6 @@
 ﻿import React, { useMemo, useState } from "react";
-import { Head, useForm } from "@inertiajs/react";
+import { Head, useForm, usePage } from "@inertiajs/react";
+import { useEffect } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import CashierTabs from "./CashierTabs";
@@ -25,7 +26,13 @@ export default function CashSale({
 	customers = [],
 }) {
 	const { can, requirePermission } = usePermissions();
-	const canProcessSales = can("CanProcessSales");
+	const { auth } = usePage().props;
+	const canProcessWalkIn = can("CanProcessSalesWalkIn");
+	const canProcessJobOrders = can("CanProcessSalesJobOrders");
+	const canProcessShrinkage = can("CanProcessSalesShrinkage");
+	const canProcessAny = canProcessWalkIn || canProcessJobOrders || canProcessShrinkage;
+	const userRole = String(auth?.user?.role || "").toLowerCase();
+	const canUseAdvancedShrinkageReasons = userRole === "owner" || userRole === "admin";
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedCategory, setSelectedCategory] = useState("all");
@@ -71,6 +78,36 @@ export default function CashSale({
 		items: [],
 		reason: "Spoiled",
 	});
+	const transactionPermissionMap = {
+		"Walk-In": {
+			allowed: canProcessWalkIn,
+			permission: "CanProcessSalesWalkIn",
+			label: "walk-in sales",
+		},
+		"Job Orders": {
+			allowed: canProcessJobOrders,
+			permission: "CanProcessSalesJobOrders",
+			label: "job orders",
+		},
+		Shrinkage: {
+			allowed: canProcessShrinkage,
+			permission: "CanProcessSalesShrinkage",
+			label: "shrinkage",
+		},
+	};
+	const transactionOptions = Object.entries(transactionPermissionMap)
+		.filter(([, config]) => config.allowed)
+		.map(([label]) => label);
+
+	useEffect(() => {
+		if (!transactionOptions.length) {
+			return;
+		}
+
+		if (!transactionOptions.includes(transactionType)) {
+			setTransactionType(transactionOptions[0]);
+		}
+	}, [transactionOptions, transactionType]);
 
 	const availableProducts = useMemo(() => {
 		return products
@@ -100,9 +137,22 @@ export default function CashSale({
 			ProductID: item.ID,
 			Quantity: item.quantity,
 		}));
+	const requireSelectedTransactionPermission = () => {
+		const selected = transactionPermissionMap[transactionType];
+		if (selected?.allowed) {
+			return true;
+		}
+
+		const permissionName = selected?.permission || "CanProcessSalesWalkIn";
+		const transactionLabel = selected?.label || "this transaction";
+		return requirePermission(
+			permissionName,
+			`You do not have permission to process ${transactionLabel}.`,
+		);
+	};
 
 	const addToCart = (product) => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		setCartItems((prev) => {
 			const existing = prev.find((item) => item.ID === product.ID);
 			if (existing) {
@@ -129,12 +179,12 @@ export default function CashSale({
 	};
 
 	const removeItem = (id) => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		setCartItems((prev) => prev.filter((item) => item.ID !== id));
 	};
 
 	const incrementItem = (id) => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		setCartItems((prev) =>
 			prev.map((item) =>
 				item.ID === id
@@ -145,7 +195,7 @@ export default function CashSale({
 	};
 
 	const decrementItem = (id) => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		setCartItems((prev) =>
 			prev.flatMap((item) => {
 				if (item.ID !== id) return [item];
@@ -156,7 +206,7 @@ export default function CashSale({
 	};
 
 	const openEditQtyModal = (item) => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		setEditQtyItem(item);
 		setEditQtyValue(String(item.quantity));
 		setEditQtyError("");
@@ -195,14 +245,14 @@ export default function CashSale({
 	};
 
 	const clearCart = () => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		setCartItems([]);
 	};
 	const firstErrorMessage = (errors, fallback) =>
 		(errors && Object.values(errors).find(Boolean)) || fallback;
 
 	const openCheckoutModal = () => {
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!requireSelectedTransactionPermission()) return;
 		if (!cartItems.length) return;
 		if (transactionType === "Walk-In") {
 			walkInForm.setData("items", cartToPayload());
@@ -266,10 +316,17 @@ export default function CashSale({
 			);
 		});
 	}, [customers, customerSearch]);
+	const selectedTransactionConfig = transactionPermissionMap[transactionType] || null;
+	const canProcessSelectedTransaction = Boolean(selectedTransactionConfig?.allowed);
 
 	const submitWalkIn = (e) => {
 		e.preventDefault();
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!canProcessWalkIn) {
+			return requirePermission(
+				"CanProcessSalesWalkIn",
+				"You do not have permission to process walk-in sales.",
+			);
+		}
 		walkInForm.transform((data) => ({
 			...data,
 			items: cartToPayload(),
@@ -300,7 +357,12 @@ export default function CashSale({
 
 	const submitJobOrder = (e) => {
 		e.preventDefault();
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!canProcessJobOrders) {
+			return requirePermission(
+				"CanProcessSalesJobOrders",
+				"You do not have permission to process job orders.",
+			);
+		}
 		jobOrderForm.transform((data) => ({
 			...data,
 			items: cartToPayload(),
@@ -345,7 +407,12 @@ export default function CashSale({
 
 	const submitShrinkage = (e) => {
 		e.preventDefault();
-		if (!canProcessSales) return requirePermission("CanProcessSales");
+		if (!canProcessShrinkage) {
+			return requirePermission(
+				"CanProcessSalesShrinkage",
+				"You do not have permission to record shrinkage.",
+			);
+		}
 		shrinkageForm.transform((data) => ({
 			items: cartToPayload(),
 			reason: data.reason,
@@ -384,9 +451,9 @@ export default function CashSale({
 
 			<div className="flex-1 p-4 md:p-6 min-h-0">
 				<div className="h-full min-h-0 flex flex-col">
-					{!canProcessSales && (
+					{!canProcessAny && (
 						<div className="mb-3 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-							You can view cashier data, but sales processing actions are disabled for your account.
+							You can view cashier data, but all sales processing actions are disabled for your account.
 						</div>
 					)}
 					<div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4">
@@ -420,7 +487,7 @@ export default function CashSale({
 										key={product.ID}
 										type="button"
 										onClick={() => addToCart(product)}
-										disabled={!canProcessSales}
+										disabled={!canProcessSelectedTransaction}
 										className="text-left border border-gray-200 rounded-lg p-3 hover:border-primary hover:bg-primary-soft transition-colors"
 									>
 										<div className="h-28 bg-gray-100 rounded-md mb-2 overflow-hidden">
@@ -489,7 +556,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => removeItem(item.ID)}
-											disabled={!canProcessSales}
+											disabled={!canProcessSelectedTransaction}
 											className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
 										>
 											Delete
@@ -497,7 +564,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => decrementItem(item.ID)}
-											disabled={!canProcessSales}
+											disabled={!canProcessSelectedTransaction}
 											className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 										>
 											-
@@ -505,7 +572,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => incrementItem(item.ID)}
-											disabled={!canProcessSales}
+											disabled={!canProcessSelectedTransaction}
 											className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 										>
 											+
@@ -513,7 +580,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => openEditQtyModal(item)}
-											disabled={!canProcessSales}
+											disabled={!canProcessSelectedTransaction}
 											className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary-soft"
 										>
 											Edit Qty.
@@ -532,7 +599,7 @@ export default function CashSale({
 							<button
 								type="button"
 								onClick={clearCart}
-								disabled={!canProcessSales || !cartItems.length}
+								disabled={!canProcessSelectedTransaction || !cartItems.length}
 								className="w-full border border-red-200 text-red-600 rounded-md px-3 py-2 text-sm hover:bg-red-50 disabled:opacity-40"
 							>
 								Clear Cart
@@ -546,17 +613,19 @@ export default function CashSale({
 							<select
 								value={transactionType}
 								onChange={(e) => setTransactionType(e.target.value)}
-								disabled={!canProcessSales}
+								disabled={!canProcessAny}
 								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							>
-								<option value="Walk-In">Walk-In</option>
-								<option value="Job Orders">Job Orders</option>
-								<option value="Shrinkage">Shrinkage</option>
+								{transactionOptions.map((option) => (
+									<option key={option} value={option}>
+										{option}
+									</option>
+								))}
 							</select>
 							<button
 								type="button"
 								onClick={openCheckoutModal}
-								disabled={!canProcessSales || !cartItems.length}
+								disabled={!canProcessSelectedTransaction || !cartItems.length}
 								className="w-full bg-primary text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-primary-hover disabled:opacity-40"
 							>
 								{transactionType === "Shrinkage"
@@ -1093,6 +1162,12 @@ export default function CashSale({
 							className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 						>
 							<option value="Spoiled">Spoilage</option>
+							{canUseAdvancedShrinkageReasons && (
+								<>
+									<option value="Theft">Theft</option>
+									<option value="Lost">Lost</option>
+								</>
+							)}
 						</select>
 					</div>
 					{shrinkageForm.errors.reason && (

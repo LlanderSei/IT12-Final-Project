@@ -14,7 +14,9 @@ class PermissionsSeeder extends Seeder {
 		$permissions = [
 			// POS
 			['PermissionName' => 'CanViewCashier', 'PermissionDescription' => 'Can access the cashier interface.'],
-			['PermissionName' => 'CanProcessSales', 'PermissionDescription' => 'Can process sales and cashier checkout flows.'],
+			['PermissionName' => 'CanProcessSalesWalkIn', 'PermissionDescription' => 'Can process walk-in sales checkout.'],
+			['PermissionName' => 'CanProcessSalesJobOrders', 'PermissionDescription' => 'Can process job-order sales checkout.'],
+			['PermissionName' => 'CanProcessSalesShrinkage', 'PermissionDescription' => 'Can record shrinkage transactions.'],
 			['PermissionName' => 'CanViewSalesHistory', 'PermissionDescription' => 'Can access sales history and related records.'],
 			['PermissionName' => 'CanViewSalesHistorySales', 'PermissionDescription' => 'Can access the Sales tab in sales history.'],
 			['PermissionName' => 'CanViewSalesHistoryPendingPayments', 'PermissionDescription' => 'Can access the Pending Payments tab in sales history.'],

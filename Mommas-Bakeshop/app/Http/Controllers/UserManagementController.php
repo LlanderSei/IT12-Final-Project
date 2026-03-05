@@ -357,7 +357,9 @@ class UserManagementController extends Controller {
     return [
       'cashierLevel' => [
         'CanViewCashier',
-        'CanProcessSales',
+        'CanProcessSalesWalkIn',
+        'CanProcessSalesJobOrders',
+        'CanProcessSalesShrinkage',
         'CanViewSalesHistory',
         'CanViewSalesHistorySales',
         'CanViewSalesHistoryPendingPayments',
@@ -472,7 +474,9 @@ class UserManagementController extends Controller {
       ],
       'Cashier' => [
         'CanViewCashier',
-        'CanProcessSales',
+        'CanProcessSalesWalkIn',
+        'CanProcessSalesJobOrders',
+        'CanProcessSalesShrinkage',
         'CanViewSalesHistory',
         'CanViewSalesHistorySales',
         'CanViewSalesHistoryPendingPayments',
