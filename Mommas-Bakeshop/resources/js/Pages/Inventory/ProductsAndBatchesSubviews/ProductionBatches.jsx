@@ -2,6 +2,7 @@
 import { useForm } from "@inertiajs/react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
 
 const BATCH_DRAFT_KEY = "inventory.production_batch_draft.v1";
 
@@ -47,7 +48,15 @@ function hasProgress(draft) {
 	);
 }
 
-export default function ProductionBatches({ products, categories, batches, onHeaderMetaChange }) {
+export default function ProductionBatches({
+	products,
+	categories,
+	batches,
+	onHeaderMetaChange,
+	canCreateProductionBatch = false,
+	canUpdateProductionBatch = false,
+}) {
+	const { requirePermission } = usePermissions();
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [showExitWarning, setShowExitWarning] = useState(false);
 	const [editingLine, setEditingLine] = useState(null);
@@ -270,8 +279,13 @@ export default function ProductionBatches({ products, categories, batches, onHea
 	}, [onHeaderMetaChange, countLabel]);
 
 	const openModal = () => setIsModalOpen(true);
+	const openCreateModal = () => {
+		if (!canCreateProductionBatch) return requirePermission("CanCreateProductionBatch");
+		setIsModalOpen(true);
+	};
 
 	const openEditBatchDraft = (batch) => {
+		if (!canUpdateProductionBatch) return requirePermission("CanUpdateProductionBatch");
 		const items = (batch.ItemsProduced || []).map((item, idx) => ({
 			key: `batch-${batch.ID}-line-${idx}`,
 			ProductID: item.ProductID,
@@ -480,6 +494,7 @@ export default function ProductionBatches({ products, categories, batches, onHea
 
 	const submitBatch = (e) => {
 		e.preventDefault();
+		if (!canCreateProductionBatch) return requirePermission("CanCreateProductionBatch");
 		const issues = [];
 		if ((draft.items || []).length === 0) {
 			issues.push("Add at least one product item.");
@@ -589,13 +604,17 @@ export default function ProductionBatches({ products, categories, batches, onHea
 												<td className="px-4 py-4 text-sm text-gray-500 break-words">{batch.BatchDescription || "-"}</td>
 												<td className="px-4 py-4 text-sm text-gray-500 break-words">{new Date(batch.DateAdded).toLocaleString()}</td>
 												<td className="px-4 py-4 text-right">
-													<button
-														type="button"
-														onClick={() => openEditBatchDraft(batch)}
-														className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-													>
-														Edit
-													</button>
+													{canUpdateProductionBatch ? (
+														<button
+															type="button"
+															onClick={() => openEditBatchDraft(batch)}
+															className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+														>
+															Edit
+														</button>
+													) : (
+														<span className="text-xs text-gray-400">No access</span>
+													)}
 												</td>
 											</tr>
 										))}
@@ -682,7 +701,7 @@ export default function ProductionBatches({ products, categories, batches, onHea
 
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<button onClick={openModal} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+					<button onClick={openCreateModal} disabled={!canCreateProductionBatch} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
 						Record a Batch
 					</button>
 				</div>
@@ -837,6 +856,3 @@ export default function ProductionBatches({ products, categories, batches, onHea
 		</div>
 	);
 }
-
-
-

@@ -3,8 +3,20 @@ import { useForm } from "@inertiajs/react";
 import { useEffect } from "react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
 
-export default function Products({ products, categories, onHeaderMetaChange }) {
+export default function Products({
+	products,
+	categories,
+	onHeaderMetaChange,
+	canCreateProduct = false,
+	canUpdateProduct = false,
+	canDeleteProduct = false,
+	canCreateProductCategory = false,
+	canUpdateProductCategory = false,
+	canDeleteProductCategory = false,
+}) {
+	const { requirePermission } = usePermissions();
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editingProduct, setEditingProduct] = useState(null);
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -73,12 +85,14 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 	});
 
 	const openAddModal = () => {
+		if (!canCreateProduct) return requirePermission("CanCreateProduct");
 		setEditingProduct(null);
 		reset();
 		setIsModalOpen(true);
 	};
 
 	const openEditModal = (product) => {
+		if (!canUpdateProduct) return requirePermission("CanUpdateProduct");
 		setEditingProduct(product);
 		setData({
 			ProductName: product.ProductName,
@@ -98,6 +112,8 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 
 	const submitProduct = (e) => {
 		e.preventDefault();
+		if (editingProduct && !canUpdateProduct) return;
+		if (!editingProduct && !canCreateProduct) return;
 		if (editingProduct) {
 			put(route("inventory.products.update", editingProduct.ID), {
 				onSuccess: () => closeModal(),
@@ -110,10 +126,12 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 	};
 
 	const deleteProduct = () => {
+		if (!canDeleteProduct) return requirePermission("CanDeleteProduct");
 		setIsDeleteModalOpen(true);
 	};
 
 	const confirmDeleteProduct = () => {
+		if (!canDeleteProduct) return requirePermission("CanDeleteProduct");
 		destroy(route("inventory.products.destroy", editingProduct.ID), {
 			onSuccess: () => {
 				setIsDeleteModalOpen(false);
@@ -123,6 +141,9 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 	};
 
 	const openModifyCategories = () => {
+		if (!(canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory)) {
+			return requirePermission("CanUpdateProductCategory");
+		}
 		setEditingCategory(null);
 		catReset();
 		setIsCategoryModalOpen(true);
@@ -130,6 +151,8 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 
 	const submitCategory = (e) => {
 		e.preventDefault();
+		if (editingCategory && !canUpdateProductCategory) return requirePermission("CanUpdateProductCategory");
+		if (!editingCategory && !canCreateProductCategory) return requirePermission("CanCreateProductCategory");
 		if (editingCategory) {
 			putCat(route("inventory.categories.update", editingCategory.ID), {
 				onSuccess: () => {
@@ -149,6 +172,7 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 	};
 
 	const editCategory = (category) => {
+		if (!canUpdateProductCategory) return requirePermission("CanUpdateProductCategory");
 		setEditingCategory(category);
 		setCatData({
 			CategoryName: category.CategoryName,
@@ -162,11 +186,13 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 	};
 
 	const deleteCategory = (category) => {
+		if (!canDeleteProductCategory) return requirePermission("CanDeleteProductCategory");
 		setCategoryToDelete(category);
 		setIsCategoryDeleteModalOpen(true);
 	};
 
 	const confirmDeleteCategory = () => {
+		if (!canDeleteProductCategory) return requirePermission("CanDeleteProductCategory");
 		destroyCat(route("inventory.categories.destroy", categoryToDelete.ID), {
 			onSuccess: () => {
 				setIsCategoryDeleteModalOpen(false);
@@ -593,6 +619,7 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 												<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
 													<button
 														onClick={() => openEditModal(product)}
+														disabled={!canUpdateProduct}
 														className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
 													>
 														Edit
@@ -689,35 +716,39 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 			{/* Floating Buttons */}
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 hidden sm:block">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4">
-					<button
-						onClick={openModifyCategories}
-						className="flex-1 flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-					>
-						Modify Categories
-					</button>
-					<button
-						onClick={openAddModal}
-						className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-					>
-						Add Products
-					</button>
+						<button
+							onClick={openModifyCategories}
+							disabled={!(canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory)}
+							className="flex-1 flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+						>
+							Modify Categories
+						</button>
+						<button
+							onClick={openAddModal}
+							disabled={!canCreateProduct}
+							className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
+						>
+							Add Products
+						</button>
 				</div>
 			</div>
 
 			{/* Mobile-friendly Buttons */}
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 sm:hidden flex flex-col space-y-2">
-				<button
-					onClick={openModifyCategories}
-					className="w-full flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-				>
-					Modify Categories
-				</button>
-				<button
-					onClick={openAddModal}
-					className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
-				>
-					Add Products
-				</button>
+					<button
+						onClick={openModifyCategories}
+						disabled={!(canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory)}
+						className="w-full flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+					>
+						Modify Categories
+					</button>
+					<button
+						onClick={openAddModal}
+						disabled={!canCreateProduct}
+						className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
+					>
+						Add Products
+					</button>
 			</div>
 
 			{/* Add/Edit Product Modal */}
@@ -895,14 +926,15 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 									>
 										{editingProduct ? "Save Changes" : "Add Product"}
 									</button>
-									{editingProduct && (
-										<button
-											type="button"
-											onClick={deleteProduct}
-											className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-										>
-											Delete
-										</button>
+										{editingProduct && (
+											<button
+												type="button"
+												disabled={!canDeleteProduct}
+												onClick={deleteProduct}
+												className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600"
+											>
+												Delete
+											</button>
 									)}
 									<button
 										type="button"
@@ -958,11 +990,12 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 												{cat.CategoryName}
 											</span>
 											<div className="flex space-x-2">
-												<button
-													type="button"
-													onClick={() => editCategory(cat)}
-													className="p-1 text-gray-400 hover:text-primary"
-												>
+													<button
+														type="button"
+														onClick={() => editCategory(cat)}
+														disabled={!canUpdateProductCategory}
+														className="p-1 text-gray-400 hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
+													>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
 														className="h-5 w-5"
@@ -978,11 +1011,12 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 														/>
 													</svg>
 												</button>
-												<button
-													type="button"
-													onClick={() => deleteCategory(cat)}
-													className="p-1 text-gray-400 hover:text-red-500"
-												>
+													<button
+														type="button"
+														onClick={() => deleteCategory(cat)}
+														disabled={!canDeleteProductCategory}
+														className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-gray-400"
+													>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
 														className="h-5 w-5"
@@ -1021,11 +1055,11 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 												className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
 											/>
 										</div>
-										<button
-											type="submit"
-											disabled={catProcessing}
-											className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-sm font-medium text-white hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
-										>
+											<button
+												type="submit"
+												disabled={catProcessing || (editingCategory ? !canUpdateProductCategory : !canCreateProductCategory)}
+												className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-sm font-medium text-white hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
+											>
 											{editingCategory ? "Update" : "Save"}
 										</button>
 										{editingCategory && (
@@ -1083,6 +1117,3 @@ export default function Products({ products, categories, onHeaderMetaChange }) {
 		</div>
 	);
 }
-
-
-

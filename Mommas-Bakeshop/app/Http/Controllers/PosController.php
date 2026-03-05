@@ -33,6 +33,26 @@ class PosController extends Controller {
     $initialTab = in_array($requestedTab, ['Sales', 'Pending Payments'], true)
       ? $requestedTab
       : 'Sales';
+    $user = $request->user();
+    $canViewBase = $user?->hasPermission('CanViewSalesHistory') ?? false;
+    $canViewSales = $canViewBase && ($user?->hasPermission('CanViewSalesHistorySales') ?? false);
+    $canViewPending = $canViewBase && ($user?->hasPermission('CanViewSalesHistoryPendingPayments') ?? false);
+
+    if ($initialTab === 'Sales' && !$canViewSales) {
+      if ($canViewPending) {
+        return redirect()->route('pos.sale-history.pending');
+      }
+
+      abort(403);
+    }
+
+    if ($initialTab === 'Pending Payments' && !$canViewPending) {
+      if ($canViewSales) {
+        return redirect()->route('pos.sale-history');
+      }
+
+      abort(403);
+    }
 
     $sales = Sale::with([
       'customer',
@@ -497,4 +517,3 @@ class PosController extends Controller {
   }
 
 }
-

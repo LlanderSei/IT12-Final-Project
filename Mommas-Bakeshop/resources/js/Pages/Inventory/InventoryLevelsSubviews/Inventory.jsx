@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { formatCountLabel } from "@/utils/countLabel";
 
-export default function Inventory({ inventory, onEdit, getStatus, onHeaderMetaChange }) {
+export default function Inventory({ inventory, onEdit, getStatus, onHeaderMetaChange, canEdit = false }) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [typeFilter, setTypeFilter] = useState("all");
 	const [statusFilter, setStatusFilter] = useState("all");
@@ -320,12 +320,16 @@ export default function Inventory({ inventory, onEdit, getStatus, onHeaderMetaCh
 									</span>
 								</td>
 								<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-									<button
-										onClick={() => onEdit(item)}
-										className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-									>
-										Edit
-									</button>
+									{canEdit ? (
+										<button
+											onClick={() => onEdit(item)}
+											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+										>
+											Edit
+										</button>
+									) : (
+										<span className="text-xs text-gray-400">No access</span>
+									)}
 								</td>
 							</tr>
 						))}
@@ -413,6 +417,5 @@ export default function Inventory({ inventory, onEdit, getStatus, onHeaderMetaCh
 		</div>
 	);
 }
-
 
 

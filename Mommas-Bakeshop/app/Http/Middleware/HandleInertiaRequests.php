@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Audit;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -28,6 +29,15 @@ class HandleInertiaRequests extends Middleware {
   public function share(Request $request): array {
     $user = $request->user();
     $user?->loadMissing('role');
+    $recentAudits = collect();
+    if ($user) {
+      $recentAudits = Audit::query()
+        ->where('UserID', $user->id)
+        ->where('Source', 'Application')
+        ->orderByDesc('DateAdded')
+        ->limit(20)
+        ->get(['ID', 'TableEdited', 'ReadableChanges', 'Action', 'Source', 'DateAdded']);
+    }
 
     return [
       ...parent::share($request),
@@ -37,6 +47,15 @@ class HandleInertiaRequests extends Middleware {
           'name'  => $user->FullName,
           'email' => $user->email,
           'role'  => strtolower($user->role?->RoleName ?? 'admin'),
+          'permissions' => $user->permissionNames()->all(),
+          'recentAudits' => $recentAudits->map(fn($audit) => [
+            'ID' => $audit->ID,
+            'TableEdited' => $audit->TableEdited,
+            'ReadableChanges' => $audit->ReadableChanges,
+            'Action' => $audit->Action,
+            'Source' => $audit->Source,
+            'DateAdded' => optional($audit->DateAdded)->toIso8601String(),
+          ])->values()->all(),
         ] : null,
       ],
       'flash' => [

@@ -21,9 +21,9 @@ return new class extends Migration {
 		Schema::create('permissions', function (Blueprint $table) {
 			$table->id('ID');
 			$table->string('PermissionName');
-			$table->longText('PermissionDescription');
-			$table->timestamp('DateAdded');
-			$table->timestamp('DateModified');
+			$table->string('PermissionDescription')->nullable();
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
 		});
 
 		Schema::create('permissions_set', function (Blueprint $table) {

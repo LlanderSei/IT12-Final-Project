@@ -10,6 +10,7 @@ import StockMovementModal, {
 } from "./InventoryLevelsSubviews/StockMovementModal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
 
 export default function InventoryLevelsTabs({
 	inventory,
@@ -19,6 +20,14 @@ export default function InventoryLevelsTabs({
 	stockOuts,
 	initialTab = "Inventory",
 }) {
+	const { can, requirePermission } = usePermissions();
+	const canCreateInventoryItem = can("CanCreateInventoryItem");
+	const canUpdateInventoryItem = can("CanUpdateInventoryItem");
+	const canDeleteInventoryItem = can("CanDeleteInventoryItem");
+	const canCreateStockIn = can("CanCreateStockIn");
+	const canUpdateStockIn = can("CanUpdateStockIn");
+	const canCreateStockOut = can("CanCreateStockOut");
+	const canUpdateStockOut = can("CanUpdateStockOut");
 	const parseStockOutReason = (reason) => {
 		const value = String(reason || "").trim();
 		if (!value) {
@@ -134,6 +143,7 @@ export default function InventoryLevelsTabs({
 
 	// Handlers
 	const openAddItemModal = () => {
+		if (!canCreateInventoryItem) return requirePermission("CanCreateInventoryItem");
 		setEditingItem(null);
 		itemForm.reset();
 		itemForm.setData("Quantity", 0);
@@ -141,6 +151,7 @@ export default function InventoryLevelsTabs({
 	};
 
 	const openEditItemModal = (item) => {
+		if (!canUpdateInventoryItem) return requirePermission("CanUpdateInventoryItem");
 		setEditingItem(item);
 		itemForm.setData({
 			ItemName: item.ItemName,
@@ -156,10 +167,12 @@ export default function InventoryLevelsTabs({
 	const submitItem = (e) => {
 		e.preventDefault();
 		if (editingItem) {
+			if (!canUpdateInventoryItem) return requirePermission("CanUpdateInventoryItem");
 			itemForm.put(route("inventory.levels.update", editingItem.ID), {
 				onSuccess: () => setIsItemModalOpen(false),
 			});
 		} else {
+			if (!canCreateInventoryItem) return requirePermission("CanCreateInventoryItem");
 			itemForm.post(route("inventory.levels.store"), {
 				onSuccess: () => setIsItemModalOpen(false),
 			});
@@ -167,6 +180,7 @@ export default function InventoryLevelsTabs({
 	};
 
 	const confirmDeleteItem = () => {
+		if (!canDeleteInventoryItem) return requirePermission("CanDeleteInventoryItem");
 		itemForm.delete(route("inventory.levels.destroy", editingItem.ID), {
 			onSuccess: () => {
 				setIsDeleteModalOpen(false);
@@ -176,6 +190,8 @@ export default function InventoryLevelsTabs({
 	};
 
 	const handleRecordStockIn = (payload) => {
+		if (editingStockInID && !canUpdateStockIn) return requirePermission("CanUpdateStockIn");
+		if (!editingStockInID && !canCreateStockIn) return requirePermission("CanCreateStockIn");
 		stockInForm.transform(() => payload);
 		const routeName = editingStockInID
 			? route("inventory.stock-in.update", editingStockInID)
@@ -206,11 +222,13 @@ export default function InventoryLevelsTabs({
 	};
 
 	const openStockInCreateModal = () => {
+		if (!canCreateStockIn) return requirePermission("CanCreateStockIn");
 		setEditingStockInID(null);
 		setIsStockInModalOpen(true);
 	};
 
 	const openEditStockInModal = (record) => {
+		if (!canUpdateStockIn) return requirePermission("CanUpdateStockIn");
 		const inventoryLines = [];
 		const productLines = [];
 
@@ -257,6 +275,8 @@ export default function InventoryLevelsTabs({
 	};
 
 	const handleRecordStockOut = (payload) => {
+		if (editingStockOutID && !canUpdateStockOut) return requirePermission("CanUpdateStockOut");
+		if (!editingStockOutID && !canCreateStockOut) return requirePermission("CanCreateStockOut");
 		stockOutForm.transform(() => payload);
 		const routeName = editingStockOutID
 			? route("inventory.stock-out.update", editingStockOutID)
@@ -287,6 +307,7 @@ export default function InventoryLevelsTabs({
 	};
 
 	const openEditStockOutModal = (record) => {
+		if (!canUpdateStockOut) return requirePermission("CanUpdateStockOut");
 		const inventoryLines = [];
 		const productLines = [];
 		const parsedReason = parseStockOutReason(record?.Reason);
@@ -381,6 +402,7 @@ export default function InventoryLevelsTabs({
 									onEdit={openEditItemModal}
 									getStatus={getStatus}
 									onHeaderMetaChange={setHeaderMeta}
+									canEdit={canUpdateInventoryItem}
 								/>
 							)}
 							{activeTab === "Stock-In" && (
@@ -388,6 +410,7 @@ export default function InventoryLevelsTabs({
 									stockIns={stockIns}
 									onEdit={openEditStockInModal}
 									onHeaderMetaChange={setHeaderMeta}
+									canEdit={canUpdateStockIn}
 								/>
 							)}
 							{activeTab === "Stock-Out" && (
@@ -395,6 +418,7 @@ export default function InventoryLevelsTabs({
 									stockOuts={stockOuts}
 									onEdit={openEditStockOutModal}
 									onHeaderMetaChange={setHeaderMeta}
+									canEdit={canUpdateStockOut}
 								/>
 							)}
 						</div>
@@ -405,27 +429,31 @@ export default function InventoryLevelsTabs({
 			{/* Shared Bottom Buttons */}
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 gap-4">
-					<button
-						onClick={openAddItemModal}
-						className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover transition-colors"
-					>
-						Add Item
-					</button>
-					<button
-						onClick={openStockInCreateModal}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors"
-					>
-						Stock-In
-					</button>
+						<button
+							onClick={openAddItemModal}
+							disabled={!canCreateInventoryItem}
+							className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
+						>
+							Add Item
+						</button>
+						<button
+							onClick={openStockInCreateModal}
+							disabled={!canCreateStockIn}
+							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+						>
+							Stock-In
+						</button>
 					<button
 						onClick={() => {
+							if (!canCreateStockOut) return requirePermission("CanCreateStockOut");
 							setEditingStockOutID(null);
 							setIsStockOutModalOpen(true);
 						}}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors"
-					>
-						Stock-Out
-					</button>
+							disabled={!canCreateStockOut}
+							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+						>
+							Stock-Out
+						</button>
 				</div>
 			</div>
 
@@ -535,14 +563,15 @@ export default function InventoryLevelsTabs({
 									>
 										{editingItem ? "Save Changes" : "Add Item"}
 									</button>
-									{editingItem && (
-										<button
-											type="button"
-											onClick={() => setIsDeleteModalOpen(true)}
-											className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-										>
-											Delete
-										</button>
+										{editingItem && (
+											<button
+												type="button"
+												disabled={!canDeleteInventoryItem}
+												onClick={() => setIsDeleteModalOpen(true)}
+												className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600"
+											>
+												Delete
+											</button>
 									)}
 									<button
 										type="button"
@@ -608,6 +637,3 @@ export default function InventoryLevelsTabs({
 		</AuthenticatedLayout>
 	);
 }
-
-
-
