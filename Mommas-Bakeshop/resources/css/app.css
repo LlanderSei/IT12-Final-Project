@@ -3,11 +3,120 @@
 @tailwind utilities;
 
 :root {
+	--color-lightmode-primary: 255 175 48;
+	--color-lightmode-primary-hover: 224 160 51;
+	--color-lightmode-primary-active: 204 143 45;
+	--color-lightmode-primary-soft: 255 244 218;
+	--color-lightmode-primary-hex: #ff9e30;
+	--color-lightmode-app-bg: #f3f4f6;
+	--color-lightmode-surface: #ffffff;
+	--color-lightmode-text-strong: #111827;
+	--color-lightmode-text: #374151;
+	--color-lightmode-text-muted: #6b7280;
+	--color-lightmode-border: #e5e7eb;
+
+	--color-darkmode-primary: 247 174 84;
+	--color-darkmode-primary-hover: 234 160 68;
+	--color-darkmode-primary-active: 219 145 56;
+	--color-darkmode-primary-soft: 72 55 28;
+	--color-darkmode-primary-hex: #f7ae54;
+	--color-darkmode-app-bg: #0f172a;
+	--color-darkmode-surface: #111827;
+	--color-darkmode-text-strong: #f9fafb;
+	--color-darkmode-text: #e5e7eb;
+	--color-darkmode-text-muted: #9ca3af;
+	--color-darkmode-border: #374151;
+
 	--color-primary: 255 175 48;
 	--color-primary-hover: 224 160 51;
 	--color-primary-active: 204 143 45;
 	--color-primary-soft: 255 244 218;
 	--color-primary-hex: #ff9e30;
+	--color-app-bg: var(--color-lightmode-app-bg);
+	--color-surface: var(--color-lightmode-surface);
+	--color-text-strong: var(--color-lightmode-text-strong);
+	--color-text: var(--color-lightmode-text);
+	--color-text-muted: var(--color-lightmode-text-muted);
+	--color-border: var(--color-lightmode-border);
+}
+
+html.theme-dark {
+	--color-primary: var(--color-darkmode-primary);
+	--color-primary-hover: var(--color-darkmode-primary-hover);
+	--color-primary-active: var(--color-darkmode-primary-active);
+	--color-primary-soft: var(--color-darkmode-primary-soft);
+	--color-primary-hex: var(--color-darkmode-primary-hex);
+	--color-app-bg: var(--color-darkmode-app-bg);
+	--color-surface: var(--color-darkmode-surface);
+	--color-text-strong: var(--color-darkmode-text-strong);
+	--color-text: var(--color-darkmode-text);
+	--color-text-muted: var(--color-darkmode-text-muted);
+	--color-border: var(--color-darkmode-border);
+}
+
+html,
+body,
+#app {
+	background: var(--color-app-bg);
+	color: var(--color-text);
+}
+
+html.theme-dark .bg-white {
+	background-color: var(--color-surface) !important;
+}
+
+html.theme-dark .bg-gray-50,
+html.theme-dark .bg-gray-100 {
+	background-color: #1f2937 !important;
+}
+
+html.theme-dark .text-gray-900,
+html.theme-dark .text-gray-800 {
+	color: var(--color-text-strong) !important;
+}
+
+html.theme-dark .text-gray-700,
+html.theme-dark .text-gray-600,
+html.theme-dark .text-gray-500,
+html.theme-dark .text-gray-400 {
+	color: var(--color-text-muted) !important;
+}
+
+html.theme-dark .border-gray-200,
+html.theme-dark .border-gray-300 {
+	border-color: var(--color-border) !important;
+}
+
+html.theme-dark .hover\:bg-gray-50:hover,
+html.theme-dark .hover\:bg-gray-100:hover {
+	background-color: #2b3647 !important;
+}
+
+html.theme-dark input,
+html.theme-dark select,
+html.theme-dark textarea {
+	background-color: var(--color-surface) !important;
+	color: var(--color-text-strong) !important;
+	border-color: var(--color-border) !important;
+}
+
+html.theme-dark input::placeholder,
+html.theme-dark textarea::placeholder {
+	color: var(--color-text-muted) !important;
+}
+
+html.theme-dark select option {
+	background-color: #111827;
+	color: var(--color-text-strong);
+}
+
+html.theme-dark .focus\:border-primary:focus {
+	border-color: rgb(var(--color-primary)) !important;
+}
+
+html.theme-dark .shadow,
+html.theme-dark .shadow-sm {
+	box-shadow: none !important;
 }
 
 @layer components {
