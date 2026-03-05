@@ -1,91 +1,46 @@
 import React, { useEffect, useState } from "react";
-import { Link, usePage } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
+import usePermissions from "@/hooks/usePermissions";
+import Modal from "@/Components/Modal";
+import {
+	ChevronLeft,
+	ChevronDown,
+	LayoutDashboard,
+	ShoppingCart,
+	ChartSpline,
+	Package,
+	Boxes,
+	ChartColumn,
+	Users,
+	FileText,
+	LogOut,
+	Croissant,
+} from "lucide-react";
 
 const Icon = ({ name, size = 20, style }) => {
-	const common = {
-		width: size,
-		height: size,
-		viewBox: "0 0 24 24",
-		fill: "none",
-		stroke: "currentColor",
-		strokeWidth: 1.9,
-		strokeLinecap: "round",
-		strokeLinejoin: "round",
-		style,
-		"aria-hidden": true,
-		focusable: false,
-	};
-
 	const icons = {
-		dashboard: (
-			<svg {...common}>
-				<rect x="3" y="3" width="7" height="7" rx="1.5" />
-				<rect x="14" y="3" width="7" height="4" rx="1.5" />
-				<rect x="14" y="10" width="7" height="11" rx="1.5" />
-				<rect x="3" y="13" width="7" height="8" rx="1.5" />
-			</svg>
-		),
-		cashier: (
-			<svg {...common}>
-				<circle cx="9" cy="20" r="1.5" />
-				<circle cx="18" cy="20" r="1.5" />
-				<path d="M3 4h2l2.4 10.5a1 1 0 0 0 1 .8h9.8a1 1 0 0 0 1-.8L21 8H7" />
-			</svg>
-		),
-		saleHistory: (
-			<svg {...common}>
-				<path d="M4 4v16h16" />
-				<path d="M8 14l3-3 2 2 4-5" />
-			</svg>
-		),
-		inventory: (
-			<svg {...common}>
-				<path d="M3 8.5 12 4l9 4.5-9 4.5L3 8.5Z" />
-				<path d="M3 8.5V16l9 4 9-4V8.5" />
-				<path d="M12 13v7" />
-			</svg>
-		),
-		products: (
-			<svg {...common}>
-				<rect x="3" y="4" width="8" height="8" rx="1.5" />
-				<rect x="13" y="4" width="8" height="8" rx="1.5" />
-				<rect x="8" y="14" width="8" height="6" rx="1.5" />
-			</svg>
-		),
-		reports: (
-			<svg {...common}>
-				<path d="M4 20V10" />
-				<path d="M10 20V6" />
-				<path d="M16 20v-8" />
-				<path d="M22 20V4" />
-			</svg>
-		),
-		users: (
-			<svg {...common}>
-				<circle cx="9" cy="9" r="3" />
-				<path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
-				<circle cx="17.5" cy="10" r="2.5" />
-				<path d="M14.5 19a4.5 4.5 0 0 1 7 0" />
-			</svg>
-		),
-		audits: (
-			<svg {...common}>
-				<path d="M8 3h8l4 4v14H8z" />
-				<path d="M16 3v4h4" />
-				<path d="M11 12h6" />
-				<path d="M11 16h6" />
-			</svg>
-		),
-		logout: (
-			<svg {...common}>
-				<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
-				<path d="M10 16l4-4-4-4" />
-				<path d="M14 12H3" />
-			</svg>
-		),
+		dashboard: LayoutDashboard,
+		cashier: ShoppingCart,
+		saleHistory: ChartSpline,
+		inventory: Package,
+		products: Boxes,
+		reports: ChartColumn,
+		users: Users,
+		audits: FileText,
+		logout: LogOut,
 	};
 
-	return icons[name] ?? null;
+	const LucideIcon = icons[name];
+	if (!LucideIcon) return null;
+	return (
+		<LucideIcon
+			size={size}
+			style={style}
+			aria-hidden="true"
+			focusable="false"
+			strokeWidth={1.9}
+		/>
+	);
 };
 
 // ─── Navigation Structure (mirrors reference app.js navStructure) ────────────
@@ -110,6 +65,7 @@ const NAV_STRUCTURE = [
 				label: "Cashier",
 				icon: "cashier",
 				href: route("pos.cash-sale"),
+				requiredPermissions: ["CanViewCashier"],
 			},
 			{
 				id: "pos.sale-history",
@@ -117,6 +73,7 @@ const NAV_STRUCTURE = [
 				label: "Sale History",
 				icon: "saleHistory",
 				href: route("pos.sale-history"),
+				requiredPermissions: ["CanViewSalesHistory", "CanViewSalesHistorySales", "CanViewSalesHistoryPendingPayments"],
 			},
 		],
 	},
@@ -134,6 +91,7 @@ const NAV_STRUCTURE = [
 				label: "Inventory Levels",
 				icon: "inventory",
 				href: route("inventory.index"),
+				requiredPermissions: ["CanViewInventoryLevels"],
 			},
 			{
 				id: "inventory.products",
@@ -141,6 +99,7 @@ const NAV_STRUCTURE = [
 				label: "Products & Batches",
 				icon: "products",
 				href: route("products.index"),
+				requiredPermissions: ["CanViewProductsAndBatches"],
 			},
 		],
 	},
@@ -149,10 +108,11 @@ const NAV_STRUCTURE = [
 		items: [
 			{
 				id: "admin.reports",
-				activeRoutes: ["admin.reports", "admin.reports.sales", "admin.reports.shrinkage"],
+				activeRoutes: ["admin.reports", "admin.reports.full-breakdown"],
 				label: "Reports",
 				icon: "reports",
 				href: route("admin.reports"),
+				requiredPermissions: ["CanViewReportsOverview", "CanViewReportsFullBreakdown"],
 			},
 			{
 				id: "admin.users",
@@ -160,12 +120,14 @@ const NAV_STRUCTURE = [
 				label: "User Management",
 				icon: "users",
 				href: route("admin.users"),
+				requiredPermissions: ["CanViewUserManagementUsers", "CanViewUserManagementPermissions"],
 			},
 			{
 				id: "admin.audits",
 				label: "Audits",
 				icon: "audits",
 				href: route("admin.audits"),
+				requiredPermissions: ["CanViewAudits"],
 			},
 		],
 	},
@@ -195,6 +157,21 @@ const ROLE_BADGE = {
 const Sidebar = () => {
 	const { auth } = usePage().props;
 	const user = auth?.user ?? { name: "Admin User", role: "admin" };
+	const { can, canAny } = usePermissions();
+	const hasAnyPermission = (requiredPermissions = []) => {
+		if (!requiredPermissions.length) return true;
+		return canAny(requiredPermissions);
+	};
+	const canViewSalesHistoryNav =
+		can("CanViewSalesHistory") &&
+		(can("CanViewSalesHistorySales") ||
+			can("CanViewSalesHistoryPendingPayments"));
+	const canViewReportsOverview = can("CanViewReportsOverview");
+	const canViewReportsFullBreakdown = can("CanViewReportsFullBreakdown");
+	const canViewReportsNav = canViewReportsOverview || canViewReportsFullBreakdown;
+	const canViewUserMgmtUsers = can("CanViewUserManagementUsers");
+	const canViewUserMgmtPermissions = can("CanViewUserManagementPermissions");
+	const canViewUserMgmtNav = canViewUserMgmtUsers || canViewUserMgmtPermissions;
 
 	const [isExpanded, setIsExpanded] = useState(() => {
 		if (typeof window === "undefined") return true;
@@ -211,6 +188,8 @@ const Sidebar = () => {
 			return {};
 		}
 	});
+	const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+	const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
@@ -230,6 +209,13 @@ const Sidebar = () => {
 	const avatarInitials = user.name
 		? user.name.substring(0, 2).toUpperCase()
 		: "MB";
+	const recentAudits = Array.isArray(user.recentAudits) ? user.recentAudits : [];
+	const formatAuditDateTime = (value) => {
+		if (!value) return "-";
+		const parsed = new Date(value);
+		if (Number.isNaN(parsed.getTime())) return "-";
+		return parsed.toLocaleString();
+	};
 
 	return (
 		<aside
@@ -281,7 +267,7 @@ const Sidebar = () => {
 					onClick={() => setIsExpanded(!isExpanded)}
 					title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
 				>
-					🥐
+					<Croissant size={19} strokeWidth={1.9} color="currentColor" />
 				</div>
 
 				{/* Brand name + toggle button */}
@@ -328,36 +314,27 @@ const Sidebar = () => {
 							}}
 						>
 							{/* Left-arrow chevron */}
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="18"
-								height="18"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2"
-								strokeLinecap="round"
-								strokeLinejoin="round"
-							>
-								<polyline points="15 18 9 12 15 6" />
-							</svg>
+							<ChevronLeft size={18} strokeWidth={2} />
 						</button>
 					</>
 				)}
 			</div>
 
 			{/* ── User Profile Widget ── */}
-			<div
-				style={{
-					padding: isExpanded ? "1.25rem 1.5rem" : "1.25rem 0",
-					display: "flex",
+				<div
+					style={{
+						padding: isExpanded ? "1.25rem 1.5rem" : "1.25rem 0",
+						display: "flex",
 					alignItems: "center",
 					gap: "0.875rem",
 					borderBottom: "1px solid #E5E7EB",
-					justifyContent: isExpanded ? "flex-start" : "center",
-					flexShrink: 0,
-				}}
-			>
+						justifyContent: isExpanded ? "flex-start" : "center",
+						flexShrink: 0,
+						cursor: "pointer",
+					}}
+					onClick={() => setIsProfileModalOpen(true)}
+					title="View profile details"
+				>
 				{/* Avatar */}
 				<div
 					style={{
@@ -377,6 +354,74 @@ const Sidebar = () => {
 				>
 					{avatarInitials}
 				</div>
+				<Modal
+					show={isProfileModalOpen}
+					onClose={() => setIsProfileModalOpen(false)}
+					maxWidth="4xl"
+				>
+					<div className="p-6">
+						<h3 className="text-lg font-semibold text-gray-900">My Profile</h3>
+						<div className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-700 sm:grid-cols-2">
+							<div>
+								<span className="font-semibold text-gray-900">Full Name:</span>{" "}
+								{user.name || "-"}
+							</div>
+							<div>
+								<span className="font-semibold text-gray-900">Email:</span>{" "}
+								{user.email || "-"}
+							</div>
+							<div>
+								<span className="font-semibold text-gray-900">Role:</span>{" "}
+								{roleMeta.label}
+							</div>
+							<div>
+								<span className="font-semibold text-gray-900">Recent Actions:</span>{" "}
+								{recentAudits.length}
+							</div>
+						</div>
+						<div className="mt-6">
+							<h4 className="text-sm font-semibold text-gray-900">Recent Actions (Application)</h4>
+							<div className="mt-2 max-h-80 overflow-y-auto rounded-md border border-gray-200">
+								<table className="min-w-full divide-y divide-gray-200 text-sm">
+									<thead className="sticky top-0 z-10 bg-gray-50">
+										<tr>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Table</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Changes</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-gray-100 bg-white">
+										{recentAudits.map((audit) => (
+											<tr key={audit.ID}>
+												<td className="px-3 py-2 text-gray-700">{formatAuditDateTime(audit.DateAdded)}</td>
+												<td className="px-3 py-2 text-gray-700">{audit.Action || "-"}</td>
+												<td className="px-3 py-2 text-gray-700">{audit.TableEdited || "-"}</td>
+												<td className="px-3 py-2 text-gray-700">{audit.ReadableChanges || "-"}</td>
+											</tr>
+										))}
+										{recentAudits.length === 0 && (
+											<tr>
+												<td colSpan="4" className="px-3 py-6 text-center text-gray-500">
+													No recent application actions found.
+												</td>
+											</tr>
+										)}
+									</tbody>
+								</table>
+							</div>
+						</div>
+						<div className="mt-6 flex justify-end">
+							<button
+								type="button"
+								onClick={() => setIsProfileModalOpen(false)}
+								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				</Modal>
 
 				{/* User info — hidden when collapsed */}
 				{isExpanded && (
@@ -431,7 +476,20 @@ const Sidebar = () => {
 					padding: "0.75rem 0",
 				}}
 			>
-				{NAV_STRUCTURE.map((section) => {
+					{NAV_STRUCTURE.map((section) => {
+						const visibleItems = (section.items || []).filter((item) => {
+							if (item.id === "pos.sale-history") {
+								return canViewSalesHistoryNav;
+							}
+							if (item.id === "admin.reports") {
+								return canViewReportsNav;
+							}
+							if (item.id === "admin.users") {
+								return canViewUserMgmtNav;
+							}
+							return hasAnyPermission(item.requiredPermissions || []);
+						});
+					if (visibleItems.length === 0) return null;
 					const isSectionCollapsed = collapsedSections[section.section];
 
 					return (
@@ -462,25 +520,16 @@ const Sidebar = () => {
 									title={isSectionCollapsed ? "Expand group" : "Collapse group"}
 								>
 									<span>{section.section}</span>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										strokeWidth="2"
-										strokeLinecap="round"
-										strokeLinejoin="round"
+									<ChevronDown
+										size={14}
+										strokeWidth={2}
 										style={{
 											transform: isSectionCollapsed
 												? "rotate(-90deg)"
 												: "rotate(0deg)",
 											transition: "transform 0.2s",
 										}}
-									>
-										<polyline points="6 9 12 15 18 9" />
-									</svg>
+									/>
 								</div>
 							)}
 
@@ -490,24 +539,39 @@ const Sidebar = () => {
 									display: isExpanded && isSectionCollapsed ? "none" : "block",
 								}}
 							>
-								{section.items.map((item) => {
-									const activeRoutes = item.activeRoutes || [item.id];
-									const isActive = activeRoutes.some(
-										(routeName) =>
-											currentRoute === routeName ||
-											route().current(routeName) ||
-											route().current(routeName + ".*"),
-									);
+									{visibleItems.map((item) => {
+										const activeRoutes = item.activeRoutes || [item.id];
+										const isActive = activeRoutes.some(
+											(routeName) =>
+												currentRoute === routeName ||
+												route().current(routeName) ||
+												route().current(routeName + ".*"),
+										);
+										const resolvedHref =
+											item.id === "pos.sale-history" &&
+											can("CanViewSalesHistory") &&
+											!can("CanViewSalesHistorySales") &&
+											can("CanViewSalesHistoryPendingPayments")
+												? route("pos.sale-history.pending")
+												: item.id === "admin.reports" &&
+														!canViewReportsOverview &&
+														canViewReportsFullBreakdown
+													? route("admin.reports.full-breakdown")
+													: item.id === "admin.users" &&
+															!canViewUserMgmtUsers &&
+															canViewUserMgmtPermissions
+														? route("admin.permissions")
+														: item.href;
 
-									return (
-										<NavItem
-											key={item.id}
-											item={item}
-											isActive={isActive}
-											isExpanded={isExpanded}
-										/>
-									);
-								})}
+										return (
+											<NavItem
+												key={item.id}
+												item={{ ...item, href: resolvedHref }}
+												isActive={isActive}
+												isExpanded={isExpanded}
+											/>
+										);
+									})}
 							</div>
 						</div>
 					);
@@ -515,22 +579,21 @@ const Sidebar = () => {
 			</nav>
 
 			{/* ── Footer / Logout ── */}
-			<div
-				style={{
-					padding: isExpanded ? "1rem 1.25rem" : "1rem 0",
+				<div
+					style={{
+						padding: isExpanded ? "1rem 1.25rem" : "1rem 0",
 					borderTop: "1px solid #E5E7EB",
 					display: "flex",
 					justifyContent: isExpanded ? "flex-start" : "center",
 					flexShrink: 0,
 				}}
-			>
-				<Link
-					href={route("logout")}
-					method="post"
-					as="button"
-					style={{
-						display: "inline-flex",
-						alignItems: "center",
+				>
+					<button
+						type="button"
+						onClick={() => setIsLogoutModalOpen(true)}
+						style={{
+							display: "inline-flex",
+							alignItems: "center",
 						gap: "0.6rem",
 						padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
 						borderRadius: "8px",
@@ -547,18 +610,42 @@ const Sidebar = () => {
 					onMouseEnter={(e) =>
 						(e.currentTarget.style.backgroundColor = "#FEE2E2")
 					}
-					onMouseLeave={(e) =>
-						(e.currentTarget.style.backgroundColor = "transparent")
-					}
-					title="Logout"
-				>
-					<Icon name="logout" size={19} />
-					{isExpanded && <span>Logout</span>}
-				</Link>
-			</div>
-		</aside>
-	);
-};
+						onMouseLeave={(e) =>
+							(e.currentTarget.style.backgroundColor = "transparent")
+						}
+						title="Logout"
+					>
+						<Icon name="logout" size={19} />
+						{isExpanded && <span>Logout</span>}
+					</button>
+				</div>
+				<Modal show={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} maxWidth="md">
+					<div className="p-6">
+						<h3 className="text-lg font-semibold text-gray-900">Confirm Logout</h3>
+						<p className="mt-2 text-sm text-gray-600">
+							Are you sure you want to logout?
+						</p>
+						<div className="mt-6 flex justify-end gap-2">
+							<button
+								type="button"
+								onClick={() => setIsLogoutModalOpen(false)}
+								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={() => router.post(route("logout"))}
+								className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+							>
+								Logout
+							</button>
+						</div>
+					</div>
+				</Modal>
+			</aside>
+		);
+	};
 
 // ─── NavItem sub-component ────────────────────────────────────────────────────
 const NavItem = ({ item, isActive, isExpanded }) => {
@@ -611,8 +698,3 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 };
 
 export default Sidebar;
-
-
-
-
-

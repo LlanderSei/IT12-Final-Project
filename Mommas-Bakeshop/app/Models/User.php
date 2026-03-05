@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 
 class User extends Authenticatable {
   /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -69,6 +70,38 @@ class User extends Authenticatable {
 
   public function stockOuts() {
     return $this->hasMany(StockOutDetail::class, 'UserID');
+  }
+
+  public function hasPermission(string $permissionName): bool {
+    if ($permissionName === '') {
+      return false;
+    }
+
+    $permissions = $this->permissionNames();
+    return $permissions->contains($permissionName);
+  }
+
+  public function hasAnyPermission(array $permissionNames): bool {
+    $permissionNames = collect($permissionNames)
+      ->filter(fn ($name) => is_string($name) && trim($name) !== '')
+      ->values();
+
+    if ($permissionNames->isEmpty()) {
+      return false;
+    }
+
+    $permissions = $this->permissionNames();
+    return $permissionNames->contains(fn ($name) => $permissions->contains($name));
+  }
+
+  public function permissionNames(): Collection {
+    $this->loadMissing('permissionsSet.permission:ID,PermissionName');
+
+    return $this->permissionsSet
+      ->where('Allowable', true)
+      ->map(fn ($set) => $set->permission?->PermissionName)
+      ->filter()
+      ->values();
   }
 }
 

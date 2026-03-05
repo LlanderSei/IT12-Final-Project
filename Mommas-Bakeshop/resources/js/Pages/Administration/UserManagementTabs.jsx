@@ -4,20 +4,31 @@ import { Head, Link } from "@inertiajs/react";
 import Users from "./UserManagementSubviews/Users";
 import Permissions from "./UserManagementSubviews/Permissions";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
 
 export default function UserManagementTabs({
 	users,
 	roles,
+	permissionsUsers = [],
+	permissionGroups = {},
+	currentUserRoleRank = null,
 	initialTab = "Users",
 }) {
+	const { can } = usePermissions();
+	const canViewUsersTab = can("CanViewUserManagementUsers");
+	const canViewPermissionsTab = can("CanViewUserManagementPermissions");
+
 	const tabs = [
 		{ label: "Users", href: route("admin.users") },
 		{ label: "Permissions", href: route("admin.permissions") },
 	];
-	const tabLabels = tabs.map((tab) => tab.label);
+	const visibleTabs = tabs.filter((tab) =>
+		tab.label === "Users" ? canViewUsersTab : canViewPermissionsTab,
+	);
+	const tabLabels = visibleTabs.map((tab) => tab.label);
 	const normalizedInitialTab = tabLabels.includes(initialTab)
 		? initialTab
-		: tabLabels[0];
+		: tabLabels[0] || "Users";
 	const activeTab = normalizedInitialTab;
 	const getDefaultHeaderMeta = (tab) => {
 		if (tab === "Users") {
@@ -26,18 +37,18 @@ export default function UserManagementTabs({
 				countLabel: formatCountLabel((users || []).length, "user"),
 			};
 		}
-		return {
-			subtitle: "Permissions",
-			countLabel: formatCountLabel(0, "permission"),
+			return {
+				subtitle: "Permissions",
+				countLabel: formatCountLabel((permissionsUsers || []).length, "record"),
+			};
 		};
-	};
 	const [headerMeta, setHeaderMeta] = useState(() =>
 		getDefaultHeaderMeta(activeTab),
 	);
 
 	useEffect(() => {
 		setHeaderMeta(getDefaultHeaderMeta(activeTab));
-	}, [activeTab, users]);
+	}, [activeTab, users, permissionsUsers]);
 
 	return (
 		<AuthenticatedLayout
@@ -65,7 +76,7 @@ export default function UserManagementTabs({
 			<div className="bg-white border-b border-gray-200 mt-0">
 				<div className="mx-auto px-4">
 					<nav className="-mb-px flex gap-2" aria-label="Tabs">
-						{tabs.map((tab) => (
+						{visibleTabs.map((tab) => (
 							<Link
 								key={tab.label}
 								href={tab.href}
@@ -83,19 +94,27 @@ export default function UserManagementTabs({
 			</div>
 
 			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
-				{activeTab === "Users" && (
+				{visibleTabs.length === 0 && (
+					<div className="m-6 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+						No user management tabs are available for your account.
+					</div>
+				)}
+				{activeTab === "Users" && canViewUsersTab && (
 					<Users
 						users={users}
 						roles={roles}
 						onHeaderMetaChange={setHeaderMeta}
 					/>
 				)}
-				{activeTab === "Permissions" && (
-					<Permissions onHeaderMetaChange={setHeaderMeta} />
-				)}
+						{activeTab === "Permissions" && canViewPermissionsTab && (
+							<Permissions
+								permissionsUsers={permissionsUsers}
+								permissionGroups={permissionGroups}
+								currentUserRoleRank={currentUserRoleRank}
+								onHeaderMetaChange={setHeaderMeta}
+							/>
+						)}
 			</div>
 		</AuthenticatedLayout>
 	);
 }
-
-

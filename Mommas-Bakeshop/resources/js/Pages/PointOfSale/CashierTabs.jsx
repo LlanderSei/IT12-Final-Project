@@ -1,5 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import { Link } from "@inertiajs/react";
+import usePermissions from "@/hooks/usePermissions";
 
 const tabs = [
 	{ label: "Cash Sale", routeName: "pos.cash-sale" },
@@ -11,11 +12,22 @@ const tabs = [
 ];
 
 export default function CashierTabs() {
+	const { can } = usePermissions();
+	const canViewSalesHistoryBase = can("CanViewSalesHistory");
+	const canViewSalesTab =
+		canViewSalesHistoryBase && can("CanViewSalesHistorySales");
+	const canViewPendingTab =
+		canViewSalesHistoryBase && can("CanViewSalesHistoryPendingPayments");
+	const canViewSaleHistory = canViewSalesTab || canViewPendingTab;
+	const visibleTabs = tabs.filter((tab) =>
+		tab.routeName === "pos.sale-history" ? canViewSaleHistory : true,
+	);
+
 	return (
 		<div className="bg-white border-b border-gray-200 mt-0">
 			<div className="mx-auto px-4">
 				<nav className="-mb-px flex gap-2" aria-label="Tabs">
-					{tabs.map((tab) => {
+					{visibleTabs.map((tab) => {
 						const active = (tab.activeRoutes || [tab.routeName]).some((routeName) =>
 							route().current(routeName),
 						);
@@ -23,7 +35,11 @@ export default function CashierTabs() {
 						return (
 							<Link
 								key={tab.routeName}
-								href={route(tab.routeName)}
+								href={
+									tab.routeName === "pos.sale-history" && !canViewSalesTab && canViewPendingTab
+										? route("pos.sale-history.pending")
+										: route(tab.routeName)
+								}
 								className={`${
 									active
 										? "bg-primary-soft border-primary text-primary"
@@ -39,5 +55,3 @@ export default function CashierTabs() {
 		</div>
 	);
 }
-
-

@@ -10,7 +10,7 @@ function toComparableDate(value) {
 	return d;
 }
 
-export default function StockIn({ stockIns, onEdit, onHeaderMetaChange }) {
+export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit = false }) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [addedByFilter, setAddedByFilter] = useState("all");
 	const [supplierFilter, setSupplierFilter] = useState("all");
@@ -416,13 +416,17 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange }) {
 								<td className="px-4 py-4 text-sm text-gray-500 break-words">{record.AdditionalDetails || "-"}</td>
 								<td className="px-4 py-4 text-sm text-gray-500 break-words">{new Date(record.DateAdded).toLocaleString()}</td>
 								<td className="px-4 py-4 text-sm">
-									<button
-										type="button"
-										onClick={() => onEdit?.(record)}
-										className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-									>
-										Edit
-									</button>
+									{canEdit ? (
+										<button
+											type="button"
+											onClick={() => onEdit?.(record)}
+											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+										>
+											Edit
+										</button>
+									) : (
+										<span className="text-xs text-gray-400">No access</span>
+									)}
 								</td>
 							</tr>
 						))}
@@ -507,6 +511,5 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange }) {
 		</div>
 	);
 }
-
 
 

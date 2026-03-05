@@ -3,6 +3,7 @@ import { Head, Link, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
 import Sales from "./SaleHistorySubviews/Sales";
 import PendingPayments from "./SaleHistorySubviews/PendingPayments";
 
@@ -22,12 +23,26 @@ export default function SaleHistoryTabs({
 	sales = [],
 	pendingSales = [],
 }) {
+	const { can, requirePermission } = usePermissions();
+	const canViewSalesHistory = can("CanViewSalesHistory");
+	const canViewSalesTab =
+		canViewSalesHistory && can("CanViewSalesHistorySales");
+	const canViewPendingTab =
+		canViewSalesHistory && can("CanViewSalesHistoryPendingPayments");
+	const canRecordSalePayment = can("CanRecordSalePayment");
+
 	const tabs = [
 		{ label: "Sales", routeName: "pos.sale-history" },
 		{ label: "Pending Payments", routeName: "pos.sale-history.pending" },
 	];
-	const tabLabels = tabs.map((tab) => tab.label);
-	const activeTab = tabLabels.includes(initialTab) ? initialTab : "Sales";
+	const visibleTabs = tabs.filter((tab) => {
+		if (tab.label === "Sales") return canViewSalesTab;
+		if (tab.label === "Pending Payments") return canViewPendingTab;
+		return false;
+	});
+	const fallbackTab = visibleTabs[0]?.label || "Sales";
+	const tabLabels = visibleTabs.map((tab) => tab.label);
+	const activeTab = tabLabels.includes(initialTab) ? initialTab : fallbackTab;
 
 	const [selectedSale, setSelectedSale] = useState(null);
 	const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -282,6 +297,7 @@ export default function SaleHistoryTabs({
 	};
 
 	const openPaymentModal = () => {
+		if (!requirePermission("CanRecordSalePayment")) return;
 		paymentForm.reset();
 		paymentForm.setData({
 			SalesID: pendingRows[0]?.ID ? String(pendingRows[0].ID) : "",
@@ -296,6 +312,7 @@ export default function SaleHistoryTabs({
 
 	const submitPayment = (e) => {
 		e.preventDefault();
+		if (!requirePermission("CanRecordSalePayment")) return;
 		paymentForm.transform((data) => ({
 			...data,
 			SalesID: Number(data.SalesID),
@@ -336,7 +353,7 @@ export default function SaleHistoryTabs({
 			<div className="bg-white border-b border-gray-200 mt-0">
 				<div className="mx-auto px-4">
 					<nav className="-mb-px flex gap-2" aria-label="Tabs">
-						{tabs.map((tab) => {
+						{visibleTabs.map((tab) => {
 							const active = route().current(tab.routeName);
 							return (
 								<Link
@@ -357,6 +374,11 @@ export default function SaleHistoryTabs({
 			</div>
 
 			<div className="flex-1 p-4 md:p-6 min-h-0">
+				{visibleTabs.length === 0 ? (
+					<div className="h-full bg-white rounded-lg border border-gray-200 p-6 text-sm text-gray-500">
+						No sales history tabs are available for your account.
+					</div>
+				) : (
 				<div className="h-full bg-white rounded-lg flex flex-col min-h-0">
 					<div className="mb-4 flex items-start gap-3">
 						<div className="relative w-full max-w-xl shrink-0">
@@ -531,9 +553,10 @@ export default function SaleHistoryTabs({
 						</div>
 					</div>
 				</div>
+				)}
 			</div>
 
-			{activeTab === "Pending Payments" && (
+			{activeTab === "Pending Payments" && canRecordSalePayment && (
 				<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
 					<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 						<button
@@ -704,7 +727,7 @@ export default function SaleHistoryTabs({
 			</Modal>
 
 			<Modal
-				show={isPaymentModalOpen}
+				show={isPaymentModalOpen && canRecordSalePayment}
 				onClose={() => setIsPaymentModalOpen(false)}
 				maxWidth="lg"
 			>

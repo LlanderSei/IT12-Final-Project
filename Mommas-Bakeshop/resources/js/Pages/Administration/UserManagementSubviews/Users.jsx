@@ -1,10 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useForm, usePage } from "@inertiajs/react";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
+
+const toRankNumber = (value) => {
+	const rank = Number(value);
+	return Number.isFinite(rank) ? rank : null;
+};
+
+const showErrorToast = (message) => {
+	if (typeof window === "undefined") return;
+	window.dispatchEvent(
+		new CustomEvent("app-toast", {
+			detail: {
+				type: "error",
+				message,
+			},
+		}),
+	);
+};
 
 export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	const { auth } = usePage().props;
 	const currentUser = auth?.user;
+	const { can, requirePermission } = usePermissions();
+	const canCreateUser = can("CanCreateUser");
+	const canUpdateUser = can("CanUpdateUser");
+	const canDeleteUser = can("CanDeleteUser");
 
 	const normalizedRoles = useMemo(() => {
 		if (Array.isArray(roles) && roles.length > 0) {
@@ -29,11 +51,6 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 		return [...mapped.values()];
 	}, [roles, users]);
 
-	const defaultRoleId = useMemo(
-		() => String(normalizedRoles[0]?.ID ?? ""),
-		[normalizedRoles],
-	);
-
 	const [searchQuery, setSearchQuery] = useState("");
 	const [roleFilter, setRoleFilter] = useState("all");
 	const [sortConfig, setSortConfig] = useState({
@@ -47,7 +64,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	const form = useForm({
 		FullName: "",
 		email: "",
-		RoleID: defaultRoleId,
+		RoleID: "",
 		password: "",
 		password_confirmation: "",
 	});
@@ -56,6 +73,36 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 		() => users.find((user) => Number(user?.id) === Number(currentUser?.id)) || null,
 		[users, currentUser?.id],
 	);
+	const currentRoleRank = useMemo(
+		() => toRankNumber(currentUserRecord?.RoleRank),
+		[currentUserRecord?.RoleRank],
+	);
+
+	const assignableRoles = useMemo(() => {
+		if (currentRoleRank === null) return normalizedRoles;
+		return normalizedRoles.filter((role) => {
+			const roleRank = toRankNumber(role?.RoleRank);
+			if (roleRank === null) return false;
+			return currentRoleRank <= roleRank;
+		});
+	}, [normalizedRoles, currentRoleRank]);
+
+	const defaultRoleId = useMemo(
+		() => String(assignableRoles[0]?.ID ?? ""),
+		[assignableRoles],
+	);
+
+	const canAssignRoleId = (roleId) => {
+		if (!roleId) return false;
+		const targetRole = normalizedRoles.find(
+			(role) => String(role.ID) === String(roleId),
+		);
+		if (!targetRole) return false;
+		if (currentRoleRank === null) return true;
+		const targetRank = toRankNumber(targetRole.RoleRank);
+		if (targetRank === null) return false;
+		return currentRoleRank <= targetRank;
+	};
 
 	const getSortValue = (user, key) => {
 		if (key === "Records") return Number(user.RelationCount || 0);
@@ -103,6 +150,11 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	};
 
 	const openAddModal = () => {
+		if (!canCreateUser) return requirePermission("CanCreateUser");
+		if (!defaultRoleId) {
+			showErrorToast("No assignable roles are available for your account.");
+			return;
+		}
 		setEditingUser(null);
 		form.reset();
 		form.clearErrors();
@@ -117,6 +169,13 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	};
 
 	const openEditModal = (user) => {
+		if (!canUpdateUser) return requirePermission("CanUpdateUser");
+		if (!canEditTarget(user)) {
+			showErrorToast(
+				"You can only edit users with the same role or lower privilege.",
+			);
+			return;
+		}
 		setEditingUser(user);
 		form.clearErrors();
 		form.setData({
@@ -141,12 +200,24 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 
 	const submitUser = (e) => {
 		e.preventDefault();
+		if (!canAssignRoleId(form.data.RoleID)) {
+			showErrorToast("You cannot assign a role higher than your own role level.");
+			return;
+		}
 		if (editingUser) {
+			if (!canUpdateUser) return requirePermission("CanUpdateUser");
+			if (!canEditTarget(editingUser)) {
+				showErrorToast(
+					"You can only edit users with the same role or lower privilege.",
+				);
+				return;
+			}
 			form.put(route("admin.users.update", editingUser.id), {
 				onSuccess: () => closeModal(),
 			});
 			return;
 		}
+		if (!canCreateUser) return requirePermission("CanCreateUser");
 
 		form.post(route("admin.users.store"), {
 			onSuccess: () => closeModal(),
@@ -156,11 +227,18 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	const isSelf = (user) => Number(user.id) === Number(currentUser?.id);
 
 	const canDeleteTarget = (user) => {
+		if (!canDeleteUser) return false;
 		if (isSelf(user)) return false;
-		const currentRank = Number(currentUserRecord?.RoleRank);
-		const targetRank = Number(user?.RoleRank);
-		if (!Number.isFinite(currentRank) || !Number.isFinite(targetRank)) return true;
-		return currentRank <= targetRank;
+		const targetRank = toRankNumber(user?.RoleRank);
+		if (currentRoleRank === null || targetRank === null) return true;
+		return currentRoleRank <= targetRank;
+	};
+
+	const canEditTarget = (user) => {
+		if (!canUpdateUser) return false;
+		const targetRank = toRankNumber(user?.RoleRank);
+		if (currentRoleRank === null || targetRank === null) return true;
+		return currentRoleRank <= targetRank;
 	};
 
 	const getDeleteTooltip = (user) => {
@@ -171,8 +249,17 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 		return "Delete user";
 	};
 
+	const getEditTooltip = (user) => {
+		if (!canUpdateUser) return "Insufficient permission.";
+		if (!canEditTarget(user)) {
+			return "You can only edit users with the same role or lower privilege.";
+		}
+		return "Edit user";
+	};
+
 	const confirmDelete = () => {
 		if (!deleteCandidate) return;
+		if (!canDeleteUser) return requirePermission("CanDeleteUser");
 		form.delete(route("admin.users.destroy", deleteCandidate.id), {
 			onSuccess: () => setDeleteCandidate(null),
 		});
@@ -191,6 +278,25 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 			countLabel,
 		});
 	}, [onHeaderMetaChange, countLabel]);
+
+	useEffect(() => {
+		if (isModalOpen) return;
+		if (form.data.RoleID) return;
+		if (!defaultRoleId) return;
+		form.setData("RoleID", defaultRoleId);
+	}, [defaultRoleId, isModalOpen, form.data.RoleID]);
+
+	useEffect(() => {
+		if (!isModalOpen) return;
+		if (isEditingOwnAccount) return;
+		if (canAssignRoleId(form.data.RoleID)) return;
+		form.setData("RoleID", defaultRoleId);
+	}, [
+		isModalOpen,
+		isEditingOwnAccount,
+		form.data.RoleID,
+		defaultRoleId,
+	]);
 
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
@@ -343,6 +449,8 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 															<button
 																type="button"
 																onClick={() => openEditModal(user)}
+																disabled={!canEditTarget(user)}
+																title={getEditTooltip(user)}
 																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
 															>
 																Edit
@@ -384,7 +492,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<button
 						onClick={openAddModal}
-						disabled={!defaultRoleId}
+						disabled={!defaultRoleId || !canCreateUser || assignableRoles.length === 0}
 						className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed"
 					>
 						Add User
@@ -453,12 +561,17 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 														<option value="" disabled>
 															Select role
 														</option>
-														{normalizedRoles.map((role) => (
+														{assignableRoles.map((role) => (
 															<option key={role.ID} value={String(role.ID)}>
 																{role.RoleName} {role.RoleRank ? `(Rank ${role.RoleRank})` : ""}
 															</option>
 														))}
 													</select>
+													{!isEditingOwnAccount && (
+														<p className="mt-2 text-xs text-gray-500">
+															You can only assign roles with equal or lower privilege than your own.
+														</p>
+													)}
 													{isEditingOwnAccount && (
 														<p className="mt-2 text-xs text-amber-700">
 															Your own role rank cannot be changed.
@@ -504,7 +617,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 								<div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
 									<button
 										type="submit"
-										disabled={form.processing}
+										disabled={form.processing || (editingUser ? !canUpdateUser : !canCreateUser)}
 										className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary-hover sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
 									>
 										{editingUser ? "Save Changes" : "Add User"}
@@ -561,6 +674,3 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 		</div>
 	);
 }
-
-
-

@@ -3,6 +3,7 @@ import { Head, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import CashierTabs from "./CashierTabs";
+import usePermissions from "@/hooks/usePermissions";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -23,6 +24,9 @@ export default function CashSale({
 	categories = [],
 	customers = [],
 }) {
+	const { can, requirePermission } = usePermissions();
+	const canProcessSales = can("CanProcessSales");
+
 	const [searchQuery, setSearchQuery] = useState("");
 	const [selectedCategory, setSelectedCategory] = useState("all");
 	const [cartItems, setCartItems] = useState([]);
@@ -98,6 +102,7 @@ export default function CashSale({
 		}));
 
 	const addToCart = (product) => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		setCartItems((prev) => {
 			const existing = prev.find((item) => item.ID === product.ID);
 			if (existing) {
@@ -124,10 +129,12 @@ export default function CashSale({
 	};
 
 	const removeItem = (id) => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		setCartItems((prev) => prev.filter((item) => item.ID !== id));
 	};
 
 	const incrementItem = (id) => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		setCartItems((prev) =>
 			prev.map((item) =>
 				item.ID === id
@@ -138,6 +145,7 @@ export default function CashSale({
 	};
 
 	const decrementItem = (id) => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		setCartItems((prev) =>
 			prev.flatMap((item) => {
 				if (item.ID !== id) return [item];
@@ -148,6 +156,7 @@ export default function CashSale({
 	};
 
 	const openEditQtyModal = (item) => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		setEditQtyItem(item);
 		setEditQtyValue(String(item.quantity));
 		setEditQtyError("");
@@ -185,11 +194,15 @@ export default function CashSale({
 		closeEditQtyModal();
 	};
 
-	const clearCart = () => setCartItems([]);
+	const clearCart = () => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
+		setCartItems([]);
+	};
 	const firstErrorMessage = (errors, fallback) =>
 		(errors && Object.values(errors).find(Boolean)) || fallback;
 
 	const openCheckoutModal = () => {
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		if (!cartItems.length) return;
 		if (transactionType === "Walk-In") {
 			walkInForm.setData("items", cartToPayload());
@@ -256,6 +269,7 @@ export default function CashSale({
 
 	const submitWalkIn = (e) => {
 		e.preventDefault();
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		walkInForm.transform((data) => ({
 			...data,
 			items: cartToPayload(),
@@ -286,6 +300,7 @@ export default function CashSale({
 
 	const submitJobOrder = (e) => {
 		e.preventDefault();
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		jobOrderForm.transform((data) => ({
 			...data,
 			items: cartToPayload(),
@@ -330,6 +345,7 @@ export default function CashSale({
 
 	const submitShrinkage = (e) => {
 		e.preventDefault();
+		if (!canProcessSales) return requirePermission("CanProcessSales");
 		shrinkageForm.transform((data) => ({
 			items: cartToPayload(),
 			reason: data.reason,
@@ -367,7 +383,13 @@ export default function CashSale({
 			<CashierTabs />
 
 			<div className="flex-1 p-4 md:p-6 min-h-0">
-				<div className="h-full flex flex-col md:flex-row gap-4 min-h-0">
+				<div className="h-full min-h-0 flex flex-col">
+					{!canProcessSales && (
+						<div className="mb-3 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+							You can view cashier data, but sales processing actions are disabled for your account.
+						</div>
+					)}
+					<div className="flex-1 min-h-0 flex flex-col md:flex-row gap-4">
 					<div className="flex-1 min-h-0 bg-white border border-gray-200 rounded-lg p-4 md:p-5 flex flex-col">
 						<div className="flex flex-col md:flex-row gap-3 mb-4">
 							<input
@@ -398,6 +420,7 @@ export default function CashSale({
 										key={product.ID}
 										type="button"
 										onClick={() => addToCart(product)}
+										disabled={!canProcessSales}
 										className="text-left border border-gray-200 rounded-lg p-3 hover:border-primary hover:bg-primary-soft transition-colors"
 									>
 										<div className="h-28 bg-gray-100 rounded-md mb-2 overflow-hidden">
@@ -466,6 +489,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => removeItem(item.ID)}
+											disabled={!canProcessSales}
 											className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
 										>
 											Delete
@@ -473,6 +497,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => decrementItem(item.ID)}
+											disabled={!canProcessSales}
 											className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 										>
 											-
@@ -480,6 +505,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => incrementItem(item.ID)}
+											disabled={!canProcessSales}
 											className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
 										>
 											+
@@ -487,6 +513,7 @@ export default function CashSale({
 										<button
 											type="button"
 											onClick={() => openEditQtyModal(item)}
+											disabled={!canProcessSales}
 											className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary-soft"
 										>
 											Edit Qty.
@@ -505,7 +532,7 @@ export default function CashSale({
 							<button
 								type="button"
 								onClick={clearCart}
-								disabled={!cartItems.length}
+								disabled={!canProcessSales || !cartItems.length}
 								className="w-full border border-red-200 text-red-600 rounded-md px-3 py-2 text-sm hover:bg-red-50 disabled:opacity-40"
 							>
 								Clear Cart
@@ -519,6 +546,7 @@ export default function CashSale({
 							<select
 								value={transactionType}
 								onChange={(e) => setTransactionType(e.target.value)}
+								disabled={!canProcessSales}
 								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							>
 								<option value="Walk-In">Walk-In</option>
@@ -528,7 +556,7 @@ export default function CashSale({
 							<button
 								type="button"
 								onClick={openCheckoutModal}
-								disabled={!cartItems.length}
+								disabled={!canProcessSales || !cartItems.length}
 								className="w-full bg-primary text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-primary-hover disabled:opacity-40"
 							>
 								{transactionType === "Shrinkage"
@@ -539,6 +567,7 @@ export default function CashSale({
 							</button>
 						</div>
 					</div>
+				</div>
 				</div>
 			</div>
 
@@ -710,19 +739,36 @@ export default function CashSale({
 							className="fixed inset-0 bg-gray-500/75"
 							onClick={() => setJobOrderOpen(false)}
 						/>
-						<form
-							onSubmit={submitJobOrder}
-							className="relative w-full max-w-7xl rounded-lg bg-white shadow-xl"
-						>
+							<form
+								onSubmit={submitJobOrder}
+								className="relative w-full max-w-7xl rounded-lg bg-white shadow-xl max-h-[88vh] flex flex-col"
+							>
 							<div className="border-b px-6 py-4">
 								<h3 className="text-lg font-semibold text-gray-900">Job Order</h3>
 							</div>
 
-							<div className="grid gap-4 p-6 lg:grid-cols-3">
-					<div className="rounded-lg border border-gray-200 p-4">
+								<div className="flex-1 min-h-0 grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_420px] overflow-hidden">
+					<div className="rounded-lg border border-gray-200 p-4 flex flex-col min-h-0">
 						<p className="text-sm font-semibold text-gray-700 mb-2">
-							1. Customer Selection
+							1. Items Summary
 						</p>
+						<div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
+							{cartItems.map((item) => (
+								<div key={`job-order-${item.ID}`} className="flex justify-between text-sm">
+									<span>
+										{item.ProductName} x{item.quantity}
+									</span>
+									<span>{currency(item.pricePerUnit * item.quantity)}</span>
+								</div>
+							))}
+						</div>
+					</div>
+
+					<div className="space-y-4 min-h-0 overflow-y-auto pr-1">
+					<div className="rounded-lg border border-gray-200 p-4">
+							<p className="text-sm font-semibold text-gray-700 mb-2">
+								2. Customer Selection
+							</p>
 						<select
 							value={jobOrderForm.data.customerMode}
 							onChange={(e) => {
@@ -829,28 +875,12 @@ export default function CashSale({
 								)}
 							</div>
 						)}
-					</div>
-
-					<div className="rounded-lg border border-gray-200 p-4">
-						<p className="text-sm font-semibold text-gray-700 mb-2">
-							2. Items Summary
-						</p>
-						<div className="max-h-44 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
-							{cartItems.map((item) => (
-								<div key={`job-order-${item.ID}`} className="flex justify-between text-sm">
-									<span>
-										{item.ProductName} x{item.quantity}
-									</span>
-									<span>{currency(item.pricePerUnit * item.quantity)}</span>
-								</div>
-							))}
 						</div>
-					</div>
 
-					<div className="rounded-lg border border-gray-200 p-4">
-						<p className="text-sm font-semibold text-gray-700 mb-2">
-							3. Payment Selection
-						</p>
+						<div className="rounded-lg border border-gray-200 p-4">
+							<p className="text-sm font-semibold text-gray-700 mb-2">
+								3. Payment Selection
+							</p>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">
@@ -970,10 +1000,11 @@ export default function CashSale({
 									/>
 								</div>
 							</div>
-						)}
+							)}
+						</div>
 					</div>
 
-					<div className="space-y-1 lg:col-span-3">
+						<div className="space-y-1 lg:col-span-2">
 						{jobOrderForm.errors.paymentSelection && (
 							<p className="text-sm text-red-600">
 								{jobOrderForm.errors.paymentSelection}
@@ -1098,7 +1129,3 @@ export default function CashSale({
 		</AuthenticatedLayout>
 	);
 }
-
-
-
-

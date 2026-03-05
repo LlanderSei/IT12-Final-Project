@@ -37,15 +37,17 @@ class DatabaseSeeder extends Seeder {
 
     $ownerRoleId = Role::query()->where('RoleName', 'Owner')->value('ID');
 
-    User::updateOrCreate(
-      ['email' => 'owner@example.com'],
-      [
-        'FullName' => "Momma's Bakeshop Owner",
-        'password' => Hash::make('owner123'),
-        'RoleID' => $ownerRoleId,
-      ]
-    );
+	    User::updateOrCreate(
+	      ['email' => 'owner@example.com'],
+	      [
+	        'FullName' => "Momma's Bakeshop Owner",
+	        'password' => Hash::make('owner123'),
+	        'RoleID' => $ownerRoleId,
+	      ]
+	    );
 
-    $this->call(BakeshopCatalogSeeder::class);
-  }
-}
+	    $this->call(PermissionsSeeder::class);
+	    $this->call(RolePermissionSeeder::class);
+	    $this->call(BakeshopCatalogSeeder::class);
+	  }
+	}

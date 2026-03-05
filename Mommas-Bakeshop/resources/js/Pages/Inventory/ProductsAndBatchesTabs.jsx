@@ -4,6 +4,7 @@ import { Head, Link } from "@inertiajs/react";
 import Products from "./ProductsAndBatchesSubviews/Products";
 import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
 import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
 
 export default function ProductsAndBatchesTabs({
 	products,
@@ -12,6 +13,16 @@ export default function ProductsAndBatchesTabs({
 	auth,
 	initialTab = "Products",
 }) {
+	const { can } = usePermissions();
+	const canCreateProduct = can("CanCreateProduct");
+	const canUpdateProduct = can("CanUpdateProduct");
+	const canDeleteProduct = can("CanDeleteProduct");
+	const canCreateProductCategory = can("CanCreateProductCategory");
+	const canUpdateProductCategory = can("CanUpdateProductCategory");
+	const canDeleteProductCategory = can("CanDeleteProductCategory");
+	const canCreateProductionBatch = can("CanCreateProductionBatch");
+	const canUpdateProductionBatch = can("CanUpdateProductionBatch");
+
 	const tabs = [
 		{ label: "Products", href: route("products.index") },
 		{ label: "Production Batches", href: route("products.batches") },
@@ -90,6 +101,12 @@ export default function ProductsAndBatchesTabs({
 						products={products}
 						categories={categories}
 						onHeaderMetaChange={setHeaderMeta}
+						canCreateProduct={canCreateProduct}
+						canUpdateProduct={canUpdateProduct}
+						canDeleteProduct={canDeleteProduct}
+						canCreateProductCategory={canCreateProductCategory}
+						canUpdateProductCategory={canUpdateProductCategory}
+						canDeleteProductCategory={canDeleteProductCategory}
 					/>
 				)}
 
@@ -99,11 +116,11 @@ export default function ProductsAndBatchesTabs({
 						categories={categories}
 						batches={batches}
 						onHeaderMetaChange={setHeaderMeta}
+						canCreateProductionBatch={canCreateProductionBatch}
+						canUpdateProductionBatch={canUpdateProductionBatch}
 					/>
 				)}
 			</div>
 		</AuthenticatedLayout>
 	);
 }
-
-
