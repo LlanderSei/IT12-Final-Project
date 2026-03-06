@@ -33,6 +33,8 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanCreateStockOut', 'PermissionDescription' => 'Can perform stock-out operations.'],
 			['PermissionName' => 'CanUpdateStockOut', 'PermissionDescription' => 'Can modify stock-out records.'],
 			['PermissionName' => 'CanDeleteStockOut', 'PermissionDescription' => 'Can delete stock-out records.'],
+			['PermissionName' => 'CanViewInventorySnapshots', 'PermissionDescription' => 'Can access inventory snapshots tab and details.'],
+			['PermissionName' => 'CanRecordInventorySnapshot', 'PermissionDescription' => 'Can record inventory snapshots.'],
 
 			// Product and Batch Management
 			['PermissionName' => 'CanViewProductsAndBatches', 'PermissionDescription' => 'Can access products and batches management.'],
@@ -45,6 +47,8 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanCreateProductionBatch', 'PermissionDescription' => 'Can record production batches.'],
 			['PermissionName' => 'CanUpdateProductionBatch', 'PermissionDescription' => 'Can edit production batch records.'],
 			['PermissionName' => 'CanDeleteProductionBatch', 'PermissionDescription' => 'Can delete production batch records.'],
+			['PermissionName' => 'CanViewProductSnapshots', 'PermissionDescription' => 'Can access product snapshots tab and details.'],
+			['PermissionName' => 'CanRecordProductSnapshot', 'PermissionDescription' => 'Can record product snapshots.'],
 
 			// Administration
 			['PermissionName' => 'CanViewReports', 'PermissionDescription' => 'Can view reports and analytics.'],

@@ -58,7 +58,7 @@ Route::middleware('auth')->group(function () {
     ->name('inventory.stock-out');
   Route::get('/inventory/snapshots', [\App\Http\Controllers\InventoryController::class, 'index'])
     ->defaults('tab', 'Snapshots')
-    ->middleware('permission:CanViewInventoryLevels')
+    ->middleware('permission:CanViewInventorySnapshots')
     ->name('inventory.snapshots');
   Route::post('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'store'])->middleware('permission:CanCreateInventoryItem')->name('inventory.levels.store');
   Route::put('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'update'])->middleware('permission:CanUpdateInventoryItem')->name('inventory.levels.update');
@@ -68,7 +68,7 @@ Route::middleware('auth')->group(function () {
   Route::put('/inventory/stock-in/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockIn'])->middleware('permission:CanUpdateStockIn')->name('inventory.stock-in.update');
   Route::post('/inventory/stock-out', [\App\Http\Controllers\InventoryController::class, 'storeStockOut'])->middleware('permission:CanCreateStockOut')->name('inventory.stock-out.store');
   Route::put('/inventory/stock-out/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockOut'])->middleware('permission:CanUpdateStockOut')->name('inventory.stock-out.update');
-  Route::post('/inventory/snapshots', [\App\Http\Controllers\InventoryController::class, 'storeSnapshot'])->middleware('permission:CanViewInventoryLevels')->name('inventory.snapshots.store');
+  Route::post('/inventory/snapshots', [\App\Http\Controllers\InventoryController::class, 'storeSnapshot'])->middleware('permission:CanRecordInventorySnapshot')->name('inventory.snapshots.store');
 
   Route::get('/inventory/products', [\App\Http\Controllers\ProductController::class, 'index'])->middleware('permission:CanViewProductsAndBatches')->name('inventory.products');
   Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index'])
@@ -81,12 +81,12 @@ Route::middleware('auth')->group(function () {
     ->name('products.batches');
   Route::get('/products/snapshots', [\App\Http\Controllers\ProductController::class, 'index'])
     ->defaults('tab', 'Snapshots')
-    ->middleware('permission:CanViewProductsAndBatches')
+    ->middleware('permission:CanViewProductSnapshots')
     ->name('products.snapshots');
   Route::post('/inventory/products', [\App\Http\Controllers\ProductController::class, 'store'])->middleware('permission:CanCreateProduct')->name('inventory.products.store');
   Route::put('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'update'])->middleware('permission:CanUpdateProduct')->name('inventory.products.update');
   Route::delete('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'destroy'])->middleware('permission:CanDeleteProduct')->name('inventory.products.destroy');
-  Route::post('/inventory/products/snapshots', [\App\Http\Controllers\ProductController::class, 'storeSnapshot'])->middleware('permission:CanViewProductsAndBatches')->name('inventory.products.snapshots.store');
+  Route::post('/inventory/products/snapshots', [\App\Http\Controllers\ProductController::class, 'storeSnapshot'])->middleware('permission:CanRecordProductSnapshot')->name('inventory.products.snapshots.store');
 
   Route::post('/inventory/batches', [\App\Http\Controllers\ProductController::class, 'storeBatch'])->middleware('permission:CanCreateProductionBatch')->name('inventory.batches.store');
 
