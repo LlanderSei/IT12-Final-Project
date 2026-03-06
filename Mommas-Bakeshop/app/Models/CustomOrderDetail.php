@@ -7,24 +7,25 @@ use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
-class Product extends Model implements Auditable {
+class CustomOrderDetail extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
 
-  protected $table = 'products';
+  protected $table = 'custom_order_details';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
-    'ProductName',
-    'ProductDescription',
-    'CategoryID',
-    'ProductImage',
-    'ProductFrom',
-    'Price',
-    'Quantity',
-    'LowStockThreshold',
+    'SalesID',
+    'OrderDescription',
+    'TotalAmount',
     'DateAdded',
     'DateModified',
+  ];
+
+  protected $casts = [
+    'TotalAmount' => 'decimal:2',
+    'DateAdded' => 'datetime',
+    'DateModified' => 'datetime',
   ];
 
   protected $auditEvents = [
@@ -35,7 +36,7 @@ class Product extends Model implements Auditable {
 
   public function transformAudit(array $data): array {
     $data['UserID'] = \Illuminate\Support\Facades\Auth::id();
-    $data['TableEdited'] = 'Products';
+    $data['TableEdited'] = 'CustomOrderDetails';
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
@@ -43,36 +44,14 @@ class Product extends Model implements Auditable {
     $data['Source'] = 'Application';
     $data['DateAdded'] = now();
 
-    // Remove default keys to avoid confusion, though our Audit model will only fill what's in $fillable
     return $data;
   }
 
-  protected $casts = [
-    'DateAdded' => 'datetime',
-    'DateModified' => 'datetime',
-  ];
-
-  // Relationships
-  public function category() {
-    return $this->belongsTo(Category::class, 'CategoryID');
+  public function sale() {
+    return $this->belongsTo(Sale::class, 'SalesID');
   }
 
-  public function productionBatches() {
-    return $this->hasMany(ProductionBatch::class, 'ProductID');
-  }
-
-  public function soldProducts() {
-    return $this->hasMany(SoldProduct::class, 'ProductID');
-  }
-
-  public function shrinkedProducts() {
-    return $this->hasMany(ShrinkedProduct::class, 'ProductID');
-  }
-
-  public function productLeftovers() {
-    return $this->hasMany(ProductLeftover::class, 'ProductID');
+  public function customOrders() {
+    return $this->hasMany(CustomOrder::class, 'CustomOrderDetailsID');
   }
 }
-
-
-

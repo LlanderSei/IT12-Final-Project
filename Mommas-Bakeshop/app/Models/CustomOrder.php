@@ -7,28 +7,25 @@ use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
-class Inventory extends Model implements Auditable {
+class CustomOrder extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
-  protected $table = 'inventory';
+
+  protected $table = 'custom_orders';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
-    'ItemName',
-    'ItemDescription',
-    'ItemType',
-    'Measurement',
+    'CustomOrderDetailsID',
+    'CustomOrderDescription',
     'Quantity',
-    'LowCountThreshold',
+    'PricePerUnit',
     'DateAdded',
-    'DateModified',
   ];
 
   protected $casts = [
     'Quantity' => 'integer',
-    'LowCountThreshold' => 'integer',
+    'PricePerUnit' => 'decimal:2',
     'DateAdded' => 'datetime',
-    'DateModified' => 'datetime',
   ];
 
   protected $auditEvents = [
@@ -39,7 +36,7 @@ class Inventory extends Model implements Auditable {
 
   public function transformAudit(array $data): array {
     $data['UserID'] = \Illuminate\Support\Facades\Auth::id();
-    $data['TableEdited'] = 'Inventory';
+    $data['TableEdited'] = 'CustomOrders';
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
@@ -50,18 +47,7 @@ class Inventory extends Model implements Auditable {
     return $data;
   }
 
-  // Relationships
-  public function stockIns() {
-    return $this->hasMany(StockIn::class, 'InventoryID');
-  }
-
-  public function stockOuts() {
-    return $this->hasMany(StockOut::class, 'InventoryID');
-  }
-
-  public function inventoryLeftovers() {
-    return $this->hasMany(InventoryLeftover::class, 'InventoryID');
+  public function customOrderDetail() {
+    return $this->belongsTo(CustomOrderDetail::class, 'CustomOrderDetailsID');
   }
 }
-
-

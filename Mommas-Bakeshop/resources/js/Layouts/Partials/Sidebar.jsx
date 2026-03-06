@@ -89,6 +89,7 @@ const NAV_STRUCTURE = [
 					"inventory.index",
 					"inventory.stock-in",
 					"inventory.stock-out",
+					"inventory.snapshots",
 				],
 				label: "Inventory Levels",
 				icon: "inventory",
@@ -97,7 +98,7 @@ const NAV_STRUCTURE = [
 			},
 			{
 				id: "inventory.products",
-				activeRoutes: ["inventory.products", "products.index", "products.batches"],
+				activeRoutes: ["inventory.products", "products.index", "products.batches", "products.snapshots"],
 				label: "Products & Batches",
 				icon: "products",
 				href: route("products.index"),

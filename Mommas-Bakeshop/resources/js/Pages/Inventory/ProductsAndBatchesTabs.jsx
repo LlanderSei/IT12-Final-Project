@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
 import Products from "./ProductsAndBatchesSubviews/Products";
 import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
+import Snapshots from "./ProductsAndBatchesSubviews/Snapshots";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import ConfirmationModal from "@/Components/ConfirmationModal";
 
 export default function ProductsAndBatchesTabs({
 	products,
 	categories,
 	batches,
+	snapshots,
 	auth,
 	initialTab = "Products",
 }) {
@@ -22,21 +25,43 @@ export default function ProductsAndBatchesTabs({
 	const canDeleteProductCategory = can("CanDeleteProductCategory");
 	const canCreateProductionBatch = can("CanCreateProductionBatch");
 	const canUpdateProductionBatch = can("CanUpdateProductionBatch");
+	const canManageCategories =
+		canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory;
+	const [footerActions, setFooterActions] = useState({
+		openAddProduct: null,
+		openRecordBatch: null,
+		openModifyCategories: null,
+	});
 
 	const tabs = [
 		{ label: "Products", href: route("products.index") },
 		{ label: "Production Batches", href: route("products.batches") },
+		{ label: "Snapshots", href: route("products.snapshots") },
 	];
 	const tabLabels = tabs.map((tab) => tab.label);
 	const normalizedInitialTab = tabLabels.includes(initialTab)
 		? initialTab
 		: tabLabels[0];
 	const activeTab = normalizedInitialTab;
+
+	useEffect(() => {
+		setFooterActions({
+			openAddProduct: null,
+			openRecordBatch: null,
+			openModifyCategories: null,
+		});
+	}, [activeTab]);
 	const getDefaultHeaderMeta = (tab) => {
 		if (tab === "Products") {
 			return {
 				subtitle: "Finished Goods",
 				countLabel: formatCountLabel((products || []).length, "product"),
+			};
+		}
+		if (tab === "Snapshots") {
+			return {
+				subtitle: "Snapshot History",
+				countLabel: formatCountLabel((snapshots || []).length, "record"),
 			};
 		}
 		return {
@@ -50,7 +75,50 @@ export default function ProductsAndBatchesTabs({
 
 	useEffect(() => {
 		setHeaderMeta(getDefaultHeaderMeta(activeTab));
-	}, [activeTab, products, batches]);
+	}, [activeTab, products, batches, snapshots]);
+
+	const snapshotForm = useForm({
+		ProceedOnSameDay: false,
+	});
+	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] =
+		useState(false);
+
+	const hasSnapshotForToday = (snapshots || []).some((snapshot) => {
+		if (!snapshot?.SnapshotTime) return false;
+		const value = new Date(snapshot.SnapshotTime);
+		if (Number.isNaN(value.getTime())) return false;
+		const now = new Date();
+		return (
+			value.getFullYear() === now.getFullYear() &&
+			value.getMonth() === now.getMonth() &&
+			value.getDate() === now.getDate()
+		);
+	});
+
+	const submitSnapshotRecord = (proceedOnSameDay) => {
+		snapshotForm.transform(() => ({
+			ProceedOnSameDay: Boolean(proceedOnSameDay),
+		}));
+		snapshotForm.post(route("inventory.products.snapshots.store"), {
+			preserveScroll: true,
+			onSuccess: () => {
+				setIsSnapshotWarningModalOpen(false);
+			},
+			onError: (errors) => {
+				if (errors?.snapshot && !proceedOnSameDay) {
+					setIsSnapshotWarningModalOpen(true);
+				}
+			},
+		});
+	};
+
+	const handleRecordSnapshot = () => {
+		if (hasSnapshotForToday) {
+			setIsSnapshotWarningModalOpen(true);
+			return;
+		}
+		submitSnapshotRecord(false);
+	};
 
 	return (
 		<AuthenticatedLayout
@@ -107,6 +175,7 @@ export default function ProductsAndBatchesTabs({
 						canCreateProductCategory={canCreateProductCategory}
 						canUpdateProductCategory={canUpdateProductCategory}
 						canDeleteProductCategory={canDeleteProductCategory}
+						setFooterActions={setFooterActions}
 					/>
 				)}
 
@@ -118,9 +187,80 @@ export default function ProductsAndBatchesTabs({
 						onHeaderMetaChange={setHeaderMeta}
 						canCreateProductionBatch={canCreateProductionBatch}
 						canUpdateProductionBatch={canUpdateProductionBatch}
+						setFooterActions={setFooterActions}
+					/>
+				)}
+				{activeTab === "Snapshots" && (
+					<Snapshots
+						snapshots={snapshots}
+						onHeaderMetaChange={setHeaderMeta}
 					/>
 				)}
 			</div>
+
+			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+					<button
+						type="button"
+						onClick={() => {
+							if (footerActions.openAddProduct) {
+								footerActions.openAddProduct();
+								return;
+							}
+							router.visit(route("products.index"));
+						}}
+						disabled={!canCreateProduct}
+						className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Add Product
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							if (footerActions.openRecordBatch) {
+								footerActions.openRecordBatch();
+								return;
+							}
+							router.visit(route("products.batches"));
+						}}
+						disabled={!canCreateProductionBatch}
+						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Record a Batch
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							if (footerActions.openModifyCategories) {
+								footerActions.openModifyCategories();
+								return;
+							}
+							router.visit(route("products.index"));
+						}}
+						disabled={!canManageCategories}
+						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Modify Categories
+					</button>
+					<button
+						type="button"
+						onClick={handleRecordSnapshot}
+						disabled={snapshotForm.processing}
+						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft"
+					>
+						Record Snapshot
+					</button>
+				</div>
+			</div>
+			<ConfirmationModal
+				show={isSnapshotWarningModalOpen}
+				onClose={() => setIsSnapshotWarningModalOpen(false)}
+				onConfirm={() => submitSnapshotRecord(true)}
+				title="Snapshot Already Exists Today"
+				message="A snapshot for today already exists. Do you want to proceed and record another snapshot?"
+				confirmText="Proceed"
+				processing={snapshotForm.processing}
+			/>
 		</AuthenticatedLayout>
 	);
 }

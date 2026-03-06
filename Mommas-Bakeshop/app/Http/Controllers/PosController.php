@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\CustomOrder;
+use App\Models\CustomOrderDetail;
 use App\Models\Payment;
 use App\Models\PartialPayment;
 use App\Models\Product;
@@ -61,6 +63,7 @@ class PosController extends Controller {
       'payment',
       'soldProducts.product:ID,ProductName',
       'partialPayments',
+      'customOrderDetails.customOrders',
     ])
       ->orderByDesc('DateAdded')
       ->get();
@@ -301,9 +304,13 @@ class PosController extends Controller {
   public function checkoutJobOrder(Request $request) {
     try {
       $payload = $request->validate([
-        'items' => 'required|array|min:1',
+        'items' => 'nullable|array',
         'items.*.ProductID' => 'required|integer|exists:products,ID',
         'items.*.Quantity' => 'required|integer|min:1',
+        'customOrders' => 'nullable|array',
+        'customOrders.*.description' => 'required|string|max:1000',
+        'customOrders.*.quantity' => 'required|integer|min:1',
+        'customOrders.*.pricePerUnit' => 'required|numeric|min:0.01',
         'customerMode' => 'required|in:existing,new',
         'CustomerID' => 'nullable|integer|exists:customers,ID',
         'newCustomer.CustomerName' => 'nullable|string|max:255',
@@ -316,6 +323,14 @@ class PosController extends Controller {
         'additionalDetails' => 'nullable|string|max:1000',
         'dueDate' => 'nullable|date|after:today',
       ]);
+
+      $productItems = collect($payload['items'] ?? [])->values()->all();
+      $customOrderItems = collect($payload['customOrders'] ?? [])->values()->all();
+      if (empty($productItems) && empty($customOrderItems)) {
+        throw ValidationException::withMessages([
+          'items' => 'Add at least one product or custom order item.',
+        ]);
+      }
 
       if ($payload['customerMode'] === 'existing' && empty($payload['CustomerID'] ?? null)) {
         throw ValidationException::withMessages([
@@ -341,7 +356,15 @@ class PosController extends Controller {
       }
 
       DB::transaction(function () use ($payload, $request) {
-        [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
+        $productItems = collect($payload['items'] ?? [])->values()->all();
+        $customOrderItems = collect($payload['customOrders'] ?? [])->values()->all();
+        [$lines, $totalQuantity, $productTotalAmount] = !empty($productItems)
+          ? $this->calculateCartTotals($productItems)
+          : [[], 0, 0.0];
+        $customOrdersTotal = round(collect($customOrderItems)->sum(function ($item) {
+          return ((float)$item['quantity']) * ((float)$item['pricePerUnit']);
+        }), 2);
+        $totalAmount = round($productTotalAmount + $customOrdersTotal, 2);
 
         $customerID = isset($payload['CustomerID']) ? (int)$payload['CustomerID'] : 0;
         if ($payload['customerMode'] === 'new') {
@@ -375,6 +398,29 @@ class PosController extends Controller {
           $line['product']->update([
             'DateModified' => now(),
           ]);
+        }
+
+        if (!empty($customOrderItems)) {
+          $customOrderDetail = CustomOrderDetail::create([
+            'SalesID' => $sale->ID,
+            'OrderDescription' => sprintf(
+              'Custom order entries: %d',
+              count($customOrderItems)
+            ),
+            'TotalAmount' => $customOrdersTotal,
+            'DateAdded' => now(),
+            'DateModified' => now(),
+          ]);
+
+          foreach ($customOrderItems as $customOrderItem) {
+            CustomOrder::create([
+              'CustomOrderDetailsID' => $customOrderDetail->ID,
+              'CustomOrderDescription' => trim((string)$customOrderItem['description']),
+              'Quantity' => (int)$customOrderItem['quantity'],
+              'PricePerUnit' => round((float)$customOrderItem['pricePerUnit'], 2),
+              'DateAdded' => now(),
+            ]);
+          }
         }
 
         if ($payload['paymentSelection'] === 'pay_now') {

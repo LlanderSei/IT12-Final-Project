@@ -72,6 +72,14 @@ class User extends Authenticatable {
     return $this->hasMany(StockOutDetail::class, 'UserID');
   }
 
+  public function productLeftoverSnapshots() {
+    return $this->hasMany(ProductLeftoverSnapshot::class, 'UserID');
+  }
+
+  public function inventoryLeftoverSnapshots() {
+    return $this->hasMany(InventoryLeftoverSnapshot::class, 'UserID');
+  }
+
   public function hasPermission(string $permissionName): bool {
     if ($permissionName === '') {
       return false;

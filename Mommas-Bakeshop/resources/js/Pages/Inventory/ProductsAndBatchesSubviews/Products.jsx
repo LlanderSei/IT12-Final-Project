@@ -9,6 +9,7 @@ export default function Products({
 	products,
 	categories,
 	onHeaderMetaChange,
+	setFooterActions,
 	canCreateProduct = false,
 	canUpdateProduct = false,
 	canDeleteProduct = false,
@@ -358,6 +359,22 @@ export default function Products({
 			countLabel,
 		});
 	}, [onHeaderMetaChange, countLabel]);
+
+	useEffect(() => {
+		setFooterActions?.({
+			openAddProduct: openAddModal,
+			openRecordBatch: null,
+			openModifyCategories: openModifyCategories,
+		});
+
+		return () => {
+			setFooterActions?.({
+				openAddProduct: null,
+				openRecordBatch: null,
+				openModifyCategories: null,
+			});
+		};
+	}, [setFooterActions, canCreateProduct, canCreateProductCategory, canUpdateProductCategory, canDeleteProductCategory]);
 
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
@@ -711,44 +728,6 @@ export default function Products({
 						</div>
 					</div>
 				</div>
-			</div>
-
-			{/* Floating Buttons */}
-			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 hidden sm:block">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4">
-						<button
-							onClick={openModifyCategories}
-							disabled={!(canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory)}
-							className="flex-1 flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-						>
-							Modify Categories
-						</button>
-						<button
-							onClick={openAddModal}
-							disabled={!canCreateProduct}
-							className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
-						>
-							Add Products
-						</button>
-				</div>
-			</div>
-
-			{/* Mobile-friendly Buttons */}
-			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10 sm:hidden flex flex-col space-y-2">
-					<button
-						onClick={openModifyCategories}
-						disabled={!(canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory)}
-						className="w-full flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-					>
-						Modify Categories
-					</button>
-					<button
-						onClick={openAddModal}
-						disabled={!canCreateProduct}
-						className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
-					>
-						Add Products
-					</button>
 			</div>
 
 			{/* Add/Edit Product Modal */}

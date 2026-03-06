@@ -7,28 +7,26 @@ use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
-class Inventory extends Model implements Auditable {
+class ProductLeftoverSnapshot extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
-  protected $table = 'inventory';
+
+  protected $table = 'product_leftover_snapshots';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
-    'ItemName',
-    'ItemDescription',
-    'ItemType',
-    'Measurement',
-    'Quantity',
-    'LowCountThreshold',
-    'DateAdded',
-    'DateModified',
+    'UserID',
+    'TotalProducts',
+    'TotalLeftovers',
+    'TotalAmount',
+    'SnapshotTime',
   ];
 
   protected $casts = [
-    'Quantity' => 'integer',
-    'LowCountThreshold' => 'integer',
-    'DateAdded' => 'datetime',
-    'DateModified' => 'datetime',
+    'TotalProducts' => 'integer',
+    'TotalLeftovers' => 'integer',
+    'TotalAmount' => 'decimal:2',
+    'SnapshotTime' => 'datetime',
   ];
 
   protected $auditEvents = [
@@ -39,7 +37,7 @@ class Inventory extends Model implements Auditable {
 
   public function transformAudit(array $data): array {
     $data['UserID'] = \Illuminate\Support\Facades\Auth::id();
-    $data['TableEdited'] = 'Inventory';
+    $data['TableEdited'] = 'ProductLeftoverSnapshots';
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
@@ -50,18 +48,11 @@ class Inventory extends Model implements Auditable {
     return $data;
   }
 
-  // Relationships
-  public function stockIns() {
-    return $this->hasMany(StockIn::class, 'InventoryID');
+  public function user() {
+    return $this->belongsTo(User::class, 'UserID');
   }
 
-  public function stockOuts() {
-    return $this->hasMany(StockOut::class, 'InventoryID');
-  }
-
-  public function inventoryLeftovers() {
-    return $this->hasMany(InventoryLeftover::class, 'InventoryID');
+  public function leftovers() {
+    return $this->hasMany(ProductLeftover::class, 'ProductLeftoverID');
   }
 }
-
-
