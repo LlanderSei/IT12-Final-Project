@@ -2,7 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
 
-export default function Snapshots({ snapshots = [], onHeaderMetaChange }) {
+export default function Snapshots({
+	snapshots = [],
+	onHeaderMetaChange,
+	canViewDetails = true,
+}) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -178,12 +182,13 @@ export default function Snapshots({ snapshots = [], onHeaderMetaChange }) {
 												: "-"}
 										</td>
 										<td className="px-6 py-4 text-sm">
-											<button
-												type="button"
-												onClick={() => setSelectedSnapshot(snapshot)}
-												className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-											>
-												View
+										<button
+											type="button"
+											onClick={() => setSelectedSnapshot(snapshot)}
+											disabled={!canViewDetails}
+											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											View
 											</button>
 										</td>
 									</tr>

@@ -16,7 +16,7 @@ export default function ProductsAndBatchesTabs({
 	auth,
 	initialTab = "Products",
 }) {
-	const { can } = usePermissions();
+	const { can, requirePermission } = usePermissions();
 	const canCreateProduct = can("CanCreateProduct");
 	const canUpdateProduct = can("CanUpdateProduct");
 	const canDeleteProduct = can("CanDeleteProduct");
@@ -25,6 +25,8 @@ export default function ProductsAndBatchesTabs({
 	const canDeleteProductCategory = can("CanDeleteProductCategory");
 	const canCreateProductionBatch = can("CanCreateProductionBatch");
 	const canUpdateProductionBatch = can("CanUpdateProductionBatch");
+	const canViewProductSnapshots = can("CanViewProductSnapshots");
+	const canRecordProductSnapshot = can("CanRecordProductSnapshot");
 	const canManageCategories =
 		canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory;
 	const [footerActions, setFooterActions] = useState({
@@ -36,21 +38,19 @@ export default function ProductsAndBatchesTabs({
 	const tabs = [
 		{ label: "Products", href: route("products.index") },
 		{ label: "Production Batches", href: route("products.batches") },
-		{ label: "Snapshots", href: route("products.snapshots") },
+		{
+			label: "Snapshots",
+			href: route("products.snapshots"),
+			hidden: !canViewProductSnapshots,
+		},
 	];
-	const tabLabels = tabs.map((tab) => tab.label);
+	const visibleTabs = tabs.filter((tab) => !tab.hidden);
+	const tabLabels = visibleTabs.map((tab) => tab.label);
 	const normalizedInitialTab = tabLabels.includes(initialTab)
 		? initialTab
 		: tabLabels[0];
 	const activeTab = normalizedInitialTab;
 
-	useEffect(() => {
-		setFooterActions({
-			openAddProduct: null,
-			openRecordBatch: null,
-			openModifyCategories: null,
-		});
-	}, [activeTab]);
 	const getDefaultHeaderMeta = (tab) => {
 		if (tab === "Products") {
 			return {
@@ -113,6 +113,9 @@ export default function ProductsAndBatchesTabs({
 	};
 
 	const handleRecordSnapshot = () => {
+		if (!canRecordProductSnapshot) {
+			return requirePermission("CanRecordProductSnapshot");
+		}
 		if (hasSnapshotForToday) {
 			setIsSnapshotWarningModalOpen(true);
 			return;
@@ -147,7 +150,7 @@ export default function ProductsAndBatchesTabs({
 				<div className="bg-white border-b border-gray-200 mt-0">
 					<div className="mx-auto px-4">
 						<nav className="-mb-px flex gap-2" aria-label="Tabs">
-							{tabs.map((tab) => (
+							{visibleTabs.map((tab) => (
 								<Link
 									key={tab.label}
 									href={tab.href}
@@ -194,6 +197,7 @@ export default function ProductsAndBatchesTabs({
 					<Snapshots
 						snapshots={snapshots}
 						onHeaderMetaChange={setHeaderMeta}
+						canViewDetails={canViewProductSnapshots}
 					/>
 				)}
 			</div>
@@ -245,8 +249,8 @@ export default function ProductsAndBatchesTabs({
 					<button
 						type="button"
 						onClick={handleRecordSnapshot}
-						disabled={snapshotForm.processing}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft"
+						disabled={snapshotForm.processing || !canRecordProductSnapshot}
+						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
 					>
 						Record Snapshot
 					</button>

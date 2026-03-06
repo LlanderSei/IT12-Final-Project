@@ -30,6 +30,8 @@ export default function InventoryLevelsTabs({
 	const canUpdateStockIn = can("CanUpdateStockIn");
 	const canCreateStockOut = can("CanCreateStockOut");
 	const canUpdateStockOut = can("CanUpdateStockOut");
+	const canViewInventorySnapshots = can("CanViewInventorySnapshots");
+	const canRecordInventorySnapshot = can("CanRecordInventorySnapshot");
 	const parseStockOutReason = (reason) => {
 		const value = String(reason || "").trim();
 		if (!value) {
@@ -54,9 +56,14 @@ export default function InventoryLevelsTabs({
 		{ label: "Inventory", href: route("inventory.index") },
 		{ label: "Stock-In", href: route("inventory.stock-in") },
 		{ label: "Stock-Out", href: route("inventory.stock-out") },
-		{ label: "Snapshots", href: route("inventory.snapshots") },
+		{
+			label: "Snapshots",
+			href: route("inventory.snapshots"),
+			hidden: !canViewInventorySnapshots,
+		},
 	];
-	const tabLabels = tabs.map((tab) => tab.label);
+	const visibleTabs = tabs.filter((tab) => !tab.hidden);
+	const tabLabels = visibleTabs.map((tab) => tab.label);
 	const activeTab = tabLabels.includes(initialTab) ? initialTab : tabLabels[0];
 	const getDefaultHeaderMeta = (tab) => {
 		if (tab === "Inventory") {
@@ -393,6 +400,9 @@ export default function InventoryLevelsTabs({
 	};
 
 	const handleRecordSnapshot = () => {
+		if (!canRecordInventorySnapshot) {
+			return requirePermission("CanRecordInventorySnapshot");
+		}
 		if (hasSnapshotForToday) {
 			setIsSnapshotWarningModalOpen(true);
 			return;
@@ -426,7 +436,7 @@ export default function InventoryLevelsTabs({
 			<div className="bg-white border-b border-gray-200 mt-0">
 				<div className="mx-auto px-4">
 					<nav className="-mb-px flex gap-2" aria-label="Tabs">
-						{tabs.map((tab) => (
+						{visibleTabs.map((tab) => (
 							<Link
 								key={tab.label}
 								href={tab.href}
@@ -476,6 +486,7 @@ export default function InventoryLevelsTabs({
 								<Snapshots
 									snapshots={snapshots}
 									onHeaderMetaChange={setHeaderMeta}
+									canViewDetails={canViewInventorySnapshots}
 								/>
 							)}
 						</div>
@@ -513,7 +524,7 @@ export default function InventoryLevelsTabs({
 						</button>
 						<button
 							onClick={handleRecordSnapshot}
-							disabled={snapshotForm.processing}
+							disabled={snapshotForm.processing || !canRecordInventorySnapshot}
 							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
 						>
 							Record Snapshot
