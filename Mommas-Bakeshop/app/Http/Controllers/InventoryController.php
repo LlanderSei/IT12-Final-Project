@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Inventory;
+use App\Models\InventoryLeftover;
+use App\Models\InventoryLeftoverSnapshot;
 use App\Models\Product;
 use App\Models\StockIn;
 use App\Models\StockInDetail;
@@ -82,15 +84,84 @@ class InventoryController extends Controller {
         ];
       });
 
+    $snapshots = InventoryLeftoverSnapshot::with([
+      'user:id,FullName',
+      'leftovers.inventory:ID,ItemName,ItemType,Measurement',
+    ])
+      ->orderBy('SnapshotTime', 'desc')
+      ->get()
+      ->map(function ($snapshot) {
+        return [
+          'ID' => $snapshot->ID,
+          'user' => $snapshot->user,
+          'TotalItems' => (int) $snapshot->TotalItems,
+          'TotalLeftovers' => (int) $snapshot->TotalLeftovers,
+          'SnapshotTime' => $snapshot->SnapshotTime,
+          'Leftovers' => $snapshot->leftovers->map(function ($line) {
+            return [
+              'ID' => $line->ID,
+              'InventoryID' => $line->InventoryID,
+              'ItemName' => $line->inventory?->ItemName ?? 'Deleted Item',
+              'ItemType' => $line->inventory?->ItemType ?? null,
+              'Measurement' => $line->inventory?->Measurement ?? null,
+              'LeftoverQuantity' => (int) $line->LeftoverQuantity,
+              'DateAdded' => $line->DateAdded,
+            ];
+          })->values(),
+        ];
+      });
+
     return Inertia::render('Inventory/InventoryLevelsTabs', [
       'inventory' => Inventory::orderBy('ItemName', 'asc')->get(),
       'products' => Product::with('category')->orderBy('ProductName', 'asc')->get(),
       'categories' => Category::orderBy('CategoryName', 'asc')->get(),
       'stockIns' => $stockIns,
       'stockOuts' => $stockOuts,
+      'snapshots' => $snapshots,
       'users' => User::all(),
       'initialTab' => $request->route('tab') ?? 'Inventory',
     ]);
+  }
+
+  public function storeSnapshot(Request $request) {
+    $data = $request->validate([
+      'ProceedOnSameDay' => 'nullable|boolean',
+    ]);
+
+    $todayStart = now()->startOfDay();
+    $todayEnd = now()->endOfDay();
+    $hasSnapshotToday = InventoryLeftoverSnapshot::query()
+      ->whereBetween('SnapshotTime', [$todayStart, $todayEnd])
+      ->exists();
+
+    if ($hasSnapshotToday && !($data['ProceedOnSameDay'] ?? false)) {
+      throw ValidationException::withMessages([
+        'snapshot' => 'A snapshot for today already exists. Confirm and proceed to record another snapshot.',
+      ]);
+    }
+
+    DB::transaction(function () {
+      $snapshot = InventoryLeftoverSnapshot::create([
+        'UserID' => Auth::id(),
+        'SnapshotTime' => now(),
+      ]);
+
+      $items = Inventory::query()
+        ->where('Quantity', '>', 0)
+        ->orderBy('ItemName', 'asc')
+        ->get(['ID', 'Quantity']);
+
+      foreach ($items as $item) {
+        InventoryLeftover::create([
+          'InventoryLeftoverID' => $snapshot->ID,
+          'InventoryID' => $item->ID,
+          'LeftoverQuantity' => (int) $item->Quantity,
+          'DateAdded' => now(),
+        ]);
+      }
+    });
+
+    return redirect()->back()->with('success', 'Inventory snapshot recorded successfully.');
   }
 
   public function store(Request $request) {

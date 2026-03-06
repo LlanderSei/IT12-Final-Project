@@ -4,6 +4,7 @@ import { Head, Link, useForm } from "@inertiajs/react";
 import Inventory from "./InventoryLevelsSubviews/Inventory";
 import StockIn from "./InventoryLevelsSubviews/StockIn";
 import StockOut from "./InventoryLevelsSubviews/StockOut";
+import Snapshots from "./InventoryLevelsSubviews/Snapshots";
 import StockMovementModal, {
 	createDefaultStockInDraft,
 	createDefaultStockOutDraft,
@@ -18,6 +19,7 @@ export default function InventoryLevelsTabs({
 	categories,
 	stockIns,
 	stockOuts,
+	snapshots,
 	initialTab = "Inventory",
 }) {
 	const { can, requirePermission } = usePermissions();
@@ -52,6 +54,7 @@ export default function InventoryLevelsTabs({
 		{ label: "Inventory", href: route("inventory.index") },
 		{ label: "Stock-In", href: route("inventory.stock-in") },
 		{ label: "Stock-Out", href: route("inventory.stock-out") },
+		{ label: "Snapshots", href: route("inventory.snapshots") },
 	];
 	const tabLabels = tabs.map((tab) => tab.label);
 	const activeTab = tabLabels.includes(initialTab) ? initialTab : tabLabels[0];
@@ -66,6 +69,12 @@ export default function InventoryLevelsTabs({
 			return {
 				subtitle: "Stock-In History",
 				countLabel: formatCountLabel((stockIns || []).length, "record"),
+			};
+		}
+		if (tab === "Snapshots") {
+			return {
+				subtitle: "Snapshot History",
+				countLabel: formatCountLabel((snapshots || []).length, "record"),
 			};
 		}
 		return {
@@ -89,10 +98,12 @@ export default function InventoryLevelsTabs({
 		createDefaultStockOutDraft,
 	);
 	const [editingStockOutID, setEditingStockOutID] = useState(null);
+	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] =
+		useState(false);
 
 	useEffect(() => {
 		setHeaderMeta(getDefaultHeaderMeta(activeTab));
-	}, [activeTab, inventory, stockIns, stockOuts]);
+	}, [activeTab, inventory, stockIns, stockOuts, snapshots]);
 
 	useEffect(() => {
 		try {
@@ -140,6 +151,21 @@ export default function InventoryLevelsTabs({
 	const stockInForm = useForm({});
 
 	const stockOutForm = useForm({});
+	const snapshotForm = useForm({
+		ProceedOnSameDay: false,
+	});
+
+	const hasSnapshotForToday = (snapshots || []).some((snapshot) => {
+		if (!snapshot?.SnapshotTime) return false;
+		const value = new Date(snapshot.SnapshotTime);
+		if (Number.isNaN(value.getTime())) return false;
+		const now = new Date();
+		return (
+			value.getFullYear() === now.getFullYear() &&
+			value.getMonth() === now.getMonth() &&
+			value.getDate() === now.getDate()
+		);
+	});
 
 	// Handlers
 	const openAddItemModal = () => {
@@ -349,6 +375,31 @@ export default function InventoryLevelsTabs({
 		return "On Stock";
 	};
 
+	const submitSnapshotRecord = (proceedOnSameDay) => {
+		snapshotForm.transform(() => ({
+			ProceedOnSameDay: Boolean(proceedOnSameDay),
+		}));
+		snapshotForm.post(route("inventory.snapshots.store"), {
+			preserveScroll: true,
+			onSuccess: () => {
+				setIsSnapshotWarningModalOpen(false);
+			},
+			onError: (errors) => {
+				if (errors?.snapshot && !proceedOnSameDay) {
+					setIsSnapshotWarningModalOpen(true);
+				}
+			},
+		});
+	};
+
+	const handleRecordSnapshot = () => {
+		if (hasSnapshotForToday) {
+			setIsSnapshotWarningModalOpen(true);
+			return;
+		}
+		submitSnapshotRecord(false);
+	};
+
 	return (
 		<AuthenticatedLayout
 			header={
@@ -421,6 +472,12 @@ export default function InventoryLevelsTabs({
 									canEdit={canUpdateStockOut}
 								/>
 							)}
+							{activeTab === "Snapshots" && (
+								<Snapshots
+									snapshots={snapshots}
+									onHeaderMetaChange={setHeaderMeta}
+								/>
+							)}
 						</div>
 					</div>
 				</div>
@@ -428,7 +485,7 @@ export default function InventoryLevelsTabs({
 
 			{/* Shared Bottom Buttons */}
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 gap-4">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-4 gap-4">
 						<button
 							onClick={openAddItemModal}
 							disabled={!canCreateInventoryItem}
@@ -453,6 +510,13 @@ export default function InventoryLevelsTabs({
 							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
 						>
 							Stock-Out
+						</button>
+						<button
+							onClick={handleRecordSnapshot}
+							disabled={snapshotForm.processing}
+							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
+						>
+							Record Snapshot
 						</button>
 				</div>
 			</div>
@@ -633,6 +697,16 @@ export default function InventoryLevelsTabs({
 				message={`Are you sure you want to delete "${editingItem?.ItemName}"? This will also affect stock history records.`}
 				confirmText="Delete"
 				processing={itemForm.processing}
+			/>
+
+			<ConfirmationModal
+				show={isSnapshotWarningModalOpen}
+				onClose={() => setIsSnapshotWarningModalOpen(false)}
+				onConfirm={() => submitSnapshotRecord(true)}
+				title="Snapshot Already Exists Today"
+				message="A snapshot for today already exists. Do you want to proceed and record another snapshot?"
+				confirmText="Proceed"
+				processing={snapshotForm.processing}
 			/>
 		</AuthenticatedLayout>
 	);

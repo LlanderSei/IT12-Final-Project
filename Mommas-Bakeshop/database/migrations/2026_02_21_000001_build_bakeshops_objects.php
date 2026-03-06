@@ -28,8 +28,8 @@ return new class extends Migration {
 
 		Schema::create('permissions_set', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('UserID')->references('id')->on('users')->onDelete('cascade');
-			$table->foreignId('PermissionID')->references('ID')->on('permissions')->onDelete('cascade');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
+			$table->foreignId('PermissionID')->constrained('permissions', 'ID')->onDelete('cascade');
 			$table->boolean('Allowable')->default(0);
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
@@ -37,7 +37,7 @@ return new class extends Migration {
 
 		Schema::create('audits', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('UserID')->references('id')->on('users')->onDelete('cascade');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
 			$table->text('TableEdited');
 			$table->text('PreviousChanges')->nullable();
 			$table->text('SavedChanges')->nullable();
@@ -59,7 +59,7 @@ return new class extends Migration {
 			$table->id('ID');
 			$table->text('ProductName');
 			$table->text('ProductDescription');
-			$table->foreignId('CategoryID')->references('ID')->on('categories')->onDelete('cascade');
+			$table->foreignId('CategoryID')->constrained('categories', 'ID')->onDelete('cascade');
 			$table->text('ProductImage')->nullable();
 			$table->enum('ProductFrom', ['Produced', 'Purchased', 'Consignment'])->default('Produced'); // e.g. "Owned", "Consignment", "Drop-shipped"
 			$table->text('Price');
@@ -71,7 +71,7 @@ return new class extends Migration {
 
 		Schema::create('production_batch_details', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('UserID')->references('id')->on('users')->onDelete('cascade');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
 			$table->text('BatchDescription')->nullable();
 			$table->unsignedBigInteger('TotalProductsProduced')->default(0);
 			$table->timestamp('DateAdded')->useCurrent();
@@ -79,75 +79,42 @@ return new class extends Migration {
 
 		Schema::create('production_batches', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('BatchDetailsID')->references('ID')->on('production_batch_details')->onDelete('cascade');
-			$table->foreignId('ProductID')->references('ID')->on('products')->onDelete('cascade');
+			$table->foreignId('BatchDetailsID')->constrained('production_batch_details', 'ID')->onDelete('cascade');
+			$table->foreignId('ProductID')->constrained('products', 'ID')->onDelete('cascade');
 			$table->unsignedBigInteger('QuantityProduced');
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
-		DB::unprepared('
-			CREATE TRIGGER UpdateTotalProductsProduced
-			AFTER INSERT ON production_batches
-			FOR EACH ROW
-			BEGIN
-				DECLARE old_product_quantity BIGINT;
-				DECLARE old_total_produced BIGINT;
-				DECLARE batch_user_id BIGINT;
+		Schema::create('product_leftover_snapshots', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
+			$table->unsignedBigInteger('TotalProducts')->default(0);
+			$table->unsignedBigInteger('TotalLeftovers')->default(0);
+			$table->decimal('TotalAmount', 12, 2)->default(0);
+			$table->timestamp('SnapshotTime')->useCurrent();
+		});
 
-				SELECT Quantity INTO old_product_quantity
-				FROM products
-				WHERE ID = NEW.ProductID;
-
-				SELECT TotalProductsProduced, UserID
-				INTO old_total_produced, batch_user_id
-				FROM production_batch_details
-				WHERE ID = NEW.BatchDetailsID;
-
-				UPDATE products
-				SET Quantity = Quantity + NEW.QuantityProduced
-				WHERE ID = NEW.ProductID;
-
-				UPDATE production_batch_details
-				SET TotalProductsProduced = TotalProductsProduced + NEW.QuantityProduced
-				WHERE ID = NEW.BatchDetailsID;
-
-				INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-				VALUES (
-					batch_user_id,
-					"products",
-					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity, "}"),
-					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity + NEW.QuantityProduced, "}"),
-					CONCAT("Trigger UpdateTotalProductsProduced added ", NEW.QuantityProduced, " to products.ID=", NEW.ProductID),
-					"Update Quantity",
-					"Trigger",
-					NOW()
-				);
-
-				INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-				VALUES (
-					batch_user_id,
-					"production_batch_details",
-					CONCAT("{\"ID\":", NEW.BatchDetailsID, ",\"TotalProductsProduced\":", old_total_produced, "}"),
-					CONCAT("{\"ID\":", NEW.BatchDetailsID, ",\"TotalProductsProduced\":", old_total_produced + NEW.QuantityProduced, "}"),
-					CONCAT("Trigger UpdateTotalProductsProduced increased TotalProductsProduced by ", NEW.QuantityProduced, " for production_batch_details.ID=", NEW.BatchDetailsID),
-					"Update TotalProductsProduced",
-					"Trigger",
-					NOW()
-				);
-			END
-		');
+		Schema::create('product_leftovers', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('ProductLeftoverID')->constrained('product_leftover_snapshots', 'ID')->onDelete('cascade');
+			$table->foreignId('ProductID')->constrained('products', 'ID')->onDelete('cascade');
+			$table->unsignedBigInteger('LeftoverQuantity')->default(0);
+			$table->decimal('PerUnitAmount', 10, 2)->default(0);
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->unique(['ProductLeftoverID', 'ProductID'], 'ux_product_leftovers_snapshot_product');
+		});
 
 		Schema::create('sales', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('UserID')->references('id')->on('users')->onDelete('cascade');
-			$table->foreignId('CustomerID')->nullable()->references('ID')->on('customers')->onDelete('cascade');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
+			$table->foreignId('CustomerID')->nullable()->constrained('customers', 'ID')->onDelete('cascade');
 			$table->decimal('TotalAmount', 10, 2);
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
 		Schema::create('payments', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('SalesID')->references('ID')->on('sales')->onDelete('cascade');
+			$table->foreignId('SalesID')->constrained('sales', 'ID')->onDelete('cascade');
 			$table->string('PaymentMethod')->default('Cash');
 			$table->decimal('PaidAmount', 10, 2);
 			$table->decimal('TotalAmount', 10, 2);
@@ -167,43 +134,6 @@ return new class extends Migration {
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
-		DB::unprepared('
-			CREATE TRIGGER UpdatePaymentStatus
-			AFTER INSERT ON partial_payments
-			FOR EACH ROW
-			BEGIN
-				DECLARE total_paid DECIMAL(10, 2);
-				DECLARE total_amount DECIMAL(10, 2);
-				DECLARE old_status VARCHAR(32);
-				DECLARE new_status VARCHAR(32);
-				DECLARE sale_user_id BIGINT;
-
-				SELECT SUM(PaidAmount) INTO total_paid FROM partial_payments WHERE SalesID = NEW.SalesID;
-				SELECT TotalAmount, PaymentStatus INTO total_amount, old_status FROM payments WHERE SalesID = NEW.SalesID;
-				SELECT UserID INTO sale_user_id FROM sales WHERE ID = NEW.SalesID;
-
-				IF total_paid >= total_amount THEN
-					UPDATE payments SET PaymentStatus = "Paid" WHERE SalesID = NEW.SalesID;
-					SET new_status = "Paid";
-				ELSE
-					UPDATE payments SET PaymentStatus = "Partially Paid" WHERE SalesID = NEW.SalesID;
-					SET new_status = "Partially Paid";
-				END IF;
-
-				INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-				VALUES (
-					sale_user_id,
-					"payments",
-					CONCAT("{\"SalesID\":", NEW.SalesID, ",\"PaymentStatus\":\"", old_status, "\",\"TotalPaid\":", IFNULL(total_paid - NEW.PaidAmount, 0), "}"),
-					CONCAT("{\"SalesID\":", NEW.SalesID, ",\"PaymentStatus\":\"", new_status, "\",\"TotalPaid\":", total_paid, "}"),
-					CONCAT("Trigger UpdatePaymentStatus set payments.PaymentStatus to ", new_status, " for SalesID=", NEW.SalesID),
-					"Update PaymentStatus",
-					"Trigger",
-					NOW()
-				);
-			END
-		');
-
 		Schema::create('sold_products', function (Blueprint $table) {
 			$table->id('ID');
 			$table->foreignId('SalesID')->references('ID')->on('sales')->onDelete('cascade');
@@ -213,39 +143,23 @@ return new class extends Migration {
 			$table->decimal('SubAmount', 10, 2);
 		});
 
-		DB::unprepared('
-			CREATE TRIGGER UpdateProductQuantitiesOnSale
-			AFTER INSERT ON sold_products
-			FOR EACH ROW
-			BEGIN
-				DECLARE old_product_quantity BIGINT;
-				DECLARE sale_user_id BIGINT;
+		Schema::create('custom_order_details', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('SalesID')->constrained('sales', 'ID')->onDelete('cascade');
+			$table->text('OrderDescription');
+			$table->decimal('TotalAmount', 10, 2);
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
+		});
 
-				SELECT Quantity INTO old_product_quantity
-				FROM products
-				WHERE ID = NEW.ProductID;
-
-				SELECT UserID INTO sale_user_id
-				FROM sales
-				WHERE ID = NEW.SalesID;
-
-				UPDATE products
-				SET Quantity = Quantity - NEW.Quantity
-				WHERE ID = NEW.ProductID;
-
-				INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-				VALUES (
-					sale_user_id,
-					"products",
-					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity, "}"),
-					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity - NEW.Quantity, "}"),
-					CONCAT("Trigger UpdateProductQuantitiesOnSale deducted ", NEW.Quantity, " from products.ID=", NEW.ProductID),
-					"Update Quantity",
-					"Trigger",
-					NOW()
-				);
-			END
-		');
+		Schema::create('custom_orders', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('CustomOrderDetailsID')->constrained('custom_order_details', 'ID')->onDelete('cascade');
+			$table->text('CustomOrderDescription');
+			$table->unsignedBigInteger('Quantity');
+			$table->decimal('PricePerUnit', 10, 2);
+			$table->timestamp('DateAdded')->useCurrent();
+		});
 
 		Schema::create('shrinkages', function (Blueprint $table) {
 			$table->id('ID');
@@ -264,40 +178,6 @@ return new class extends Migration {
 			$table->decimal('SubAmount', 10, 2);
 		});
 
-		DB::unprepared('
-			CREATE TRIGGER UpdateProductQuantitiesOnShrinkage
-			AFTER INSERT ON shrinked_products
-			FOR EACH ROW
-			BEGIN
-				DECLARE old_product_quantity BIGINT;
-				DECLARE shrinkage_user_id BIGINT;
-
-				SELECT Quantity INTO old_product_quantity
-				FROM products
-				WHERE ID = NEW.ProductID;
-
-				SELECT UserID INTO shrinkage_user_id
-				FROM shrinkages
-				WHERE ID = NEW.ShrinkageID;
-
-				UPDATE products
-				SET Quantity = Quantity - NEW.Quantity
-				WHERE ID = NEW.ProductID;
-
-				INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-				VALUES (
-					shrinkage_user_id,
-					"products",
-					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity, "}"),
-					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity - NEW.Quantity, "}"),
-					CONCAT("Trigger UpdateProductQuantitiesOnShrinkage deducted ", NEW.Quantity, " from products.ID=", NEW.ProductID),
-					"Update Quantity",
-					"Trigger",
-					NOW()
-				);
-			END
-		');
-
 		Schema::create('inventory', function (Blueprint $table) {
 			$table->id('ID');
 			$table->text('ItemName');
@@ -312,7 +192,7 @@ return new class extends Migration {
 
 		Schema::create('stock_in_details', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('UserID')->references('id')->on('users')->onDelete('cascade');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
 			$table->text('Supplier');
 			$table->timestamp('PurchaseDate')->nullable();
 			$table->enum('Source', ['Purchased', 'Business', 'Donation'])->default('Purchased');
@@ -326,74 +206,18 @@ return new class extends Migration {
 
 		Schema::create('stock_ins', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('StockInDetailsID')->references('ID')->on('stock_in_details')->onDelete('cascade');
-			$table->foreignId('InventoryID')->nullable()->references('ID')->on('inventory')->onDelete('cascade');
-			$table->foreignId('ProductID')->nullable()->references('ID')->on('products')->onDelete('cascade');
+			$table->foreignId('StockInDetailsID')->constrained('stock_in_details', 'ID')->onDelete('cascade');
+			$table->foreignId('InventoryID')->nullable()->constrained('inventory', 'ID')->onDelete('cascade');
+			$table->foreignId('ProductID')->nullable()->constrained('products', 'ID')->onDelete('cascade');
 			$table->enum('ItemType', ['Inventory', 'Product']); // Inventory or Product
 			$table->unsignedBigInteger('QuantityAdded');
 			$table->decimal('SubAmount', 10, 2);
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
-		DB::unprepared('
-			CREATE TRIGGER TriggerUpdateStockQuantitiesOnStockIn
-			AFTER INSERT ON stock_ins
-			FOR EACH ROW
-			BEGIN
-				DECLARE old_quantity BIGINT;
-				DECLARE stock_in_user_id BIGINT;
-
-				SELECT UserID INTO stock_in_user_id
-				FROM stock_in_details
-				WHERE ID = NEW.StockInDetailsID;
-
-				IF NEW.ItemType = "Inventory" THEN
-					SELECT Quantity INTO old_quantity
-					FROM inventory
-					WHERE ID = NEW.InventoryID;
-
-					UPDATE inventory
-					SET Quantity = Quantity + NEW.QuantityAdded
-					WHERE ID = NEW.InventoryID;
-
-					INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-					VALUES (
-						stock_in_user_id,
-						"inventory",
-						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity, "}"),
-						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity + NEW.QuantityAdded, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockIn added ", NEW.QuantityAdded, " to inventory.ID=", NEW.InventoryID),
-						"Update Quantity",
-						"Trigger",
-						NOW()
-					);
-				ELSEIF NEW.ItemType = "Product" THEN
-					SELECT Quantity INTO old_quantity
-					FROM products
-					WHERE ID = NEW.ProductID;
-
-					UPDATE products
-					SET Quantity = Quantity + NEW.QuantityAdded
-					WHERE ID = NEW.ProductID;
-
-					INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-					VALUES (
-						stock_in_user_id,
-						"products",
-						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity, "}"),
-						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity + NEW.QuantityAdded, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockIn added ", NEW.QuantityAdded, " to products.ID=", NEW.ProductID),
-						"Update Quantity",
-						"Trigger",
-						NOW()
-					);
-				END IF;
-			END
-		');
-
 		Schema::create('stock_out_details', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('UserID')->references('id')->on('users')->onDelete('cascade');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
 			$table->unsignedBigInteger('TotalQuantity');
 			$table->text('Reason')->nullable();
 			$table->timestamp('DateAdded')->useCurrent();
@@ -401,77 +225,42 @@ return new class extends Migration {
 
 		Schema::create('stock_outs', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('StockOutDetailsID')->references('ID')->on('stock_out_details')->onDelete('cascade');
-			$table->foreignId('InventoryID')->nullable()->references('ID')->on('inventory')->onDelete('cascade');
-			$table->foreignId('ProductID')->nullable()->references('ID')->on('products')->onDelete('cascade');
+			$table->foreignId('StockOutDetailsID')->constrained('stock_out_details', 'ID')->onDelete('cascade');
+			$table->foreignId('InventoryID')->nullable()->constrained('inventory', 'ID')->onDelete('cascade');
+			$table->foreignId('ProductID')->nullable()->constrained('products', 'ID')->onDelete('cascade');
 			$table->enum('ItemType', ['Inventory', 'Product']); // Inventory or Product
 			$table->unsignedBigInteger('QuantityRemoved');
 			$table->decimal('SubAmount', 10, 2);
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
-		DB::unprepared('
-			CREATE TRIGGER TriggerUpdateStockQuantitiesOnStockOut
-			AFTER INSERT ON stock_outs
-			FOR EACH ROW
-			BEGIN
-				DECLARE old_quantity BIGINT;
-				DECLARE stock_out_user_id BIGINT;
+		Schema::create('inventory_leftover_snapshots', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
+			$table->unsignedBigInteger('TotalItems')->default(0);
+			$table->unsignedBigInteger('TotalLeftovers')->default(0);
+			$table->timestamp('SnapshotTime')->useCurrent();
+		});
 
-				SELECT UserID INTO stock_out_user_id
-				FROM stock_out_details
-				WHERE ID = NEW.StockOutDetailsID;
-
-				IF NEW.ItemType = "Inventory" THEN
-					SELECT Quantity INTO old_quantity
-					FROM inventory
-					WHERE ID = NEW.InventoryID;
-
-					UPDATE inventory
-					SET Quantity = Quantity - NEW.QuantityRemoved
-					WHERE ID = NEW.InventoryID;
-
-					INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-					VALUES (
-						stock_out_user_id,
-						"inventory",
-						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity, "}"),
-						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity - NEW.QuantityRemoved, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockOut deducted ", NEW.QuantityRemoved, " from inventory.ID=", NEW.InventoryID),
-						"Update Quantity",
-						"Trigger",
-						NOW()
-					);
-				ELSEIF NEW.ItemType = "Product" THEN
-					SELECT Quantity INTO old_quantity
-					FROM products
-					WHERE ID = NEW.ProductID;
-
-					UPDATE products
-					SET Quantity = Quantity - NEW.QuantityRemoved
-					WHERE ID = NEW.ProductID;
-
-					INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
-					VALUES (
-						stock_out_user_id,
-						"products",
-						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity, "}"),
-						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity - NEW.QuantityRemoved, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockOut deducted ", NEW.QuantityRemoved, " from products.ID=", NEW.ProductID),
-						"Update Quantity",
-						"Trigger",
-						NOW()
-					);
-				END IF;
-			END
-		');
+		Schema::create('inventory_leftovers', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('InventoryLeftoverID')->constrained('inventory_leftover_snapshots', 'ID')->onDelete('cascade');
+			$table->foreignId('InventoryID')->constrained('inventory', 'ID')->onDelete('cascade');
+			$table->unsignedBigInteger('LeftoverQuantity')->default(0);
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->unique(['InventoryLeftoverID', 'InventoryID'], 'ux_inventory_leftovers_snapshot_inventory');
+		});
 	}
 
 	public function down(): void {
+		Schema::dropIfExists('inventory_leftovers');
+		Schema::dropIfExists('inventory_leftover_snapshots');
 		Schema::dropIfExists('stock_outs');
 		Schema::dropIfExists('stock_out_details');
 		Schema::dropIfExists('stock_ins');
 		Schema::dropIfExists('stock_in_details');
+		Schema::dropIfExists('custom_orders');
+		Schema::dropIfExists('custom_order_details');
 		Schema::dropIfExists('inventory');
 		Schema::dropIfExists('shrinked_products');
 		Schema::dropIfExists('shrinkages');
@@ -479,6 +268,8 @@ return new class extends Migration {
 		Schema::dropIfExists('partial_payments');
 		Schema::dropIfExists('payments');
 		Schema::dropIfExists('sales');
+		Schema::dropIfExists('product_leftovers');
+		Schema::dropIfExists('product_leftover_snapshots');
 		Schema::dropIfExists('production_batches');
 		Schema::dropIfExists('production_batch_details');
 		Schema::dropIfExists('products');
@@ -487,12 +278,5 @@ return new class extends Migration {
 		Schema::dropIfExists('permissions_set');
 		Schema::dropIfExists('permissions');
 		Schema::dropIfExists('customers');
-
-		DB::unprepared('DROP TRIGGER IF EXISTS UpdateTotalProductsProduced');
-		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductQuantitiesOnSale');
-		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductQuantitiesOnShrinkage');
-		DB::unprepared('DROP TRIGGER IF EXISTS UpdatePaymentStatus');
-		DB::unprepared('DROP TRIGGER IF EXISTS TriggerUpdateStockQuantitiesOnStockIn');
-		DB::unprepared('DROP TRIGGER IF EXISTS TriggerUpdateStockQuantitiesOnStockOut');
 	}
 };

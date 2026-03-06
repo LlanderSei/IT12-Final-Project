@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\ProductLeftover;
+use App\Models\ProductLeftoverSnapshot;
 use App\Models\ProductionBatch;
 use App\Models\ProductionBatchDetail;
 use Illuminate\Http\Request;
@@ -38,12 +40,86 @@ class ProductController extends Controller {
         ];
       });
 
+    $snapshots = ProductLeftoverSnapshot::with([
+      'user:id,FullName',
+      'leftovers.product:ID,ProductName,Price,CategoryID',
+      'leftovers.product.category:ID,CategoryName',
+    ])
+      ->orderBy('SnapshotTime', 'desc')
+      ->get()
+      ->map(function ($snapshot) {
+        return [
+          'ID' => $snapshot->ID,
+          'user' => $snapshot->user,
+          'TotalItems' => (int) $snapshot->TotalProducts,
+          'TotalLeftovers' => (int) $snapshot->TotalLeftovers,
+          'TotalAmount' => (float) $snapshot->TotalAmount,
+          'SnapshotTime' => $snapshot->SnapshotTime,
+          'Leftovers' => $snapshot->leftovers->map(function ($line) {
+            $lineAmount = round(((float) $line->PerUnitAmount) * ((int) $line->LeftoverQuantity), 2);
+            return [
+              'ID' => $line->ID,
+              'ProductID' => $line->ProductID,
+              'ItemName' => $line->product?->ProductName ?? 'Deleted Product',
+              'CategoryName' => $line->product?->category?->CategoryName,
+              'PerUnitAmount' => (float) $line->PerUnitAmount,
+              'LeftoverQuantity' => (int) $line->LeftoverQuantity,
+              'LineAmount' => $lineAmount,
+              'DateAdded' => $line->DateAdded,
+            ];
+          })->values(),
+        ];
+      });
+
     return Inertia::render('Inventory/ProductsAndBatchesTabs', [
       'products' => $products,
       'categories' => $categories,
       'batches' => $batches,
+      'snapshots' => $snapshots,
       'initialTab' => $request->route('tab') ?? 'Products',
     ]);
+  }
+
+  public function storeSnapshot(Request $request) {
+    $data = $request->validate([
+      'ProceedOnSameDay' => 'nullable|boolean',
+    ]);
+
+    $todayStart = now()->startOfDay();
+    $todayEnd = now()->endOfDay();
+    $hasSnapshotToday = ProductLeftoverSnapshot::query()
+      ->whereBetween('SnapshotTime', [$todayStart, $todayEnd])
+      ->exists();
+
+    if ($hasSnapshotToday && !($data['ProceedOnSameDay'] ?? false)) {
+      throw ValidationException::withMessages([
+        'snapshot' => 'A snapshot for today already exists. Confirm and proceed to record another snapshot.',
+      ]);
+    }
+
+    DB::transaction(function () use ($request) {
+      $snapshot = ProductLeftoverSnapshot::create([
+        'UserID' => $request->user()->id,
+        'SnapshotTime' => now(),
+      ]);
+
+      $products = Product::query()
+        ->where('Quantity', '>', 0)
+        ->orderBy('ProductName', 'asc')
+        ->get(['ID', 'Price', 'Quantity']);
+
+      foreach ($products as $product) {
+        ProductLeftover::create([
+          'ProductLeftoverID' => $snapshot->ID,
+          'ProductID' => $product->ID,
+          'LeftoverQuantity' => (int) $product->Quantity,
+          'PerUnitAmount' => round((float) $product->Price, 2),
+          'DateAdded' => now(),
+        ]);
+      }
+    });
+
+    return redirect()->back()->with('success', 'Product snapshot recorded successfully.');
   }
 
   public function store(Request $request) {

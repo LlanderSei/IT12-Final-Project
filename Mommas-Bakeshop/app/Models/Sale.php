@@ -65,6 +65,9 @@ class Sale extends Model implements Auditable {
   public function partialPayments() {
     return $this->hasMany(PartialPayment::class, 'SalesID');
   }
-}
 
+  public function customOrderDetails() {
+    return $this->hasMany(CustomOrderDetail::class, 'SalesID');
+  }
+}
 

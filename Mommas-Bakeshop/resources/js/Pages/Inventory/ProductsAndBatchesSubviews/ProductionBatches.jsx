@@ -53,6 +53,7 @@ export default function ProductionBatches({
 	categories,
 	batches,
 	onHeaderMetaChange,
+	setFooterActions,
 	canCreateProductionBatch = false,
 	canUpdateProductionBatch = false,
 }) {
@@ -277,6 +278,22 @@ export default function ProductionBatches({
 			countLabel,
 		});
 	}, [onHeaderMetaChange, countLabel]);
+
+	useEffect(() => {
+		setFooterActions?.({
+			openAddProduct: null,
+			openRecordBatch: openCreateModal,
+			openModifyCategories: null,
+		});
+
+		return () => {
+			setFooterActions?.({
+				openAddProduct: null,
+				openRecordBatch: null,
+				openModifyCategories: null,
+			});
+		};
+	}, [setFooterActions, canCreateProductionBatch]);
 
 	const openModal = () => setIsModalOpen(true);
 	const openCreateModal = () => {
@@ -696,14 +713,6 @@ export default function ProductionBatches({
 							</div>
 						</div>
 					</div>
-				</div>
-			</div>
-
-			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<button onClick={openCreateModal} disabled={!canCreateProductionBatch} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50">
-						Record a Batch
-					</button>
 				</div>
 			</div>
 
