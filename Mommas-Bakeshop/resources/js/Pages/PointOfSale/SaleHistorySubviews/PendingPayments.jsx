@@ -17,7 +17,14 @@ const formatDate = (value) => {
 	return date.toLocaleDateString();
 };
 
-export default function PendingPayments({ rows = [], onView, sortConfig, requestSort }) {
+export default function PendingPayments({
+	rows = [],
+	onView,
+	onInvoice,
+	canExportInvoices = false,
+	sortConfig,
+	requestSort,
+}) {
 	return (
 		<table className="min-w-full divide-y divide-gray-200">
 			<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -94,13 +101,24 @@ export default function PendingPayments({ rows = [], onView, sortConfig, request
 						<td className="px-4 py-4 text-sm text-gray-700">{formatDate(sale.payment?.PaymentDueDate)}</td>
 						<td className="px-4 py-4 text-sm text-gray-500 text-right">{formatDateTime(sale.DateAdded)}</td>
 						<td className="px-4 py-4 text-right">
-							<button
-								type="button"
-								onClick={() => onView?.(sale)}
-								className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-							>
-								View
-							</button>
+							<div className="flex flex-wrap justify-end gap-2">
+								<button
+									type="button"
+									onClick={() => onView?.(sale)}
+									className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+								>
+									View
+								</button>
+								{canExportInvoices && sale.payment?.InvoiceNumber && (
+									<button
+										type="button"
+										onClick={() => onInvoice?.(sale)}
+										className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+									>
+										Invoice
+									</button>
+								)}
+							</div>
 						</td>
 					</tr>
 				))}

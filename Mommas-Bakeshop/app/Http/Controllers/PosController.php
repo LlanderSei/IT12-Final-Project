@@ -314,7 +314,9 @@ class PosController extends Controller {
       'AdditionalDetails' => 'nullable|string|max:1000',
     ]);
 
-    DB::transaction(function () use ($payload) {
+    $receiptNumber = null;
+
+    DB::transaction(function () use ($payload, &$receiptNumber) {
       $sale = Sale::with(['payment', 'partialPayments'])
         ->lockForUpdate()
         ->findOrFail($payload['SalesID']);
@@ -350,9 +352,12 @@ class PosController extends Controller {
         ]);
       }
 
+      $receiptNumber = $this->generateReceiptNumber();
       PartialPayment::create([
         'SalesID' => $sale->ID,
         'PaidAmount' => $paidAmount,
+        'ReceiptNumber' => $receiptNumber,
+        'ReceiptIssuedAt' => now(),
         'PaymentMethod' => $payload['PaymentMethod'],
         'AdditionalDetails' => $payload['AdditionalDetails'] ?? null,
         'DateAdded' => now(),
@@ -367,7 +372,12 @@ class PosController extends Controller {
       ]);
     });
 
-    return redirect()->back()->with('success', 'Payment recorded successfully.');
+    $message = 'Payment recorded successfully.';
+    if ($receiptNumber) {
+      $message .= " Receipt #{$receiptNumber} issued.";
+    }
+
+    return redirect()->back()->with('success', $message);
   }
 
   public function checkoutWalkIn(Request $request) {
@@ -579,7 +589,10 @@ class PosController extends Controller {
         ]);
       }
 
-      DB::transaction(function () use ($payload, $request) {
+      $invoiceNumber = null;
+      $receiptNumber = null;
+
+      DB::transaction(function () use ($payload, $request, &$invoiceNumber, &$receiptNumber) {
         $productItems = collect($payload['items'] ?? [])->values()->all();
         $customOrderItems = collect($payload['customOrders'] ?? [])->values()->all();
         [$lines, $totalQuantity, $productTotalAmount] = !empty($productItems)
@@ -647,6 +660,8 @@ class PosController extends Controller {
           }
         }
 
+        $invoiceNumber = $this->generateInvoiceNumber();
+
         if ($payload['paymentSelection'] === 'pay_now') {
           $paidAmount = (float)($payload['paidAmount'] ?? 0);
           if ($paidAmount < $totalAmount) {
@@ -655,6 +670,8 @@ class PosController extends Controller {
             ]);
           }
 
+          $receiptNumber = $this->generateReceiptNumber();
+
           Payment::create([
             'SalesID' => $sale->ID,
             'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
@@ -662,6 +679,10 @@ class PosController extends Controller {
             'TotalAmount' => $totalAmount,
             'Change' => max(0, $paidAmount - $totalAmount),
             'PaymentStatus' => 'Paid',
+            'InvoiceNumber' => $invoiceNumber,
+            'InvoiceIssuedAt' => now(),
+            'ReceiptNumber' => $receiptNumber,
+            'ReceiptIssuedAt' => now(),
             'PaymentDueDate' => null,
             'AdditionalDetails' => $payload['additionalDetails'] ?? null,
             'DateAdded' => now(),
@@ -676,13 +697,23 @@ class PosController extends Controller {
           'TotalAmount' => $totalAmount,
           'Change' => 0,
           'PaymentStatus' => 'Unpaid',
+          'InvoiceNumber' => $invoiceNumber,
+          'InvoiceIssuedAt' => now(),
           'PaymentDueDate' => $payload['dueDate'],
           'AdditionalDetails' => $payload['additionalDetails'] ?? null,
           'DateAdded' => now(),
         ]);
       });
 
-      return redirect()->back()->with('success', 'Job order recorded successfully.');
+      $message = 'Job order recorded successfully.';
+      if ($invoiceNumber) {
+        $message .= " Invoice #{$invoiceNumber} issued.";
+      }
+      if ($receiptNumber) {
+        $message .= " Receipt #{$receiptNumber} issued.";
+      }
+
+      return redirect()->back()->with('success', $message);
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
@@ -875,5 +906,50 @@ class PosController extends Controller {
       'ContactDetails' => 'required|string|max:255',
       'Address' => 'required|string|max:500',
     ]);
+  }
+
+  private function generateInvoiceNumber(): string {
+    $prefix = 'INV-' . now()->format('Ymd') . '-';
+    $latest = Payment::query()
+      ->whereNotNull('InvoiceNumber')
+      ->where('InvoiceNumber', 'like', $prefix . '%')
+      ->orderByDesc('InvoiceNumber')
+      ->value('InvoiceNumber');
+
+    $next = $this->nextDocumentSequence($latest, $prefix);
+
+    return sprintf('%s%04d', $prefix, $next);
+  }
+
+  private function generateReceiptNumber(): string {
+    $prefix = 'RCP-' . now()->format('Ymd') . '-';
+    $latestPaymentReceipt = Payment::query()
+      ->whereNotNull('ReceiptNumber')
+      ->where('ReceiptNumber', 'like', $prefix . '%')
+      ->orderByDesc('ReceiptNumber')
+      ->value('ReceiptNumber');
+    $latestPartialReceipt = PartialPayment::query()
+      ->whereNotNull('ReceiptNumber')
+      ->where('ReceiptNumber', 'like', $prefix . '%')
+      ->orderByDesc('ReceiptNumber')
+      ->value('ReceiptNumber');
+
+    $next = max(
+      $this->nextDocumentSequence($latestPaymentReceipt, $prefix),
+      $this->nextDocumentSequence($latestPartialReceipt, $prefix)
+    );
+
+    return sprintf('%s%04d', $prefix, $next);
+  }
+
+  private function nextDocumentSequence(?string $latestValue, string $prefix): int {
+    if (!$latestValue || !str_starts_with($latestValue, $prefix)) {
+      return 1;
+    }
+
+    $suffix = substr($latestValue, strlen($prefix));
+    $number = (int) ltrim($suffix, '0');
+
+    return $number + 1;
   }
 }

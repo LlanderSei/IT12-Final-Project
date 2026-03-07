@@ -7,17 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
-class Permission extends Model implements Auditable {
+class RolePresetPermission extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
 
-  protected $table = 'permissions';
+  protected $table = 'role_preset_permissions';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
-    'PermissionName',
-    'PermissionDescription',
-    'PermissionGroupID',
+    'RoleID',
+    'PermissionID',
+    'Allowable',
     'DateAdded',
     'DateModified',
   ];
@@ -30,7 +30,7 @@ class Permission extends Model implements Auditable {
 
   public function transformAudit(array $data): array {
     $data['UserID'] = \Illuminate\Support\Facades\Auth::id();
-    $data['TableEdited'] = 'Permissions';
+    $data['TableEdited'] = 'RolePresetPermissions';
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
@@ -42,20 +42,18 @@ class Permission extends Model implements Auditable {
   }
 
   protected $casts = [
-    'PermissionGroupID' => 'integer',
+    'RoleID' => 'integer',
+    'PermissionID' => 'integer',
+    'Allowable' => 'boolean',
     'DateAdded' => 'datetime',
     'DateModified' => 'datetime',
   ];
 
-  public function permissionsSet() {
-    return $this->hasMany(PermissionsSet::class, 'PermissionID');
+  public function role() {
+    return $this->belongsTo(Role::class, 'RoleID', 'ID');
   }
 
-  public function group() {
-    return $this->belongsTo(PermissionGroup::class, 'PermissionGroupID', 'ID');
-  }
-
-  public function rolePresetPermissions() {
-    return $this->hasMany(RolePresetPermission::class, 'PermissionID', 'ID');
+  public function permission() {
+    return $this->belongsTo(Permission::class, 'PermissionID', 'ID');
   }
 }

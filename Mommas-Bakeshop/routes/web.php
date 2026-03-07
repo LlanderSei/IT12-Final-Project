@@ -119,7 +119,22 @@ Route::middleware('auth')->group(function () {
     ->defaults('tab', 'Permissions')
     ->middleware('permission:CanViewUserManagementPermissions')
     ->name('admin.permissions');
+  Route::get('/admin/roles', [UserManagementController::class, 'index'])
+    ->defaults('tab', 'Roles')
+    ->middleware('permission:CanViewUserManagementRoles')
+    ->name('admin.roles');
+  Route::get('/admin/permission-groups', [UserManagementController::class, 'index'])
+    ->defaults('tab', 'Permission Groups')
+    ->middleware('permission:CanViewUserManagementPermissionGroups')
+    ->name('admin.permission-groups');
   Route::put('/admin/permissions/{id}', [UserManagementController::class, 'updatePermissions'])->middleware('permission:CanUpdateUserPermissions')->name('admin.permissions.update');
+  Route::put('/admin/roles/order', [UserManagementController::class, 'reorderRoles'])->middleware('permission:CanUpdateRoleOrder')->name('admin.roles.reorder');
+  Route::post('/admin/roles', [UserManagementController::class, 'storeRole'])->middleware('permission:CanCreateRole')->name('admin.roles.store');
+  Route::put('/admin/roles/{id}', [UserManagementController::class, 'updateRole'])->middleware('permission:CanUpdateRole')->name('admin.roles.update');
+  Route::delete('/admin/roles/{id}', [UserManagementController::class, 'destroyRole'])->middleware('permission:CanDeleteRole')->name('admin.roles.destroy');
+  Route::post('/admin/permission-groups', [UserManagementController::class, 'storePermissionGroup'])->middleware('permission:CanCreatePermissionGroup')->name('admin.permission-groups.store');
+  Route::put('/admin/permission-groups/{id}', [UserManagementController::class, 'updatePermissionGroup'])->middleware('permission:CanUpdatePermissionGroup')->name('admin.permission-groups.update');
+  Route::delete('/admin/permission-groups/{id}', [UserManagementController::class, 'destroyPermissionGroup'])->middleware('permission:CanDeletePermissionGroup')->name('admin.permission-groups.destroy');
   Route::post('/admin/users', [UserManagementController::class, 'store'])->middleware('permission:CanCreateUser')->name('admin.users.store');
   Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->middleware('permission:CanUpdateUser')->name('admin.users.update');
   Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->middleware('permission:CanDeleteUser')->name('admin.users.destroy');

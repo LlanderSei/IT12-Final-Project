@@ -135,11 +135,11 @@ const NAV_STRUCTURE = [
 			},
 			{
 				id: "admin.users",
-				activeRoutes: ["admin.users", "admin.permissions"],
+				activeRoutes: ["admin.users", "admin.permissions", "admin.roles", "admin.permission-groups"],
 				label: "User Management",
 				icon: "users",
 				href: route("admin.users"),
-				requiredPermissions: ["CanViewUserManagementUsers", "CanViewUserManagementPermissions"],
+				requiredPermissions: ["CanViewUserManagementUsers", "CanViewUserManagementPermissions", "CanViewUserManagementRoles", "CanViewUserManagementPermissionGroups"],
 			},
 			{
 				id: "admin.audits",
@@ -190,7 +190,13 @@ const Sidebar = () => {
 	const canViewReportsNav = canViewReportsOverview || canViewReportsFullBreakdown;
 	const canViewUserMgmtUsers = can("CanViewUserManagementUsers");
 	const canViewUserMgmtPermissions = can("CanViewUserManagementPermissions");
-	const canViewUserMgmtNav = canViewUserMgmtUsers || canViewUserMgmtPermissions;
+	const canViewUserMgmtRoles = can("CanViewUserManagementRoles");
+	const canViewUserMgmtPermissionGroups = can("CanViewUserManagementPermissionGroups");
+	const canViewUserMgmtNav =
+		canViewUserMgmtUsers ||
+		canViewUserMgmtPermissions ||
+		canViewUserMgmtRoles ||
+		canViewUserMgmtPermissionGroups;
 
 	const [isExpanded, setIsExpanded] = useState(() => {
 		if (typeof window === "undefined") return true;
@@ -236,7 +242,11 @@ const Sidebar = () => {
 	}, [theme]);
 
 	const currentRoute = route().current?.() ?? "";
-	const roleMeta = ROLE_BADGE[user.role] ?? ROLE_BADGE.admin;
+	const roleMeta = ROLE_BADGE[user.role] ?? {
+		label: user.roleLabel || user.role || "User",
+		bg: "rgba(107,114,128,0.12)",
+		color: "var(--color-text-muted)",
+	};
 	const avatarInitials = user.name
 		? user.name.substring(0, 2).toUpperCase()
 		: "MB";
@@ -592,6 +602,17 @@ const Sidebar = () => {
 															!canViewUserMgmtUsers &&
 															canViewUserMgmtPermissions
 														? route("admin.permissions")
+														: item.id === "admin.users" &&
+																!canViewUserMgmtUsers &&
+																!canViewUserMgmtPermissions &&
+																canViewUserMgmtRoles
+															? route("admin.roles")
+															: item.id === "admin.users" &&
+																	!canViewUserMgmtUsers &&
+																	!canViewUserMgmtPermissions &&
+																	!canViewUserMgmtRoles &&
+																	canViewUserMgmtPermissionGroups
+																? route("admin.permission-groups")
 														: item.href;
 
 										return (

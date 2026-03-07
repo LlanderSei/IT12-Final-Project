@@ -18,12 +18,32 @@ return new class extends Migration {
 			$table->timestamp('DateModified');
 		});
 
+		Schema::create('permission_groups', function (Blueprint $table) {
+			$table->id('ID');
+			$table->string('GroupName')->unique();
+			$table->string('GroupDescription')->nullable();
+			$table->unsignedBigInteger('DisplayOrder')->default(0);
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
+		});
+
 		Schema::create('permissions', function (Blueprint $table) {
 			$table->id('ID');
 			$table->string('PermissionName');
 			$table->string('PermissionDescription')->nullable();
+			$table->foreignId('PermissionGroupID')->nullable()->constrained('permission_groups', 'ID')->nullOnDelete();
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
+		});
+
+		Schema::create('role_preset_permissions', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('RoleID')->constrained('roles', 'ID')->onDelete('cascade');
+			$table->foreignId('PermissionID')->constrained('permissions', 'ID')->onDelete('cascade');
+			$table->boolean('Allowable')->default(0);
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
+			$table->unique(['RoleID', 'PermissionID'], 'ux_role_preset_permissions_role_permission');
 		});
 
 		Schema::create('permissions_set', function (Blueprint $table) {
@@ -120,6 +140,10 @@ return new class extends Migration {
 			$table->decimal('TotalAmount', 10, 2);
 			$table->decimal('Change', 10, 2);
 			$table->enum('PaymentStatus', ['Paid', 'Partially Paid', 'Unpaid'])->default('Unpaid');
+			$table->string('InvoiceNumber')->nullable()->unique();
+			$table->timestamp('InvoiceIssuedAt')->nullable();
+			$table->string('ReceiptNumber')->nullable()->unique();
+			$table->timestamp('ReceiptIssuedAt')->nullable();
 			$table->timestamp('PaymentDueDate')->nullable();
 			$table->text('AdditionalDetails')->nullable();
 			$table->timestamp('DateAdded')->useCurrent();
@@ -129,6 +153,8 @@ return new class extends Migration {
 			$table->id('ID');
 			$table->foreignId('SalesID')->references('ID')->on('sales')->onDelete('cascade');
 			$table->decimal('PaidAmount', 10, 2);
+			$table->string('ReceiptNumber')->nullable()->unique();
+			$table->timestamp('ReceiptIssuedAt')->nullable();
 			$table->text('PaymentMethod');
 			$table->text('AdditionalDetails')->nullable();
 			$table->timestamp('DateAdded')->useCurrent();
@@ -276,7 +302,9 @@ return new class extends Migration {
 		Schema::dropIfExists('categories');
 		Schema::dropIfExists('audits');
 		Schema::dropIfExists('permissions_set');
+		Schema::dropIfExists('role_preset_permissions');
 		Schema::dropIfExists('permissions');
+		Schema::dropIfExists('permission_groups');
 		Schema::dropIfExists('customers');
 	}
 };

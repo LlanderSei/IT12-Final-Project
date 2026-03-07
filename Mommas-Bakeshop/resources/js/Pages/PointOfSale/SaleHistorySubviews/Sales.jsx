@@ -10,7 +10,16 @@ const formatDateTime = (value) => {
 	return date.toLocaleString();
 };
 
-export default function Sales({ rows = [], onView, sortConfig, requestSort }) {
+export default function Sales({
+	rows = [],
+	onView,
+	onInvoice,
+	onReceipt,
+	canExportInvoices = false,
+	canExportReceipts = false,
+	sortConfig,
+	requestSort,
+}) {
 	return (
 		<table className="min-w-full divide-y divide-gray-200">
 			<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -75,13 +84,33 @@ export default function Sales({ rows = [], onView, sortConfig, requestSort }) {
 						<td className="px-4 py-4 text-sm text-gray-700">{sale.payment?.PaymentStatus || "-"}</td>
 						<td className="px-4 py-4 text-sm text-gray-500 text-right">{formatDateTime(sale.DateAdded)}</td>
 						<td className="px-4 py-4 text-right">
-							<button
-								type="button"
-								onClick={() => onView?.(sale)}
-								className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-							>
-								View
-							</button>
+							<div className="flex flex-wrap justify-end gap-2">
+								<button
+									type="button"
+									onClick={() => onView?.(sale)}
+									className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+								>
+									View
+								</button>
+								{canExportInvoices && sale.payment?.InvoiceNumber && (
+									<button
+										type="button"
+										onClick={() => onInvoice?.(sale)}
+										className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+									>
+										Invoice
+									</button>
+								)}
+								{canExportReceipts && sale.payment?.ReceiptNumber && (
+									<button
+										type="button"
+										onClick={() => onReceipt?.(sale)}
+										className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+									>
+										Receipt
+									</button>
+								)}
+							</div>
 						</td>
 					</tr>
 				))}

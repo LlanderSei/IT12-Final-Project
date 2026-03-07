@@ -7,17 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
-class Permission extends Model implements Auditable {
+class PermissionGroup extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
 
-  protected $table = 'permissions';
+  protected $table = 'permission_groups';
   protected $primaryKey = 'ID';
   public $timestamps = false;
 
   protected $fillable = [
-    'PermissionName',
-    'PermissionDescription',
-    'PermissionGroupID',
+    'GroupName',
+    'GroupDescription',
+    'DisplayOrder',
     'DateAdded',
     'DateModified',
   ];
@@ -30,7 +30,7 @@ class Permission extends Model implements Auditable {
 
   public function transformAudit(array $data): array {
     $data['UserID'] = \Illuminate\Support\Facades\Auth::id();
-    $data['TableEdited'] = 'Permissions';
+    $data['TableEdited'] = 'PermissionGroups';
     $data['PreviousChanges'] = !empty($data['old_values']) ? json_encode($data['old_values']) : null;
     $data['SavedChanges'] = !empty($data['new_values']) ? json_encode($data['new_values']) : null;
     $data['Action'] = ucfirst($data['event']);
@@ -42,20 +42,12 @@ class Permission extends Model implements Auditable {
   }
 
   protected $casts = [
-    'PermissionGroupID' => 'integer',
+    'DisplayOrder' => 'integer',
     'DateAdded' => 'datetime',
     'DateModified' => 'datetime',
   ];
 
-  public function permissionsSet() {
-    return $this->hasMany(PermissionsSet::class, 'PermissionID');
-  }
-
-  public function group() {
-    return $this->belongsTo(PermissionGroup::class, 'PermissionGroupID', 'ID');
-  }
-
-  public function rolePresetPermissions() {
-    return $this->hasMany(RolePresetPermission::class, 'PermissionID', 'ID');
+  public function permissions() {
+    return $this->hasMany(Permission::class, 'PermissionGroupID', 'ID');
   }
 }

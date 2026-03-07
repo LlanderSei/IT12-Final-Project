@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -126,5 +126,207 @@ html.theme-dark .shadow-sm {
 
 	.btn-hollow {
 		@apply inline-flex items-center justify-center rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary transition duration-150 ease-in-out hover:bg-primary-soft focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50;
+	}
+
+	.auth-login-page {
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+		overflow: hidden;
+		padding: 1rem;
+		font-family: "Inter", sans-serif;
+		background-color: var(--color-app-bg);
+		background-image:
+			linear-gradient(rgba(17, 24, 39, 0.45), rgba(17, 24, 39, 0.45)),
+			url("/images/login/mommas-bakeshop-background-1.png");
+		background-position: center;
+		background-repeat: no-repeat;
+		background-size: cover;
+	}
+
+	.auth-login-overlay {
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(circle at top right, rgba(251, 191, 36, 0.18), transparent 32%),
+			radial-gradient(circle at bottom left, rgba(249, 115, 22, 0.14), transparent 28%);
+	}
+
+	.auth-login-card {
+		position: relative;
+		z-index: 1;
+		width: 100%;
+		max-width: 420px;
+		padding: 2.5rem 2rem 2rem;
+		border-radius: 16px;
+		border: 1px solid var(--color-border);
+		background-color: color-mix(in srgb, var(--color-surface) 92%, transparent);
+		backdrop-filter: blur(8px);
+		box-shadow: 0 10px 32px rgb(0 0 0 / 0.22), 0 1px 4px rgb(0 0 0 / 0.08);
+	}
+
+	.auth-login-brand-row {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		margin-bottom: 1.75rem;
+	}
+
+	.auth-login-logo-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 48px;
+		height: 48px;
+		border-radius: 9999px;
+		background-color: rgb(var(--color-primary-soft));
+		box-shadow: 0 2px 6px rgb(var(--color-primary) / 0.12);
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: var(--color-primary-hex);
+	}
+
+	.auth-login-brand-text {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.2;
+	}
+
+	.auth-login-brand-name {
+		font-family: "Outfit", sans-serif;
+		font-weight: 700;
+		font-size: 1.15rem;
+		color: var(--color-primary-hex);
+	}
+
+	.auth-login-heading {
+		margin: 0 0 0.25rem;
+		text-align: center;
+		font-family: "Outfit", sans-serif;
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--color-text-strong);
+	}
+
+	.auth-login-subheading {
+		margin: 0 0 1.75rem;
+		text-align: center;
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.auth-login-status {
+		margin-bottom: 1rem;
+		padding: 0.6rem 0.75rem;
+		border-radius: 8px;
+		background-color: rgba(16, 185, 129, 0.08);
+		color: #059669;
+		font-size: 0.85rem;
+		font-weight: 500;
+		text-align: center;
+	}
+
+	.auth-login-form {
+		display: flex;
+		flex-direction: column;
+		gap: 1.1rem;
+	}
+
+	.auth-login-field-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.auth-login-label {
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		color: var(--color-text);
+	}
+
+	.auth-login-input {
+		width: 100%;
+		padding: 0.65rem 0.85rem;
+		border-radius: 10px;
+		border: 1px solid var(--color-border);
+		background-color: var(--color-surface);
+		color: var(--color-text-strong);
+		font-size: 0.9rem;
+		font-family: "Inter", sans-serif;
+		outline: none;
+		box-sizing: border-box;
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.auth-login-input:focus {
+		border-color: var(--color-primary-hex);
+		box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.15);
+	}
+
+	.auth-login-error {
+		margin: 0;
+		font-size: 0.78rem;
+		color: #ef4444;
+	}
+
+	.auth-login-remember-row {
+		display: flex;
+		align-items: center;
+	}
+
+	.auth-login-checkbox-label {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+	}
+
+	.auth-login-checkbox {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
+		accent-color: var(--color-primary-hex);
+	}
+
+	.auth-login-checkbox-text {
+		font-size: 0.85rem;
+		color: var(--color-text-muted);
+	}
+
+	.auth-login-button {
+		width: 100%;
+		margin-top: 0.25rem;
+		padding: 0.7rem;
+		border: none;
+		border-radius: 10px;
+		background-color: var(--color-primary-hex);
+		color: #fff;
+		font-size: 0.95rem;
+		font-weight: 600;
+		font-family: "Inter", sans-serif;
+		transition: background-color 0.2s, opacity 0.2s;
+	}
+
+	.auth-login-button:hover:not(:disabled) {
+		background-color: rgb(var(--color-primary-hover));
+	}
+
+	.auth-login-button:disabled {
+		opacity: 0.65;
+		cursor: not-allowed;
+	}
+
+	.auth-login-footer {
+		position: relative;
+		z-index: 1;
+		margin-top: 1.5rem;
+		font-size: 0.75rem;
+		color: var(--color-text-strong);
+		text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
 	}
 }

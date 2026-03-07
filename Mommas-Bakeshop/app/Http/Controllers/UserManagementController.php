@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Permission;
+use App\Models\PermissionGroup;
 use App\Models\PermissionsSet;
 use App\Models\Role;
+use App\Models\RolePresetPermission;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,34 +17,44 @@ use Inertia\Inertia;
 class UserManagementController extends Controller {
   public function index(Request $request) {
     $requestedTab = $request->route('tab');
-    $initialTab = in_array($requestedTab, ['Users', 'Permissions'], true)
-      ? $requestedTab
-      : 'Users';
-    $user = $request->user();
-    $canViewUsers = $user?->hasPermission('CanViewUserManagementUsers') ?? false;
-    $canViewPermissions = $user?->hasPermission('CanViewUserManagementPermissions') ?? false;
+    $actor = $request->user();
+    $actor?->loadMissing('role');
+    $canViewUsers = $actor?->hasPermission('CanViewUserManagementUsers') ?? false;
+    $canViewPermissions = $actor?->hasPermission('CanViewUserManagementPermissions') ?? false;
+    $canViewRoles = $actor?->hasPermission('CanViewUserManagementRoles') ?? false;
+    $canViewPermissionGroups = $actor?->hasPermission('CanViewUserManagementPermissionGroups') ?? false;
+    $availableTabs = [
+      'Users' => $canViewUsers,
+      'Permissions' => $canViewPermissions,
+      'Roles' => $canViewRoles,
+      'Permission Groups' => $canViewPermissionGroups,
+    ];
+    $fallbackTab = collect($availableTabs)
+      ->filter()
+      ->keys()
+      ->first();
+    $initialTab = array_key_exists($requestedTab, $availableTabs) ? $requestedTab : $fallbackTab;
 
-    if ($initialTab === 'Users' && !$canViewUsers) {
-      if ($canViewPermissions) {
-        return redirect()->route('admin.permissions');
-      }
-
-      abort(403);
-    }
-
-    if ($initialTab === 'Permissions' && !$canViewPermissions) {
+    if (!$initialTab || !$availableTabs[$initialTab]) {
       if ($canViewUsers) {
         return redirect()->route('admin.users');
       }
-
+      if ($canViewPermissions) {
+        return redirect()->route('admin.permissions');
+      }
+      if ($canViewRoles) {
+        return redirect()->route('admin.roles');
+      }
+      if ($canViewPermissionGroups) {
+        return redirect()->route('admin.permission-groups');
+      }
       abort(403);
     }
 
-    $actor = $request->user();
-    $actor?->loadMissing('role');
     $actorRoleRank = $actor?->role?->RoleRank;
     $roles = Role::query()
-      ->select(['ID', 'RoleName', 'RoleRank'])
+      ->select(['ID', 'RoleName', 'RoleDescription', 'RoleRank'])
+      ->withCount('users')
       ->orderBy('RoleRank', 'asc')
       ->orderBy('RoleName', 'asc')
       ->get();
@@ -77,26 +89,35 @@ class UserManagementController extends Controller {
         return $user;
       });
 
-    $permissionGroups = $this->permissionGroups();
-    $allowedPermissionNames = collect($permissionGroups)->flatten()->unique()->values();
-    $permissionsByName = Permission::query()
-      ->whereIn('PermissionName', $allowedPermissionNames)
+    $permissionColumns = $this->permissionColumns();
+    $managedPermissionNames = collect($permissionColumns)->flatten()->unique()->values();
+    $permissions = Permission::query()
+      ->whereIn('PermissionName', $managedPermissionNames)
+      ->with('group:ID,GroupName,GroupDescription')
       ->orderBy('PermissionName', 'asc')
-      ->get(['ID', 'PermissionName'])
+      ->get(['ID', 'PermissionName', 'PermissionDescription', 'PermissionGroupID'])
       ->keyBy('PermissionName');
 
-    $permissionGroupsForView = collect($permissionGroups)->map(function ($names) use ($permissionsByName) {
+    $permissionGroupsForView = collect($permissionColumns)->map(function ($names) use ($permissions) {
       return collect($names)
-        ->filter(fn ($name) => $permissionsByName->has($name))
-        ->map(fn ($name) => [
-          'name' => $name,
-          'label' => $name,
-        ])
+        ->filter(fn ($name) => $permissions->has($name))
+        ->map(function ($name) use ($permissions) {
+          $permission = $permissions->get($name);
+
+          return [
+            'id' => (int) $permission->ID,
+            'name' => $name,
+            'label' => $name,
+            'description' => $permission->PermissionDescription,
+            'groupName' => $permission->group?->GroupName,
+            'groupDescription' => $permission->group?->GroupDescription,
+          ];
+        })
         ->values()
         ->all();
     })->all();
 
-    $permissionsUsers = $users->map(function ($user) use ($allowedPermissionNames) {
+    $permissionsUsers = $users->map(function ($user) use ($managedPermissionNames) {
       $assigned = $user->permissionsSet
         ->where('Allowable', true)
         ->pluck('permission.PermissionName')
@@ -105,7 +126,7 @@ class UserManagementController extends Controller {
         ->all();
 
       $flags = [];
-      foreach ($allowedPermissionNames as $permissionName) {
+      foreach ($managedPermissionNames as $permissionName) {
         $flags[$permissionName] = in_array($permissionName, $assigned, true);
       }
 
@@ -118,11 +139,64 @@ class UserManagementController extends Controller {
       ];
     })->values();
 
+    $rolePresetRows = Role::query()
+      ->select(['ID', 'RoleName', 'RoleDescription', 'RoleRank'])
+      ->withCount('users')
+      ->with([
+        'presetPermissions' => fn ($query) => $query
+          ->where('Allowable', true)
+          ->with('permission:ID,PermissionName'),
+      ])
+      ->orderBy('RoleRank', 'asc')
+      ->orderBy('RoleName', 'asc')
+      ->get()
+      ->map(function ($role) use ($managedPermissionNames) {
+        $assigned = $role->presetPermissions
+          ->pluck('permission.PermissionName')
+          ->filter()
+          ->values()
+          ->all();
+
+        $flags = [];
+        foreach ($managedPermissionNames as $permissionName) {
+          $flags[$permissionName] = in_array($permissionName, $assigned, true);
+        }
+
+        return [
+          'id' => (int) $role->ID,
+          'RoleName' => $role->RoleName,
+          'RoleDescription' => $role->RoleDescription,
+          'RoleRank' => (int) $role->RoleRank,
+          'UsersCount' => (int) $role->users_count,
+          'PresetPermissionCount' => count(array_filter($flags)),
+          'IsSystemOwner' => $this->isSystemOwnerRole($role),
+          'permissions' => $flags,
+        ];
+      })
+      ->values();
+
+    $permissionGroupRows = PermissionGroup::query()
+      ->select(['ID', 'GroupName', 'GroupDescription', 'DisplayOrder'])
+      ->withCount('permissions')
+      ->orderBy('DisplayOrder', 'asc')
+      ->orderBy('GroupName', 'asc')
+      ->get()
+      ->map(fn ($group) => [
+        'id' => (int) $group->ID,
+        'GroupName' => $group->GroupName,
+        'GroupDescription' => $group->GroupDescription,
+        'DisplayOrder' => (int) $group->DisplayOrder,
+        'PermissionsCount' => (int) $group->permissions_count,
+      ])
+      ->values();
+
     return Inertia::render('Administration/UserManagementTabs', [
       'users' => $users,
       'roles' => $roles,
       'permissionsUsers' => $permissionsUsers,
       'permissionGroups' => $permissionGroupsForView,
+      'rolePresets' => $rolePresetRows,
+      'permissionGroupRows' => $permissionGroupRows,
       'currentUserRoleRank' => $actorRoleRank,
       'initialTab' => $initialTab,
     ]);
@@ -141,9 +215,9 @@ class UserManagementController extends Controller {
       ]);
     }
 
-    $permissionGroups = $this->permissionGroups();
+    $permissionColumns = $this->permissionColumns();
     $permissionEditRanks = $this->permissionEditMaxRoleRanks();
-    $managedNames = collect($permissionGroups)->flatten()->unique()->values();
+    $managedNames = collect($permissionColumns)->flatten()->unique()->values();
     $permissions = Permission::query()
       ->whereIn('PermissionName', $managedNames)
       ->get(['ID', 'PermissionName'])
@@ -158,7 +232,10 @@ class UserManagementController extends Controller {
     $now = now();
     $isSelfUpdate = (int) $targetUser->id === (int) ($actor?->id ?? 0);
     if ($isSelfUpdate) {
-      $selfCriticalPermissions = ['CanViewUserManagementPermissions', 'CanUpdateUserPermissions'];
+      $selfCriticalPermissions = [
+        'CanViewUserManagementPermissions',
+        'CanUpdateUserPermissions',
+      ];
       foreach ($selfCriticalPermissions as $permissionName) {
         $submittedValue = $submitted->get($permissionName, null);
         if ($submittedValue === null) {
@@ -178,10 +255,10 @@ class UserManagementController extends Controller {
       ->whereIn('PermissionID', $permissionIds)
       ->pluck('Allowable', 'PermissionID');
 
-    $permissionGroupByName = [];
-    foreach ($permissionGroups as $groupKey => $names) {
+    $permissionColumnByName = [];
+    foreach ($permissionColumns as $columnKey => $names) {
       foreach ($names as $name) {
-        $permissionGroupByName[$name] = $groupKey;
+        $permissionColumnByName[$name] = $columnKey;
       }
     }
 
@@ -193,12 +270,12 @@ class UserManagementController extends Controller {
       $allowable = $this->normalizeBoolean($submitted->get($permissionName, false));
       $permissionId = (int) $permissions[$permissionName]->ID;
       $currentAllowable = $this->normalizeBoolean($existingByPermissionId->get($permissionId, false));
-      $groupKey = $permissionGroupByName[$permissionName] ?? null;
-      $maxRoleRank = $groupKey ? ($permissionEditRanks[$groupKey] ?? PHP_INT_MAX) : PHP_INT_MAX;
+      $columnKey = $permissionColumnByName[$permissionName] ?? null;
+      $maxRoleRank = $columnKey ? ($permissionEditRanks[$columnKey] ?? PHP_INT_MAX) : PHP_INT_MAX;
       $isAboveActorLevel = ($actorRoleRank ?? PHP_INT_MAX) > $maxRoleRank;
       if ($isAboveActorLevel && $allowable !== $currentAllowable) {
         throw ValidationException::withMessages([
-          'permissions' => "You cannot edit {$groupKey} permissions because they are above your role level.",
+          'permissions' => "You cannot edit {$columnKey} permissions because they are above your role level.",
         ]);
       }
 
@@ -318,6 +395,197 @@ class UserManagementController extends Controller {
     return redirect()->back()->with('success', 'User deleted successfully.');
   }
 
+  public function storeRole(Request $request) {
+    $actor = $request->user();
+    $actor?->loadMissing('role');
+
+    $validated = $request->validate([
+      'RoleName' => ['required', 'string', 'max:255', 'unique:roles,RoleName'],
+      'RoleDescription' => ['nullable', 'string', 'max:1000'],
+      'permissions' => ['required', 'array'],
+      'permissions.*' => ['nullable'],
+    ]);
+
+    if (strtolower(trim($validated['RoleName'])) === 'owner') {
+      throw ValidationException::withMessages([
+        'RoleName' => 'The Owner role is reserved and cannot be recreated.',
+      ]);
+    }
+
+    $permissions = $this->resolveManagedPermissions();
+    $this->assertPermissionsWithinActorScope($validated['permissions'], $permissions, $actor?->role?->RoleRank);
+
+    $nextRank = ((int) Role::query()->max('RoleRank')) + 1;
+    $role = Role::query()->create([
+      'RoleName' => trim($validated['RoleName']),
+      'RoleDescription' => trim((string) ($validated['RoleDescription'] ?? '')),
+      'RoleRank' => max(2, $nextRank),
+      'DateAdded' => now(),
+      'DateModified' => now(),
+    ]);
+
+    $this->syncRolePresetPermissions($role, $validated['permissions'], $permissions);
+
+    return redirect()->route('admin.roles')->with('success', 'Role created successfully.');
+  }
+
+  public function updateRole(Request $request, int $id) {
+    $actor = $request->user();
+    $actor?->loadMissing('role');
+    $role = Role::query()->withCount('users')->findOrFail($id);
+    $this->assertRoleManageable($actor?->role?->RoleRank, $role);
+
+    if ($this->isSystemOwnerRole($role)) {
+      return redirect()->back()->with('error', 'The Owner role is locked and cannot be edited.');
+    }
+
+    $validated = $request->validate([
+      'RoleName' => ['required', 'string', 'max:255', Rule::unique('roles', 'RoleName')->ignore($role->ID, 'ID')],
+      'RoleDescription' => ['nullable', 'string', 'max:1000'],
+      'permissions' => ['required', 'array'],
+      'permissions.*' => ['nullable'],
+    ]);
+
+    if (strtolower(trim($validated['RoleName'])) === 'owner') {
+      throw ValidationException::withMessages([
+        'RoleName' => 'The Owner role name is reserved.',
+      ]);
+    }
+
+    $permissions = $this->resolveManagedPermissions();
+    $this->assertPermissionsWithinActorScope($validated['permissions'], $permissions, $actor?->role?->RoleRank);
+
+    $role->update([
+      'RoleName' => trim($validated['RoleName']),
+      'RoleDescription' => trim((string) ($validated['RoleDescription'] ?? '')),
+      'DateModified' => now(),
+    ]);
+
+    $this->syncRolePresetPermissions($role, $validated['permissions'], $permissions);
+    $this->syncUsersForRole($role);
+
+    return redirect()->route('admin.roles')->with('success', 'Role preset updated successfully.');
+  }
+
+  public function destroyRole(Request $request, int $id) {
+    $actor = $request->user();
+    $actor?->loadMissing('role');
+    $role = Role::query()->withCount('users')->findOrFail($id);
+    $this->assertRoleManageable($actor?->role?->RoleRank, $role);
+
+    if ($this->isSystemOwnerRole($role)) {
+      return redirect()->back()->with('error', 'The Owner role cannot be deleted.');
+    }
+
+    if ((int) $role->users_count > 0) {
+      return redirect()->back()->with('error', 'Delete or reassign users from this role before deleting it.');
+    }
+
+    $role->delete();
+    $this->resequenceRoles();
+
+    return redirect()->route('admin.roles')->with('success', 'Role deleted successfully.');
+  }
+
+  public function reorderRoles(Request $request) {
+    $actor = $request->user();
+    $actor?->loadMissing('role');
+
+    $validated = $request->validate([
+      'roleIds' => ['required', 'array', 'min:1'],
+      'roleIds.*' => ['integer', 'distinct', 'exists:roles,ID'],
+    ]);
+
+    $allRoles = Role::query()
+      ->select(['ID', 'RoleName', 'RoleRank'])
+      ->orderBy('RoleRank', 'asc')
+      ->orderBy('RoleName', 'asc')
+      ->get();
+
+    $ownerRole = $allRoles->first(fn ($role) => $this->isSystemOwnerRole($role));
+    $reorderableRoles = $allRoles->reject(fn ($role) => $this->isSystemOwnerRole($role))->values();
+    $submittedIds = collect($validated['roleIds'])->map(fn ($id) => (int) $id)->values();
+    $expectedIds = $reorderableRoles->pluck('ID')->map(fn ($id) => (int) $id)->values();
+
+    if ($submittedIds->sort()->values()->all() !== $expectedIds->sort()->values()->all()) {
+      throw ValidationException::withMessages([
+        'roleIds' => 'Role order payload is invalid or incomplete.',
+      ]);
+    }
+
+    foreach ($reorderableRoles as $role) {
+      $this->assertRoleManageable($actor?->role?->RoleRank, $role);
+    }
+
+    $orderedRoles = $submittedIds
+      ->map(fn ($roleId) => $reorderableRoles->firstWhere('ID', $roleId))
+      ->filter()
+      ->values();
+
+    if ($ownerRole) {
+      $ownerRole->forceFill([
+        'RoleRank' => 1,
+        'DateModified' => now(),
+      ])->save();
+    }
+
+    $rank = 2;
+    foreach ($orderedRoles as $role) {
+      $role->forceFill([
+        'RoleRank' => $rank++,
+        'DateModified' => now(),
+      ])->save();
+    }
+
+    return redirect()->route('admin.roles')->with('success', 'Role order updated successfully.');
+  }
+
+  public function storePermissionGroup(Request $request) {
+    $validated = $request->validate([
+      'GroupName' => ['required', 'string', 'max:255', 'unique:permission_groups,GroupName'],
+      'GroupDescription' => ['nullable', 'string', 'max:1000'],
+    ]);
+
+    PermissionGroup::query()->create([
+      'GroupName' => trim($validated['GroupName']),
+      'GroupDescription' => trim((string) ($validated['GroupDescription'] ?? '')),
+      'DisplayOrder' => ((int) PermissionGroup::query()->max('DisplayOrder')) + 1,
+      'DateAdded' => now(),
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->route('admin.permission-groups')->with('success', 'Permission group created successfully.');
+  }
+
+  public function updatePermissionGroup(Request $request, int $id) {
+    $group = PermissionGroup::query()->findOrFail($id);
+    $validated = $request->validate([
+      'GroupName' => ['required', 'string', 'max:255', Rule::unique('permission_groups', 'GroupName')->ignore($group->ID, 'ID')],
+      'GroupDescription' => ['nullable', 'string', 'max:1000'],
+    ]);
+
+    $group->update([
+      'GroupName' => trim($validated['GroupName']),
+      'GroupDescription' => trim((string) ($validated['GroupDescription'] ?? '')),
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->route('admin.permission-groups')->with('success', 'Permission group updated successfully.');
+  }
+
+  public function destroyPermissionGroup(Request $request, int $id) {
+    $group = PermissionGroup::query()->withCount('permissions')->findOrFail($id);
+
+    if ((int) $group->permissions_count > 0) {
+      return redirect()->back()->with('error', 'Reassign or remove permissions from this group before deleting it.');
+    }
+
+    $group->delete();
+    $this->resequencePermissionGroups();
+
+    return redirect()->route('admin.permission-groups')->with('success', 'Permission group deleted successfully.');
+  }
+
   private function mergeRoleIdFromName(Request $request): void {
     if ($request->filled('RoleID')) {
       return;
@@ -353,7 +621,7 @@ class UserManagementController extends Controller {
     return $this->canDeleteByRole($currentRank, $targetRank);
   }
 
-  private function permissionGroups(): array {
+  private function permissionColumns(): array {
     return [
       'cashierLevel' => [
         'CanViewCashier',
@@ -363,6 +631,10 @@ class UserManagementController extends Controller {
         'CanViewSalesHistory',
         'CanViewSalesHistorySales',
         'CanViewSalesHistoryPendingPayments',
+        'CanViewJobOrderInvoices',
+        'CanExportJobOrderInvoices',
+        'CanViewPaymentReceipts',
+        'CanExportPaymentReceipts',
         'CanViewShrinkageHistory',
         'CanCreateShrinkageRecord',
         'CanUpdateShrinkageRecord',
@@ -412,6 +684,15 @@ class UserManagementController extends Controller {
         'CanDeleteUser',
         'CanViewUserManagementPermissions',
         'CanUpdateUserPermissions',
+        'CanViewUserManagementRoles',
+        'CanCreateRole',
+        'CanUpdateRole',
+        'CanDeleteRole',
+        'CanUpdateRoleOrder',
+        'CanViewUserManagementPermissionGroups',
+        'CanCreatePermissionGroup',
+        'CanUpdatePermissionGroup',
+        'CanDeletePermissionGroup',
         'CanViewAudits',
       ],
     ];
@@ -442,143 +723,171 @@ class UserManagementController extends Controller {
     return false;
   }
 
-  private function rolePermissionMap(): array {
-    return [
-      'Owner' => '*',
-      'Admin' => [
-        'CanViewSalesHistory',
-        'CanViewSalesHistorySales',
-        'CanViewSalesHistoryPendingPayments',
-        'CanViewShrinkageHistory',
-        'CanUpdateShrinkageRecord',
-        'CanDeleteShrinkageRecord',
-        'CanRecordSalePayment',
-        'CanViewCustomers',
-        'CanCreateCustomer',
-        'CanUpdateCustomer',
-        'CanDeleteCustomer',
-        'CanViewInventoryLevels',
-        'CanCreateInventoryItem',
-        'CanUpdateInventoryItem',
-        'CanDeleteInventoryItem',
-        'CanCreateStockIn',
-        'CanUpdateStockIn',
-        'CanDeleteStockIn',
-        'CanCreateStockOut',
-        'CanUpdateStockOut',
-        'CanDeleteStockOut',
-        'CanViewInventorySnapshots',
-        'CanRecordInventorySnapshot',
-        'CanViewProductsAndBatches',
-        'CanCreateProduct',
-        'CanUpdateProduct',
-        'CanDeleteProduct',
-        'CanCreateProductCategory',
-        'CanUpdateProductCategory',
-        'CanDeleteProductCategory',
-        'CanCreateProductionBatch',
-        'CanUpdateProductionBatch',
-        'CanDeleteProductionBatch',
-        'CanViewProductSnapshots',
-        'CanRecordProductSnapshot',
-        'CanViewReports',
-        'CanViewReportsOverview',
-        'CanExportReportsOverview',
-        'CanViewReportsFullBreakdown',
-        'CanExportReportsFullBreakdown',
-        'CanViewUserManagement',
-        'CanViewUserManagementUsers',
-        'CanCreateUser',
-        'CanUpdateUser',
-        'CanDeleteUser',
-        'CanViewUserManagementPermissions',
-        'CanUpdateUserPermissions',
-        'CanViewAudits',
-      ],
-      'Cashier' => [
-        'CanViewCashier',
-        'CanProcessSalesWalkIn',
-        'CanProcessSalesJobOrders',
-        'CanProcessSalesShrinkage',
-        'CanViewSalesHistory',
-        'CanViewSalesHistorySales',
-        'CanViewSalesHistoryPendingPayments',
-        'CanViewShrinkageHistory',
-        'CanCreateShrinkageRecord',
-        'CanUpdateShrinkageRecord',
-        'CanDeleteShrinkageRecord',
-        'CanRecordSalePayment',
-        'CanViewCustomers',
-        'CanCreateCustomer',
-        'CanUpdateCustomer',
-        'CanDeleteCustomer',
-      ],
-      'Clerk' => [
-        'CanViewInventoryLevels',
-        'CanCreateInventoryItem',
-        'CanUpdateInventoryItem',
-        'CanCreateStockIn',
-        'CanUpdateStockIn',
-        'CanCreateStockOut',
-        'CanUpdateStockOut',
-        'CanViewInventorySnapshots',
-        'CanRecordInventorySnapshot',
-        'CanViewProductsAndBatches',
-        'CanCreateProduct',
-        'CanUpdateProduct',
-        'CanCreateProductCategory',
-        'CanUpdateProductCategory',
-        'CanCreateProductionBatch',
-        'CanUpdateProductionBatch',
-        'CanViewProductSnapshots',
-        'CanRecordProductSnapshot',
-      ],
-    ];
+  private function resolveManagedPermissions() {
+    $managedPermissionNames = collect($this->permissionColumns())
+      ->flatten()
+      ->unique()
+      ->values();
+
+    return Permission::query()
+      ->whereIn('PermissionName', $managedPermissionNames)
+      ->orderBy('PermissionName', 'asc')
+      ->get(['ID', 'PermissionName']);
   }
 
-  private function syncUserPermissionsFromRole(User $user): void {
-    $user->loadMissing('role');
-    $roleName = $user->role?->RoleName;
-    if (!$roleName) {
-      return;
-    }
-
-    $roleMap = $this->rolePermissionMap();
-    $grants = $roleMap[$roleName] ?? [];
-    $permissions = Permission::query()
-      ->select(['ID', 'PermissionName'])
-      ->get();
-
-    if ($permissions->isEmpty()) {
-      return;
-    }
-
-    $permissionIdsByName = $permissions->pluck('ID', 'PermissionName');
-    $allPermissionIds = $permissions->pluck('ID')->all();
-    $allowedPermissionIds = $grants === '*'
-      ? $allPermissionIds
-      : collect($grants)
-        ->map(fn($name) => $permissionIdsByName->get($name))
-        ->filter()
-        ->values()
-        ->all();
-
-    $allowedLookup = array_flip($allowedPermissionIds);
+  private function syncRolePresetPermissions(Role $role, array $submittedPermissions, $permissions): void {
+    $submitted = collect($submittedPermissions);
     $now = now();
 
-    foreach ($allPermissionIds as $permissionId) {
-      $entry = PermissionsSet::query()->firstOrNew([
-        'UserID' => $user->id,
-        'PermissionID' => $permissionId,
+    foreach ($permissions as $permission) {
+      $entry = RolePresetPermission::query()->firstOrNew([
+        'RoleID' => $role->ID,
+        'PermissionID' => $permission->ID,
       ]);
 
       if (!$entry->exists) {
         $entry->DateAdded = $now;
       }
 
-      $entry->Allowable = isset($allowedLookup[$permissionId]);
+      $entry->Allowable = $this->normalizeBoolean($submitted->get($permission->PermissionName, false));
       $entry->DateModified = $now;
       $entry->save();
+    }
+  }
+
+  private function syncUserPermissionsFromRole(User $user): void {
+    $user->loadMissing('role');
+    $role = $user->role;
+    if (!$role) {
+      return;
+    }
+
+    $permissions = Permission::query()
+      ->select(['ID'])
+      ->orderBy('ID', 'asc')
+      ->get();
+
+    if ($permissions->isEmpty()) {
+      return;
+    }
+
+    $allowedPermissionIds = RolePresetPermission::query()
+      ->where('RoleID', $role->ID)
+      ->where('Allowable', true)
+      ->pluck('PermissionID')
+      ->map(fn ($id) => (int) $id)
+      ->all();
+
+    if ($this->isSystemOwnerRole($role) && count($allowedPermissionIds) === 0) {
+      $allowedPermissionIds = $permissions->pluck('ID')->map(fn ($id) => (int) $id)->all();
+    }
+
+    $allowedLookup = array_flip($allowedPermissionIds);
+    $now = now();
+
+    foreach ($permissions as $permission) {
+      $entry = PermissionsSet::query()->firstOrNew([
+        'UserID' => $user->id,
+        'PermissionID' => $permission->ID,
+      ]);
+
+      if (!$entry->exists) {
+        $entry->DateAdded = $now;
+      }
+
+      $entry->Allowable = isset($allowedLookup[(int) $permission->ID]);
+      $entry->DateModified = $now;
+      $entry->save();
+    }
+  }
+
+  private function syncUsersForRole(Role $role): void {
+    User::query()
+      ->where('RoleID', $role->ID)
+      ->get()
+      ->each(fn ($user) => $this->syncUserPermissionsFromRole($user));
+  }
+
+  private function assertPermissionsWithinActorScope(array $submittedPermissions, $permissions, ?int $actorRoleRank): void {
+    $permissionEditRanks = $this->permissionEditMaxRoleRanks();
+    $columnByPermission = [];
+    foreach ($this->permissionColumns() as $columnKey => $names) {
+      foreach ($names as $name) {
+        $columnByPermission[$name] = $columnKey;
+      }
+    }
+
+    $submitted = collect($submittedPermissions);
+    foreach ($permissions as $permission) {
+      $columnKey = $columnByPermission[$permission->PermissionName] ?? null;
+      $maxRoleRank = $columnKey ? ($permissionEditRanks[$columnKey] ?? PHP_INT_MAX) : PHP_INT_MAX;
+      if (($actorRoleRank ?? PHP_INT_MAX) > $maxRoleRank && $this->normalizeBoolean($submitted->get($permission->PermissionName, false))) {
+        throw ValidationException::withMessages([
+          'permissions' => "You cannot assign {$columnKey} permissions above your role level.",
+        ]);
+      }
+    }
+  }
+
+  private function assertRoleManageable(?int $actorRoleRank, Role $role): void {
+    if (!$this->canManageByRole($actorRoleRank, $role->RoleRank)) {
+      throw ValidationException::withMessages([
+        'role' => 'You can only manage roles with the same rank or lower.',
+      ]);
+    }
+  }
+
+  private function isSystemOwnerRole(Role $role): bool {
+    return (int) $role->RoleRank === 1 || strtolower(trim((string) $role->RoleName)) === 'owner';
+  }
+
+  private function resequenceRoles(): void {
+    $roles = Role::query()
+      ->select(['ID', 'RoleName', 'RoleRank'])
+      ->orderBy('RoleRank', 'asc')
+      ->orderBy('RoleName', 'asc')
+      ->get();
+
+    $ownerRole = $roles->first(fn ($role) => $this->isSystemOwnerRole($role));
+    if ($ownerRole && (int) $ownerRole->RoleRank !== 1) {
+      $ownerRole->forceFill([
+        'RoleRank' => 1,
+        'DateModified' => now(),
+      ])->save();
+    }
+
+    $rank = 2;
+    foreach ($roles->reject(fn ($role) => $this->isSystemOwnerRole($role)) as $role) {
+      if ((int) $role->RoleRank === $rank) {
+        $rank++;
+        continue;
+      }
+
+      $role->forceFill([
+        'RoleRank' => $rank++,
+        'DateModified' => now(),
+      ])->save();
+    }
+  }
+
+  private function resequencePermissionGroups(): void {
+    $order = 1;
+    foreach (
+      PermissionGroup::query()
+        ->select(['ID', 'DisplayOrder', 'GroupName'])
+        ->orderBy('DisplayOrder', 'asc')
+        ->orderBy('GroupName', 'asc')
+        ->get() as $group
+    ) {
+      if ((int) $group->DisplayOrder === $order) {
+        $order++;
+        continue;
+      }
+
+      $group->forceFill([
+        'DisplayOrder' => $order++,
+        'DateModified' => now(),
+      ])->save();
     }
   }
 }

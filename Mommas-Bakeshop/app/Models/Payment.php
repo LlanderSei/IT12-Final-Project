@@ -21,6 +21,10 @@ class Payment extends Model implements Auditable {
     'TotalAmount',
     'Change',
     'PaymentStatus',
+    'InvoiceNumber',
+    'InvoiceIssuedAt',
+    'ReceiptNumber',
+    'ReceiptIssuedAt',
     'PaymentDueDate',
     'AdditionalDetails',
     'DateAdded',
@@ -30,6 +34,8 @@ class Payment extends Model implements Auditable {
     'PaidAmount' => 'decimal:2',
     'TotalAmount' => 'decimal:2',
     'Change' => 'decimal:2',
+    'InvoiceIssuedAt' => 'datetime',
+    'ReceiptIssuedAt' => 'datetime',
     'PaymentDueDate' => 'datetime',
     'DateAdded' => 'datetime',
   ];
@@ -58,5 +64,4 @@ class Payment extends Model implements Auditable {
     return $this->belongsTo(Sale::class, 'SalesID');
   }
 }
-
 
