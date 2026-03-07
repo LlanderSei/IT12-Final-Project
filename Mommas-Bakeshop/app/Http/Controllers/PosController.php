@@ -81,6 +81,230 @@ class PosController extends Controller {
     ]);
   }
 
+  public function shrinkageHistory(Request $request) {
+    $shrinkages = Shrinkage::with([
+      'user:id,FullName',
+      'shrinkedProducts.product:ID,ProductName,Price,Quantity',
+    ])
+      ->orderByDesc('DateAdded')
+      ->get()
+      ->map(fn ($shrinkage) => $this->transformShrinkageForView($shrinkage))
+      ->values();
+
+    $products = Product::query()
+      ->orderBy('ProductName')
+      ->get(['ID', 'ProductName', 'Price', 'Quantity'])
+      ->map(fn ($product) => [
+        'ID' => $product->ID,
+        'ProductName' => $product->ProductName,
+        'Price' => (float) $product->Price,
+        'Quantity' => (int) $product->Quantity,
+      ])
+      ->values();
+
+    return Inertia::render('PointOfSale/ShrinkageHistory', [
+      'shrinkages' => $shrinkages,
+      'products' => $products,
+      'allowedReasons' => $this->allowedShrinkageReasons($request->user()),
+    ]);
+  }
+
+  public function customers() {
+    $customers = Customer::withCount('sales')
+      ->with([
+        'sales' => function ($query) {
+          $query->with([
+            'user:id,FullName',
+            'payment',
+            'soldProducts.product:ID,ProductName',
+            'partialPayments',
+            'customOrderDetails.customOrders',
+          ])->orderByDesc('DateAdded');
+        },
+      ])
+      ->orderBy('CustomerName')
+      ->get()
+      ->map(function ($customer) {
+        return [
+          'ID' => $customer->ID,
+          'CustomerName' => $customer->CustomerName,
+          'CustomerType' => $customer->CustomerType,
+          'ContactDetails' => $customer->ContactDetails,
+          'Address' => $customer->Address,
+          'DateAdded' => optional($customer->DateAdded)->toIso8601String(),
+          'DateModified' => optional($customer->DateModified)->toIso8601String(),
+          'SalesRecords' => (int) $customer->sales_count,
+          'sales' => $customer->sales->map(function ($sale) {
+            $paymentTotal = (float) ($sale->payment?->TotalAmount ?? $sale->TotalAmount ?? 0);
+            $paymentPaid = (float) ($sale->payment?->PaidAmount ?? 0);
+            $partialPaid = (float) $sale->partialPayments->sum('PaidAmount');
+            $paidAmount = max($paymentPaid, $partialPaid);
+
+            return [
+              'ID' => $sale->ID,
+              'DateAdded' => optional($sale->DateAdded)->toIso8601String(),
+              'user' => $sale->user,
+              'payment' => $sale->payment,
+              'totalAmount' => $paymentTotal,
+              'paidAmount' => $paidAmount,
+              'amountLeft' => max(0, round($paymentTotal - $paidAmount, 2)),
+              'sold_products' => $sale->soldProducts->map(function ($line) {
+                return [
+                  'ID' => $line->ID,
+                  'Quantity' => (int) $line->Quantity,
+                  'PricePerUnit' => (float) $line->PricePerUnit,
+                  'SubAmount' => (float) $line->SubAmount,
+                  'product' => $line->product,
+                ];
+              })->values(),
+              'custom_order_details' => $sale->customOrderDetails->map(function ($detail) {
+                return [
+                  'ID' => $detail->ID,
+                  'OrderDescription' => $detail->OrderDescription,
+                  'TotalAmount' => (float) $detail->TotalAmount,
+                  'custom_orders' => $detail->customOrders->map(function ($line) {
+                    return [
+                      'ID' => $line->ID,
+                      'CustomOrderDescription' => $line->CustomOrderDescription,
+                      'Quantity' => (int) $line->Quantity,
+                      'PricePerUnit' => (float) $line->PricePerUnit,
+                    ];
+                  })->values(),
+                ];
+              })->values(),
+            ];
+          })->values(),
+        ];
+      })
+      ->values();
+
+    return Inertia::render('PointOfSale/Customers', [
+      'customers' => $customers,
+    ]);
+  }
+
+  public function storeCustomer(Request $request) {
+    $data = $this->validateCustomerPayload($request);
+
+    Customer::create([
+      ...$data,
+      'DateAdded' => now(),
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->route('pos.customers')->with('success', 'Customer created successfully.');
+  }
+
+  public function updateCustomer(Request $request, int $id) {
+    $customer = Customer::findOrFail($id);
+    $data = $this->validateCustomerPayload($request);
+
+    $customer->update([
+      ...$data,
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->route('pos.customers')->with('success', 'Customer updated successfully.');
+  }
+
+  public function destroyCustomer(int $id) {
+    $customer = Customer::withCount('sales')->findOrFail($id);
+    if ((int) $customer->sales_count > 0) {
+      return redirect()
+        ->route('pos.customers')
+        ->with('error', 'Cannot delete a customer with sales history.');
+    }
+
+    $customer->delete();
+
+    return redirect()->route('pos.customers')->with('success', 'Customer deleted successfully.');
+  }
+
+  public function storeShrinkageHistory(Request $request) {
+    try {
+      $payload = $this->validateShrinkagePayload(
+        $request,
+        $this->allowedShrinkageReasons($request->user())
+      );
+
+      $this->persistShrinkageRecord($payload, (int) $request->user()->id);
+
+      return redirect()->route('pos.shrinkage-history')->with('success', 'Shrinkage recorded successfully.');
+    } catch (ValidationException $e) {
+      throw $e;
+    } catch (\Throwable $e) {
+      report($e);
+      return redirect()->route('pos.shrinkage-history')->with('error', 'Failed to record shrinkage.');
+    }
+  }
+
+  public function updateShrinkageHistory(Request $request, int $id) {
+    $shrinkage = Shrinkage::with(['shrinkedProducts'])->findOrFail($id);
+
+    try {
+      $payload = $this->validateShrinkagePayload(
+        $request,
+        $this->allowedShrinkageReasons($request->user(), $shrinkage->Reason)
+      );
+
+      DB::transaction(function () use ($payload, $shrinkage) {
+        $shrinkage->load('shrinkedProducts');
+        $this->restoreProductsForShrinkageLines($shrinkage->shrinkedProducts);
+        [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
+
+        foreach ($shrinkage->shrinkedProducts as $line) {
+          $line->delete();
+        }
+
+        $shrinkage->update([
+          'Quantity' => $totalQuantity,
+          'TotalAmount' => $totalAmount,
+          'Reason' => $payload['reason'],
+        ]);
+
+        foreach ($lines as $line) {
+          ShrinkedProduct::create([
+            'ShrinkageID' => $shrinkage->ID,
+            'ProductID' => $line['product']->ID,
+            'Quantity' => $line['quantity'],
+            'SubAmount' => $line['subAmount'],
+          ]);
+
+          $line['product']->update([
+            'DateModified' => now(),
+          ]);
+        }
+      });
+
+      return redirect()->route('pos.shrinkage-history')->with('success', 'Shrinkage record updated successfully.');
+    } catch (ValidationException $e) {
+      throw $e;
+    } catch (\Throwable $e) {
+      report($e);
+      return redirect()->route('pos.shrinkage-history')->with('error', 'Failed to update shrinkage record.');
+    }
+  }
+
+  public function destroyShrinkageHistory(int $id) {
+    try {
+      DB::transaction(function () use ($id) {
+        $shrinkage = Shrinkage::with('shrinkedProducts')->lockForUpdate()->findOrFail($id);
+        $this->restoreProductsForShrinkageLines($shrinkage->shrinkedProducts);
+
+        foreach ($shrinkage->shrinkedProducts as $line) {
+          $line->delete();
+        }
+
+        $shrinkage->delete();
+      });
+
+      return redirect()->route('pos.shrinkage-history')->with('success', 'Shrinkage record deleted successfully.');
+    } catch (\Throwable $e) {
+      report($e);
+      return redirect()->route('pos.shrinkage-history')->with('error', 'Failed to delete shrinkage record.');
+    }
+  }
+
   public function recordSalePayment(Request $request) {
     $payload = $request->validate([
       'SalesID' => 'required|integer|exists:sales,ID',
@@ -469,45 +693,12 @@ class PosController extends Controller {
 
   public function recordShrinkage(Request $request) {
     try {
-      $request->user()?->loadMissing('role');
-      $isPrivilegedShrinkageUser = in_array(
-        strtolower((string) $request->user()?->role?->RoleName),
-        ['owner', 'admin'],
-        true
+      $payload = $this->validateShrinkagePayload(
+        $request,
+        $this->allowedShrinkageReasons($request->user())
       );
-      $allowedReasons = $isPrivilegedShrinkageUser ? ['Spoiled', 'Theft', 'Lost'] : ['Spoiled'];
 
-      $payload = $request->validate([
-        'items' => 'required|array|min:1',
-        'items.*.ProductID' => 'required|integer|exists:products,ID',
-        'items.*.Quantity' => 'required|integer|min:1',
-        'reason' => ['required', Rule::in($allowedReasons)],
-      ]);
-
-      DB::transaction(function () use ($payload, $request) {
-        [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
-
-        $shrinkage = Shrinkage::create([
-          'UserID' => $request->user()->id,
-          'Quantity' => $totalQuantity,
-          'TotalAmount' => $totalAmount,
-          'Reason' => $payload['reason'],
-          'DateAdded' => now(),
-        ]);
-
-        foreach ($lines as $line) {
-          ShrinkedProduct::create([
-            'ShrinkageID' => $shrinkage->ID,
-            'ProductID' => $line['product']->ID,
-            'Quantity' => $line['quantity'],
-            'SubAmount' => $line['subAmount'],
-          ]);
-
-          $line['product']->update([
-            'DateModified' => now(),
-          ]);
-        }
-      });
+      $this->persistShrinkageRecord($payload, (int) $request->user()->id);
 
       return redirect()->back()->with('success', 'Shrinkage recorded successfully.');
     } catch (ValidationException $e) {
@@ -549,6 +740,112 @@ class PosController extends Controller {
     return [$lines, $totalQuantity, round($totalAmount, 2)];
   }
 
+  private function allowedShrinkageReasons($user, ?string $preservedReason = null): array {
+    $user?->loadMissing('role');
+    $roleName = strtolower((string) $user?->role?->RoleName);
+    $allowed = in_array($roleName, ['owner', 'admin'], true)
+      ? ['Spoiled', 'Theft', 'Lost']
+      : ['Spoiled'];
+
+    if ($preservedReason && !in_array($preservedReason, $allowed, true)) {
+      $allowed[] = $preservedReason;
+    }
+
+    return array_values(array_unique($allowed));
+  }
+
+  private function validateShrinkagePayload(Request $request, array $allowedReasons): array {
+    return $request->validate([
+      'items' => 'required|array|min:1',
+      'items.*.ProductID' => 'required|integer|exists:products,ID',
+      'items.*.Quantity' => 'required|integer|min:1',
+      'reason' => ['required', Rule::in($allowedReasons)],
+    ]);
+  }
+
+  private function persistShrinkageRecord(array $payload, int $userId): Shrinkage {
+    return DB::transaction(function () use ($payload, $userId) {
+      [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
+
+      $shrinkage = Shrinkage::create([
+        'UserID' => $userId,
+        'Quantity' => $totalQuantity,
+        'TotalAmount' => $totalAmount,
+        'Reason' => $payload['reason'],
+        'DateAdded' => now(),
+      ]);
+
+      foreach ($lines as $line) {
+        ShrinkedProduct::create([
+          'ShrinkageID' => $shrinkage->ID,
+          'ProductID' => $line['product']->ID,
+          'Quantity' => $line['quantity'],
+          'SubAmount' => $line['subAmount'],
+        ]);
+
+        $line['product']->update([
+          'DateModified' => now(),
+        ]);
+      }
+
+      return $shrinkage;
+    });
+  }
+
+  private function transformShrinkageForView(Shrinkage $shrinkage): array {
+    return [
+      'ID' => $shrinkage->ID,
+      'UserID' => $shrinkage->UserID,
+      'CreatedBy' => $shrinkage->user?->FullName ?? 'Unknown',
+      'Quantity' => (int) $shrinkage->Quantity,
+      'TotalAmount' => (float) $shrinkage->TotalAmount,
+      'Reason' => $shrinkage->Reason,
+      'DateAdded' => optional($shrinkage->DateAdded)->toIso8601String(),
+      'items' => $shrinkage->shrinkedProducts->map(function ($line) {
+        $pricePerUnit = (int) $line->Quantity > 0
+          ? round(((float) $line->SubAmount) / (int) $line->Quantity, 2)
+          : 0;
+
+        return [
+          'ID' => $line->ID,
+          'ProductID' => $line->ProductID,
+          'ProductName' => $line->product?->ProductName ?? 'Unknown Product',
+          'Quantity' => (int) $line->Quantity,
+          'SubAmount' => (float) $line->SubAmount,
+          'PricePerUnit' => $pricePerUnit,
+        ];
+      })->values(),
+    ];
+  }
+
+  private function restoreProductsForShrinkageLines($lines): void {
+    $grouped = collect($lines)
+      ->groupBy('ProductID')
+      ->map(fn ($rows) => (int) $rows->sum('Quantity'))
+      ->all();
+
+    if (empty($grouped)) {
+      return;
+    }
+
+    $productIDs = array_map('intval', array_keys($grouped));
+    $products = Product::whereIn('ID', $productIDs)->lockForUpdate()->get()->keyBy('ID');
+
+    if ($products->count() !== count($productIDs)) {
+      throw ValidationException::withMessages([
+        'items' => 'One or more shrinkage products no longer exist.',
+      ]);
+    }
+
+    foreach ($grouped as $productID => $quantity) {
+      $product = $products[(int) $productID];
+      $product->update([
+        'Quantity' => (int) $product->Quantity + (int) $quantity,
+        'DateModified' => now(),
+      ]);
+    }
+  }
+
   private function assertAndLockProducts(array $groupedItems) {
     $productIDs = array_map('intval', array_keys($groupedItems));
     $products = Product::whereIn('ID', $productIDs)->lockForUpdate()->get()->keyBy('ID');
@@ -571,4 +868,12 @@ class PosController extends Controller {
     return $products;
   }
 
+  private function validateCustomerPayload(Request $request): array {
+    return $request->validate([
+      'CustomerName' => 'required|string|max:255',
+      'CustomerType' => 'required|in:Retail,Business',
+      'ContactDetails' => 'required|string|max:255',
+      'Address' => 'required|string|max:500',
+    ]);
+  }
 }

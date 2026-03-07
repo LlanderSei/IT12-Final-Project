@@ -9,18 +9,37 @@ const tabs = [
 		routeName: "pos.sale-history",
 		activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
 	},
+	{
+		label: "Shrinkage History",
+		routeName: "pos.shrinkage-history",
+	},
+	{
+		label: "Customers",
+		routeName: "pos.customers",
+	},
 ];
 
 export default function CashierTabs() {
 	const { can } = usePermissions();
+	const canViewCashier = can("CanViewCashier");
 	const canViewSalesHistoryBase = can("CanViewSalesHistory");
 	const canViewSalesTab =
 		canViewSalesHistoryBase && can("CanViewSalesHistorySales");
 	const canViewPendingTab =
 		canViewSalesHistoryBase && can("CanViewSalesHistoryPendingPayments");
 	const canViewSaleHistory = canViewSalesTab || canViewPendingTab;
+	const canViewShrinkageHistory = can("CanViewShrinkageHistory");
+	const canViewCustomers = can("CanViewCustomers");
 	const visibleTabs = tabs.filter((tab) =>
-		tab.routeName === "pos.sale-history" ? canViewSaleHistory : true,
+		tab.routeName === "pos.cash-sale"
+			? canViewCashier
+		: tab.routeName === "pos.sale-history"
+			? canViewSaleHistory
+			: tab.routeName === "pos.shrinkage-history"
+				? canViewShrinkageHistory
+			: tab.routeName === "pos.customers"
+				? canViewCustomers
+				: true,
 	);
 
 	return (
