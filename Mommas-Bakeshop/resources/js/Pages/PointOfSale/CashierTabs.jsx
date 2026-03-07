@@ -2,23 +2,6 @@ import React from "react";
 import { Link } from "@inertiajs/react";
 import usePermissions from "@/hooks/usePermissions";
 
-const tabs = [
-	{ label: "Cash Sale", routeName: "pos.cash-sale" },
-	{
-		label: "Sale History",
-		routeName: "pos.sale-history",
-		activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
-	},
-	{
-		label: "Shrinkage History",
-		routeName: "pos.shrinkage-history",
-	},
-	{
-		label: "Customers",
-		routeName: "pos.customers",
-	},
-];
-
 export default function CashierTabs() {
 	const { can } = usePermissions();
 	const canViewCashier = can("CanViewCashier");
@@ -30,23 +13,59 @@ export default function CashierTabs() {
 	const canViewSaleHistory = canViewSalesTab || canViewPendingTab;
 	const canViewShrinkageHistory = can("CanViewShrinkageHistory");
 	const canViewCustomers = can("CanViewCustomers");
-	const visibleTabs = tabs.filter((tab) =>
-		tab.routeName === "pos.cash-sale"
-			? canViewCashier
-		: tab.routeName === "pos.sale-history"
-			? canViewSaleHistory
-			: tab.routeName === "pos.shrinkage-history"
-				? canViewShrinkageHistory
-			: tab.routeName === "pos.customers"
-				? canViewCustomers
-				: true,
-	);
+	const isSaleHistoryRoute =
+		route().current("pos.sale-history") ||
+		route().current("pos.sale-history.pending");
+
+	const tabs = [
+		canViewCashier
+			? { label: "Cash Sale", routeName: "pos.cash-sale" }
+			: null,
+		...(isSaleHistoryRoute
+			? [
+					canViewSalesTab
+						? {
+								label: "Sales",
+								routeName: "pos.sale-history",
+								activeRoutes: ["pos.sale-history"],
+							}
+						: null,
+					canViewPendingTab
+						? {
+								label: "Pending Payments",
+								routeName: "pos.sale-history.pending",
+								activeRoutes: ["pos.sale-history.pending"],
+							}
+						: null,
+				]
+			: [
+					canViewSaleHistory
+						? {
+								label: "Sale History",
+								routeName: "pos.sale-history",
+								activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
+							}
+						: null,
+				]),
+		canViewShrinkageHistory
+			? {
+					label: "Shrinkage History",
+					routeName: "pos.shrinkage-history",
+				}
+			: null,
+		canViewCustomers
+			? {
+					label: "Customers",
+					routeName: "pos.customers",
+				}
+			: null,
+	].filter(Boolean);
 
 	return (
 		<div className="bg-white border-b border-gray-200 mt-0">
 			<div className="mx-auto px-4">
 				<nav className="-mb-px flex gap-2" aria-label="Tabs">
-					{visibleTabs.map((tab) => {
+					{tabs.map((tab) => {
 						const active = (tab.activeRoutes || [tab.routeName]).some((routeName) =>
 							route().current(routeName),
 						);

@@ -27,10 +27,6 @@ class PosController extends Controller {
     ]);
   }
 
-  public function consignments() {
-    return Inertia::render('PointOfSale/Consignments');
-  }
-
   public function saleHistory(Request $request) {
     $requestedTab = $request->route('tab');
     $initialTab = in_array($requestedTab, ['Sales', 'Pending Payments'], true)
@@ -404,6 +400,7 @@ class PosController extends Controller {
         $sale = Sale::create([
           'UserID' => $request->user()->id,
           'CustomerID' => null,
+          'SaleType' => 'WalkIn',
           'TotalAmount' => $totalAmount,
           'DateAdded' => now(),
         ]);
@@ -438,95 +435,6 @@ class PosController extends Controller {
       });
 
       return redirect()->back()->with('success', 'Walk-in sale recorded successfully.');
-    } catch (ValidationException $e) {
-      throw $e;
-    } catch (\Throwable $e) {
-      report($e);
-      return redirect()->back()->with('error', 'Failed to process checkout.');
-    }
-  }
-
-  public function checkoutConsignment(Request $request) {
-    try {
-      $payload = $request->validate([
-        'items' => 'required|array|min:1',
-        'items.*.ProductID' => 'required|integer|exists:products,ID',
-        'items.*.Quantity' => 'required|integer|min:1',
-        'customerMode' => 'required|in:existing,new',
-        'CustomerID' => 'nullable|integer|exists:customers,ID',
-        'newCustomer.CustomerName' => 'nullable|string|max:255',
-        'newCustomer.CustomerType' => 'nullable|in:Retail,Business',
-        'newCustomer.ContactDetails' => 'nullable|string|max:255',
-        'newCustomer.Address' => 'nullable|string|max:500',
-        'dueDate' => 'required|date|after:today',
-      ]);
-
-      if ($payload['customerMode'] === 'existing' && empty($payload['CustomerID'] ?? null)) {
-        throw ValidationException::withMessages([
-          'CustomerID' => 'Please select an existing customer.',
-        ]);
-      }
-
-      if ($payload['customerMode'] === 'new') {
-        $requiredFields = ['CustomerName', 'CustomerType', 'ContactDetails', 'Address'];
-        foreach ($requiredFields as $field) {
-          if (empty($payload['newCustomer'][$field] ?? null)) {
-            throw ValidationException::withMessages([
-              "newCustomer.$field" => "The $field field is required for new customer.",
-            ]);
-          }
-        }
-      }
-
-      DB::transaction(function () use ($payload, $request) {
-        [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
-
-        $customerID = isset($payload['CustomerID']) ? (int)$payload['CustomerID'] : 0;
-        if ($payload['customerMode'] === 'new') {
-          $customer = Customer::create([
-            'CustomerName' => $payload['newCustomer']['CustomerName'],
-            'CustomerType' => $payload['newCustomer']['CustomerType'],
-            'ContactDetails' => $payload['newCustomer']['ContactDetails'],
-            'Address' => $payload['newCustomer']['Address'],
-            'DateAdded' => now(),
-            'DateModified' => now(),
-          ]);
-          $customerID = $customer->ID;
-        }
-
-        $sale = Sale::create([
-          'UserID' => $request->user()->id,
-          'CustomerID' => $customerID,
-          'TotalAmount' => $totalAmount,
-          'DateAdded' => now(),
-        ]);
-
-        foreach ($lines as $line) {
-          SoldProduct::create([
-            'SalesID' => $sale->ID,
-            'ProductID' => $line['product']->ID,
-            'PricePerUnit' => $line['pricePerUnit'],
-            'Quantity' => $line['quantity'],
-            'SubAmount' => $line['subAmount'],
-          ]);
-
-          $line['product']->update([
-            'DateModified' => now(),
-          ]);
-        }
-
-        Payment::create([
-          'SalesID' => $sale->ID,
-          'PaidAmount' => 0,
-          'TotalAmount' => $totalAmount,
-          'Change' => 0,
-          'PaymentStatus' => 'Unpaid',
-          'PaymentDueDate' => $payload['dueDate'],
-          'DateAdded' => now(),
-        ]);
-      });
-
-      return redirect()->back()->with('success', 'Consignment sale recorded successfully.');
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
@@ -591,8 +499,9 @@ class PosController extends Controller {
 
       $invoiceNumber = null;
       $receiptNumber = null;
+      $createdSaleId = null;
 
-      DB::transaction(function () use ($payload, $request, &$invoiceNumber, &$receiptNumber) {
+      DB::transaction(function () use ($payload, $request, &$invoiceNumber, &$receiptNumber, &$createdSaleId) {
         $productItems = collect($payload['items'] ?? [])->values()->all();
         $customOrderItems = collect($payload['customOrders'] ?? [])->values()->all();
         [$lines, $totalQuantity, $productTotalAmount] = !empty($productItems)
@@ -619,9 +528,11 @@ class PosController extends Controller {
         $sale = Sale::create([
           'UserID' => $request->user()->id,
           'CustomerID' => $customerID,
+          'SaleType' => 'JobOrder',
           'TotalAmount' => $totalAmount,
           'DateAdded' => now(),
         ]);
+        $createdSaleId = (int) $sale->ID;
 
         foreach ($lines as $line) {
           SoldProduct::create([
@@ -713,7 +624,17 @@ class PosController extends Controller {
         $message .= " Receipt #{$receiptNumber} issued.";
       }
 
-      return redirect()->back()->with('success', $message);
+      $documentPayload = $createdSaleId
+        ? [
+            'source' => 'job-order',
+            'sale' => $this->buildSaleViewPayload($createdSaleId),
+          ]
+        : null;
+
+      return redirect()
+        ->back()
+        ->with('success', $message)
+        ->with('documentPayload', $documentPayload);
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
@@ -906,6 +827,71 @@ class PosController extends Controller {
       'ContactDetails' => 'required|string|max:255',
       'Address' => 'required|string|max:500',
     ]);
+  }
+
+  private function buildSaleViewPayload(int $saleId): array {
+    $sale = Sale::with([
+      'customer',
+      'user:id,FullName',
+      'payment',
+      'soldProducts.product:ID,ProductName',
+      'partialPayments',
+      'customOrderDetails.customOrders',
+    ])->findOrFail($saleId);
+
+    $paymentTotal = (float) ($sale->payment?->TotalAmount ?? $sale->TotalAmount ?? 0);
+    $paymentPaid = (float) ($sale->payment?->PaidAmount ?? 0);
+    $partialPaid = (float) $sale->partialPayments->sum('PaidAmount');
+    $paidAmount = max($paymentPaid, $partialPaid);
+
+    return [
+      'ID' => $sale->ID,
+      'UserID' => $sale->UserID,
+      'CustomerID' => $sale->CustomerID,
+      'SaleType' => $sale->SaleType,
+      'DateAdded' => optional($sale->DateAdded)->toIso8601String(),
+      'user' => $sale->user,
+      'customer' => $sale->customer,
+      'payment' => $sale->payment,
+      'totalAmount' => $paymentTotal,
+      'paidAmount' => $paidAmount,
+      'amountLeft' => max(0, round($paymentTotal - $paidAmount, 2)),
+      'sold_products' => $sale->soldProducts->map(function ($line) {
+        return [
+          'ID' => $line->ID,
+          'Quantity' => (int) $line->Quantity,
+          'PricePerUnit' => (float) $line->PricePerUnit,
+          'SubAmount' => (float) $line->SubAmount,
+          'product' => $line->product,
+        ];
+      })->values(),
+      'partial_payments' => $sale->partialPayments->map(function ($payment) {
+        return [
+          'ID' => $payment->ID,
+          'PaidAmount' => (float) $payment->PaidAmount,
+          'ReceiptNumber' => $payment->ReceiptNumber,
+          'ReceiptIssuedAt' => optional($payment->ReceiptIssuedAt)->toIso8601String(),
+          'PaymentMethod' => $payment->PaymentMethod,
+          'AdditionalDetails' => $payment->AdditionalDetails,
+          'DateAdded' => optional($payment->DateAdded)->toIso8601String(),
+        ];
+      })->values(),
+      'custom_order_details' => $sale->customOrderDetails->map(function ($detail) {
+        return [
+          'ID' => $detail->ID,
+          'OrderDescription' => $detail->OrderDescription,
+          'TotalAmount' => (float) $detail->TotalAmount,
+          'custom_orders' => $detail->customOrders->map(function ($line) {
+            return [
+              'ID' => $line->ID,
+              'CustomOrderDescription' => $line->CustomOrderDescription,
+              'Quantity' => (int) $line->Quantity,
+              'PricePerUnit' => (float) $line->PricePerUnit,
+            ];
+          })->values(),
+        ];
+      })->values(),
+    ];
   }
 
   private function generateInvoiceNumber(): string {

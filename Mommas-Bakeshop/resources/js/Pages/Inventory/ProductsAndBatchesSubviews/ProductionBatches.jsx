@@ -2,6 +2,11 @@
 import { useForm } from "@inertiajs/react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
+import {
+	clearPendingProductsBatchesFooterAction,
+	getPendingProductsBatchesFooterAction,
+	PRODUCTS_BATCHES_FOOTER_ACTIONS,
+} from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
 
 const BATCH_DRAFT_KEY = "inventory.production_batch_draft.v1";
@@ -300,6 +305,16 @@ export default function ProductionBatches({
 		if (!canCreateProductionBatch) return requirePermission("CanCreateProductionBatch");
 		setIsModalOpen(true);
 	};
+
+	useEffect(() => {
+		const pendingAction = getPendingProductsBatchesFooterAction();
+		if (pendingAction !== PRODUCTS_BATCHES_FOOTER_ACTIONS.RECORD_BATCH) {
+			return;
+		}
+
+		clearPendingProductsBatchesFooterAction();
+		openCreateModal();
+	}, [canCreateProductionBatch]);
 
 	const openEditBatchDraft = (batch) => {
 		if (!canUpdateProductionBatch) return requirePermission("CanUpdateProductionBatch");

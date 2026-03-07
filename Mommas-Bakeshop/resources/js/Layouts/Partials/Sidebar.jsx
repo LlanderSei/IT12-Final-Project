@@ -63,7 +63,7 @@ const NAV_STRUCTURE = [
 		items: [
 			{
 				id: "pos.cash-sale",
-				activeRoutes: ["pos.cash-sale", "pos.consignments", "pos.cashier"],
+				activeRoutes: ["pos.cash-sale", "pos.cashier"],
 				label: "Cashier",
 				icon: "cashier",
 				href: route("pos.cash-sale"),

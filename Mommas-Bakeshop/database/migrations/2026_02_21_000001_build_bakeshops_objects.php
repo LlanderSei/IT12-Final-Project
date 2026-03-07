@@ -128,6 +128,7 @@ return new class extends Migration {
 			$table->id('ID');
 			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
 			$table->foreignId('CustomerID')->nullable()->constrained('customers', 'ID')->onDelete('cascade');
+			$table->string('SaleType', 50)->default('WalkIn')->index();
 			$table->decimal('TotalAmount', 10, 2);
 			$table->timestamp('DateAdded')->useCurrent();
 		});

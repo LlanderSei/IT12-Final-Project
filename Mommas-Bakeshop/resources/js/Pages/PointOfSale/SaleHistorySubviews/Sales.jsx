@@ -15,8 +15,8 @@ export default function Sales({
 	onView,
 	onInvoice,
 	onReceipt,
-	canExportInvoices = false,
-	canExportReceipts = false,
+	canViewInvoices = false,
+	canViewReceipts = false,
 	sortConfig,
 	requestSort,
 }) {
@@ -92,7 +92,9 @@ export default function Sales({
 								>
 									View
 								</button>
-								{canExportInvoices && sale.payment?.InvoiceNumber && (
+								{canViewInvoices &&
+									sale.SaleType === "JobOrder" &&
+									sale.payment?.InvoiceNumber && (
 									<button
 										type="button"
 										onClick={() => onInvoice?.(sale)}
@@ -101,7 +103,9 @@ export default function Sales({
 										Invoice
 									</button>
 								)}
-								{canExportReceipts && sale.payment?.ReceiptNumber && (
+								{canViewReceipts &&
+									sale.SaleType === "JobOrder" &&
+									sale.payment?.ReceiptNumber && (
 									<button
 										type="button"
 										onClick={() => onReceipt?.(sale)}

@@ -17,6 +17,7 @@ class Sale extends Model implements Auditable {
   protected $fillable = [
     'UserID',
     'CustomerID',
+    'SaleType',
     'TotalAmount',
     'DateAdded',
   ];
@@ -69,5 +70,12 @@ class Sale extends Model implements Auditable {
   public function customOrderDetails() {
     return $this->hasMany(CustomOrderDetail::class, 'SalesID');
   }
-}
 
+  public function isWalkIn(): bool {
+    return $this->SaleType === 'WalkIn';
+  }
+
+  public function isJobOrder(): bool {
+    return $this->SaleType === 'JobOrder';
+  }
+}

@@ -674,7 +674,10 @@ export default function Customers({ customers = [] }) {
 																</p>
 															))}
 															{customOrderLines.map((line) => (
-																<p key={`sale-custom-${sale.ID}-${line.ID}`}>
+																<p
+																	key={`sale-custom-${sale.ID}-${line.ID}`}
+																	className="max-w-md whitespace-pre-wrap break-words"
+																>
 																	{line.CustomOrderDescription || "-"} x{line.Quantity}
 																</p>
 															))}

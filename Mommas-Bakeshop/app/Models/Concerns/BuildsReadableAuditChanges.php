@@ -230,8 +230,9 @@ trait BuildsReadableAuditChanges {
       ],
       'Sale' => [
         'entity' => 'Sale',
-        'priority_keys' => ['UserID', 'CustomerID', 'TotalAmount'],
+        'priority_keys' => ['UserID', 'CustomerID', 'SaleType', 'TotalAmount'],
         'labels' => [
+          'SaleType' => 'Sale Type',
           'TotalAmount' => 'Total Amount',
         ],
       ],
