@@ -20,7 +20,15 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanViewSalesHistory', 'PermissionDescription' => 'Can access sales history and related records.'],
 			['PermissionName' => 'CanViewSalesHistorySales', 'PermissionDescription' => 'Can access the Sales tab in sales history.'],
 			['PermissionName' => 'CanViewSalesHistoryPendingPayments', 'PermissionDescription' => 'Can access the Pending Payments tab in sales history.'],
+			['PermissionName' => 'CanViewShrinkageHistory', 'PermissionDescription' => 'Can access shrinkage history records and details.'],
+			['PermissionName' => 'CanCreateShrinkageRecord', 'PermissionDescription' => 'Can record new shrinkage entries from shrinkage history.'],
+			['PermissionName' => 'CanUpdateShrinkageRecord', 'PermissionDescription' => 'Can modify existing shrinkage records and their line items.'],
+			['PermissionName' => 'CanDeleteShrinkageRecord', 'PermissionDescription' => 'Can delete shrinkage records and restore affected quantities.'],
 			['PermissionName' => 'CanRecordSalePayment', 'PermissionDescription' => 'Can record or update pending payment entries.'],
+			['PermissionName' => 'CanViewCustomers', 'PermissionDescription' => 'Can access customer records and details.'],
+			['PermissionName' => 'CanCreateCustomer', 'PermissionDescription' => 'Can add new customers.'],
+			['PermissionName' => 'CanUpdateCustomer', 'PermissionDescription' => 'Can modify customer records.'],
+			['PermissionName' => 'CanDeleteCustomer', 'PermissionDescription' => 'Can delete customer records that have no sales history.'],
 
 			// Inventory
 			['PermissionName' => 'CanViewInventoryLevels', 'PermissionDescription' => 'Can access inventory levels and management.'],

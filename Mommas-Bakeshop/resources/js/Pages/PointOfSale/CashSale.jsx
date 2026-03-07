@@ -1044,7 +1044,7 @@ export default function CashSale({
 											disabled={
 												(jobOrderForm.data.customOrders || []).length === 0
 											}
-											className="w-full rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+											className="w-full mx-auto px-6 py-4 rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
 										>
 											Clear All Custom Orders
 										</button>

@@ -36,6 +36,14 @@ Route::middleware('auth')->group(function () {
     ->defaults('tab', 'Pending Payments')
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistoryPendingPayments'])
     ->name('pos.sale-history.pending');
+  Route::get('/pos/shrinkage-history', [PosController::class, 'shrinkageHistory'])->middleware('permission:CanViewShrinkageHistory')->name('pos.shrinkage-history');
+  Route::post('/pos/shrinkage-history', [PosController::class, 'storeShrinkageHistory'])->middleware('permission:CanCreateShrinkageRecord')->name('pos.shrinkage-history.store');
+  Route::put('/pos/shrinkage-history/{id}', [PosController::class, 'updateShrinkageHistory'])->middleware('permission:CanUpdateShrinkageRecord')->name('pos.shrinkage-history.update');
+  Route::delete('/pos/shrinkage-history/{id}', [PosController::class, 'destroyShrinkageHistory'])->middleware('permission:CanDeleteShrinkageRecord')->name('pos.shrinkage-history.destroy');
+  Route::get('/pos/customers', [PosController::class, 'customers'])->middleware('permission:CanViewCustomers')->name('pos.customers');
+  Route::post('/pos/customers', [PosController::class, 'storeCustomer'])->middleware('permission:CanCreateCustomer')->name('pos.customers.store');
+  Route::put('/pos/customers/{id}', [PosController::class, 'updateCustomer'])->middleware('permission:CanUpdateCustomer')->name('pos.customers.update');
+  Route::delete('/pos/customers/{id}', [PosController::class, 'destroyCustomer'])->middleware('permission:CanDeleteCustomer')->name('pos.customers.destroy');
   Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->middleware('permission:CanRecordSalePayment')->name('pos.sale-history.payments.store');
   Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware('permission:CanProcessSalesWalkIn')->name('pos.checkout.walk-in');
   Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware('permission:CanProcessSalesJobOrders')->name('pos.checkout.job-order');

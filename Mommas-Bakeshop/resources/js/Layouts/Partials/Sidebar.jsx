@@ -77,6 +77,22 @@ const NAV_STRUCTURE = [
 				href: route("pos.sale-history"),
 				requiredPermissions: ["CanViewSalesHistory", "CanViewSalesHistorySales", "CanViewSalesHistoryPendingPayments"],
 			},
+			{
+				id: "pos.shrinkage-history",
+				activeRoutes: ["pos.shrinkage-history"],
+				label: "Shrinkage History",
+				icon: "audits",
+				href: route("pos.shrinkage-history"),
+				requiredPermissions: ["CanViewShrinkageHistory"],
+			},
+			{
+				id: "pos.customers",
+				activeRoutes: ["pos.customers"],
+				label: "Customers",
+				icon: "users",
+				href: route("pos.customers"),
+				requiredPermissions: ["CanViewCustomers"],
+			},
 		],
 	},
 	{
