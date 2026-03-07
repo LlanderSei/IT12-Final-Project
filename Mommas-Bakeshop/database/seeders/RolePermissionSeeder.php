@@ -5,12 +5,13 @@ namespace Database\Seeders;
 use App\Models\Permission;
 use App\Models\PermissionsSet;
 use App\Models\Role;
+use App\Models\RolePresetPermission;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class RolePermissionSeeder extends Seeder {
 	/**
-	 * Sync user-level permission rows based on role defaults.
+	 * Seed role preset permissions, then sync user-level permission rows from presets.
 	 */
 	public function run(): void {
 		$permissions = Permission::query()
@@ -33,6 +34,10 @@ class RolePermissionSeeder extends Seeder {
 				'CanViewSalesHistory',
 				'CanViewSalesHistorySales',
 				'CanViewSalesHistoryPendingPayments',
+				'CanViewJobOrderInvoices',
+				'CanExportJobOrderInvoices',
+				'CanViewPaymentReceipts',
+				'CanExportPaymentReceipts',
 				'CanViewShrinkageHistory',
 				'CanUpdateShrinkageRecord',
 				'CanDeleteShrinkageRecord',
@@ -77,6 +82,15 @@ class RolePermissionSeeder extends Seeder {
 				'CanDeleteUser',
 				'CanViewUserManagementPermissions',
 				'CanUpdateUserPermissions',
+				'CanViewUserManagementRoles',
+				'CanCreateRole',
+				'CanUpdateRole',
+				'CanDeleteRole',
+				'CanUpdateRoleOrder',
+				'CanViewUserManagementPermissionGroups',
+				'CanCreatePermissionGroup',
+				'CanUpdatePermissionGroup',
+				'CanDeletePermissionGroup',
 				'CanViewAudits',
 			],
 
@@ -89,6 +103,10 @@ class RolePermissionSeeder extends Seeder {
 				'CanViewSalesHistory',
 				'CanViewSalesHistorySales',
 				'CanViewSalesHistoryPendingPayments',
+				'CanViewJobOrderInvoices',
+				'CanExportJobOrderInvoices',
+				'CanViewPaymentReceipts',
+				'CanExportPaymentReceipts',
 				'CanViewShrinkageHistory',
 				'CanCreateShrinkageRecord',
 				'CanUpdateShrinkageRecord',
@@ -124,19 +142,11 @@ class RolePermissionSeeder extends Seeder {
 		];
 
 		foreach ($rolePermissionMap as $roleName => $grants) {
-			$roleId = Role::query()
+			$role = Role::query()
 				->where('RoleName', $roleName)
-				->value('ID');
+				->first();
 
-			if (!$roleId) {
-				continue;
-			}
-
-			$userIds = User::query()
-				->where('RoleID', $roleId)
-				->pluck('id');
-
-			if ($userIds->isEmpty()) {
+			if (!$role) {
 				continue;
 			}
 
@@ -150,6 +160,41 @@ class RolePermissionSeeder extends Seeder {
 
 			$allowedLookup = array_flip($allowedPermissionIds);
 			$now = now();
+
+			foreach ($allPermissionIds as $permissionId) {
+				$preset = RolePresetPermission::query()->firstOrNew([
+					'RoleID' => $role->ID,
+					'PermissionID' => $permissionId,
+				]);
+
+				if (!$preset->exists) {
+					$preset->DateAdded = $now;
+				}
+
+				$preset->Allowable = isset($allowedLookup[$permissionId]);
+				$preset->DateModified = $now;
+				$preset->save();
+			}
+		}
+
+		$roles = Role::query()->select(['ID', 'RoleName'])->get();
+		foreach ($roles as $role) {
+			$allowedPermissionIds = RolePresetPermission::query()
+				->where('RoleID', $role->ID)
+				->where('Allowable', true)
+				->pluck('PermissionID')
+				->map(fn ($id) => (int) $id)
+				->all();
+
+			if ($role->RoleName === 'Owner' && count($allowedPermissionIds) === 0) {
+				$allowedPermissionIds = $allPermissionIds;
+			}
+
+			$allowedLookup = array_flip($allowedPermissionIds);
+			$now = now();
+			$userIds = User::query()
+				->where('RoleID', $role->ID)
+				->pluck('id');
 
 			foreach ($userIds as $userId) {
 				foreach ($allPermissionIds as $permissionId) {

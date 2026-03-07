@@ -181,6 +181,42 @@ trait BuildsReadableAuditChanges {
           'Address' => 'Address',
         ],
       ],
+      'Role' => [
+        'entity' => 'Role',
+        'priority_keys' => ['RoleName', 'RoleDescription', 'RoleRank'],
+        'labels' => [
+          'RoleName' => 'Role Name',
+          'RoleDescription' => 'Role Description',
+          'RoleRank' => 'Role Rank',
+        ],
+      ],
+      'Permission' => [
+        'entity' => 'Permission',
+        'priority_keys' => ['PermissionName', 'PermissionDescription', 'PermissionGroupID'],
+        'labels' => [
+          'PermissionName' => 'Permission Name',
+          'PermissionDescription' => 'Permission Description',
+          'PermissionGroupID' => 'Permission Group',
+        ],
+      ],
+      'PermissionGroup' => [
+        'entity' => 'Permission Group',
+        'priority_keys' => ['GroupName', 'GroupDescription', 'DisplayOrder'],
+        'labels' => [
+          'GroupName' => 'Group Name',
+          'GroupDescription' => 'Group Description',
+          'DisplayOrder' => 'Display Order',
+        ],
+      ],
+      'RolePresetPermission' => [
+        'entity' => 'Role Preset Permission',
+        'priority_keys' => ['RoleID', 'PermissionID', 'Allowable'],
+        'labels' => [
+          'RoleID' => 'Role',
+          'PermissionID' => 'Permission',
+          'Allowable' => 'Allowable',
+        ],
+      ],
       'Inventory' => [
         'entity' => 'Inventory Item',
         'priority_keys' => ['ItemName', 'Quantity', 'Measurement', 'LowCountThreshold', 'ItemType'],
@@ -201,12 +237,16 @@ trait BuildsReadableAuditChanges {
       ],
       'Payment' => [
         'entity' => 'Payment',
-        'priority_keys' => ['SalesID', 'TotalAmount', 'PaidAmount', 'Change', 'PaymentStatus', 'PaymentDueDate'],
+        'priority_keys' => ['SalesID', 'TotalAmount', 'PaidAmount', 'Change', 'PaymentStatus', 'InvoiceNumber', 'ReceiptNumber', 'PaymentDueDate'],
         'labels' => [
           'TotalAmount' => 'Total Amount',
           'PaidAmount' => 'Paid Amount',
           'Change' => 'Change',
           'PaymentStatus' => 'Payment Status',
+          'InvoiceNumber' => 'Invoice Number',
+          'InvoiceIssuedAt' => 'Invoice Issued At',
+          'ReceiptNumber' => 'Receipt Number',
+          'ReceiptIssuedAt' => 'Receipt Issued At',
           'PaymentDueDate' => 'Due Date',
         ],
       ],

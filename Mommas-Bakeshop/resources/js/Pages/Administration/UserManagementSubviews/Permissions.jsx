@@ -15,7 +15,14 @@ function PermissionColumn({ permissions = [], rowPermissions = {}, onToggle, dis
 						disabled={disabled}
 						onChange={(e) => onToggle(permission.name, e.target.checked)}
 					/>
-					<span className="leading-5 break-words">{permission.label}</span>
+					<span className="leading-5 break-words">
+						<span className="block">{permission.label}</span>
+						{permission.groupName && (
+							<span className="mt-0.5 block text-[11px] text-gray-500">
+								Group: {permission.groupName}
+							</span>
+						)}
+					</span>
 				</label>
 			))}
 			{permissions.length === 0 && <p className="text-xs text-gray-400 italic">No permissions in this group.</p>}

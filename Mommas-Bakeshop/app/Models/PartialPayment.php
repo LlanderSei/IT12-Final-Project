@@ -12,6 +12,8 @@ class PartialPayment extends Model {
   protected $fillable = [
     'SalesID',
     'PaidAmount',
+    'ReceiptNumber',
+    'ReceiptIssuedAt',
     'PaymentMethod',
     'AdditionalDetails',
     'DateAdded',
@@ -19,6 +21,7 @@ class PartialPayment extends Model {
 
   protected $casts = [
     'PaidAmount' => 'decimal:2',
+    'ReceiptIssuedAt' => 'datetime',
     'DateAdded' => 'datetime',
   ];
 

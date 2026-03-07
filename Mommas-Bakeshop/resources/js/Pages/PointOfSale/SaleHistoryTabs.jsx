@@ -3,6 +3,7 @@ import { Head, Link, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
+import { exportInvoicePdf, exportReceiptPdf } from "@/utils/saleDocuments";
 import usePermissions from "@/hooks/usePermissions";
 import Sales from "./SaleHistorySubviews/Sales";
 import PendingPayments from "./SaleHistorySubviews/PendingPayments";
@@ -23,13 +24,17 @@ export default function SaleHistoryTabs({
 	sales = [],
 	pendingSales = [],
 }) {
-	const { can, requirePermission } = usePermissions();
+	const { can, deny, requirePermission } = usePermissions();
 	const canViewSalesHistory = can("CanViewSalesHistory");
 	const canViewSalesTab =
 		canViewSalesHistory && can("CanViewSalesHistorySales");
 	const canViewPendingTab =
 		canViewSalesHistory && can("CanViewSalesHistoryPendingPayments");
 	const canRecordSalePayment = can("CanRecordSalePayment");
+	const canViewInvoices = can("CanViewJobOrderInvoices");
+	const canExportInvoices = can("CanExportJobOrderInvoices");
+	const canViewReceipts = can("CanViewPaymentReceipts");
+	const canExportReceipts = can("CanExportPaymentReceipts");
 
 	const tabs = [
 		{ label: "Sales", routeName: "pos.sale-history" },
@@ -327,6 +332,24 @@ export default function SaleHistoryTabs({
 		setIsPaymentModalOpen(true);
 	};
 
+	const handleExportInvoice = (sale) => {
+		if (!requirePermission("CanExportJobOrderInvoices")) return;
+		try {
+			exportInvoicePdf(sale);
+		} catch (error) {
+			deny(error?.message || "Failed to export invoice PDF.");
+		}
+	};
+
+	const handleExportReceipt = (sale, receiptPayment = null) => {
+		if (!requirePermission("CanExportPaymentReceipts")) return;
+		try {
+			exportReceiptPdf(sale, receiptPayment);
+		} catch (error) {
+			deny(error?.message || "Failed to export receipt PDF.");
+		}
+	};
+
 	const submitPayment = (e) => {
 		e.preventDefault();
 		if (!requirePermission("CanRecordSalePayment")) return;
@@ -487,18 +510,24 @@ export default function SaleHistoryTabs({
 						<div className="flex-1 overflow-y-auto">
 							{activeTab === "Sales" ? (
 								<Sales
-									rows={paginatedRows}
-									onView={setSelectedSale}
-									sortConfig={sortConfig}
-									requestSort={requestSort}
-								/>
+											rows={paginatedRows}
+											onView={setSelectedSale}
+											onInvoice={handleExportInvoice}
+											onReceipt={handleExportReceipt}
+											canExportInvoices={canExportInvoices}
+											canExportReceipts={canExportReceipts}
+											sortConfig={sortConfig}
+											requestSort={requestSort}
+										/>
 							) : (
 								<PendingPayments
-									rows={paginatedRows}
-									onView={setSelectedSale}
-									sortConfig={sortConfig}
-									requestSort={requestSort}
-								/>
+											rows={paginatedRows}
+											onView={setSelectedSale}
+											onInvoice={handleExportInvoice}
+											canExportInvoices={canExportInvoices}
+											sortConfig={sortConfig}
+											requestSort={requestSort}
+										/>
 							)}
 						</div>
 						<div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
@@ -595,9 +624,51 @@ export default function SaleHistoryTabs({
 				>
 					{selectedSale && (
 						<div className="p-6 max-h-[80vh] overflow-y-auto">
-						<h3 className="text-lg font-semibold text-gray-900 mb-4">
-							Sale Details
-						</h3>
+						<div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<h3 className="text-lg font-semibold text-gray-900">
+									Sale Details
+								</h3>
+								<div className="mt-1 space-y-1 text-xs text-gray-500">
+									{canViewInvoices && selectedSale.payment?.InvoiceNumber && (
+										<div>
+											Invoice: {selectedSale.payment.InvoiceNumber}
+											{selectedSale.payment?.InvoiceIssuedAt
+												? ` • ${formatDateTime(selectedSale.payment.InvoiceIssuedAt)}`
+												: ""}
+										</div>
+									)}
+									{canViewReceipts && selectedSale.payment?.ReceiptNumber && (
+										<div>
+											Initial receipt: {selectedSale.payment.ReceiptNumber}
+											{selectedSale.payment?.ReceiptIssuedAt
+												? ` • ${formatDateTime(selectedSale.payment.ReceiptIssuedAt)}`
+												: ""}
+										</div>
+									)}
+								</div>
+							</div>
+							<div className="flex flex-wrap justify-end gap-2">
+								{canExportInvoices && selectedSale.payment?.InvoiceNumber && (
+									<button
+										type="button"
+										onClick={() => handleExportInvoice(selectedSale)}
+										className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+									>
+										Export Invoice PDF
+									</button>
+								)}
+								{canExportReceipts && selectedSale.payment?.ReceiptNumber && (
+									<button
+										type="button"
+										onClick={() => handleExportReceipt(selectedSale)}
+										className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+									>
+										Export Receipt PDF
+									</button>
+								)}
+							</div>
+						</div>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
 							<div>
 								<span className="font-semibold text-gray-700">Customer:</span>{" "}
@@ -637,6 +708,14 @@ export default function SaleHistoryTabs({
 								</span>{" "}
 								<span className="text-gray-900">
 									{currency(selectedSale.amountLeft)}
+								</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Due Date:</span>{" "}
+								<span className="text-gray-900">
+									{selectedSale.payment?.PaymentDueDate
+										? formatDateTime(selectedSale.payment.PaymentDueDate)
+										: "-"}
 								</span>
 							</div>
 						</div>
@@ -748,6 +827,9 @@ export default function SaleHistoryTabs({
 										<thead className="bg-gray-50">
 											<tr>
 											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Receipt No.
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
 												Amount
 											</th>
 											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -756,11 +838,17 @@ export default function SaleHistoryTabs({
 											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
 												Date
 											</th>
+											<th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Actions
+											</th>
 											</tr>
 										</thead>
 										<tbody className="divide-y divide-gray-200 bg-white">
 											{(selectedSale.partial_payments || []).map((payment) => (
 												<tr key={payment.ID}>
+													<td className="px-3 py-2 text-gray-700">
+														{payment.ReceiptNumber || "-"}
+													</td>
 													<td className="px-3 py-2 text-gray-900">
 														{currency(payment.PaidAmount)}
 												</td>
@@ -770,12 +858,27 @@ export default function SaleHistoryTabs({
 												<td className="px-3 py-2 text-gray-700">
 													{formatDateTime(payment.DateAdded)}
 												</td>
+												<td className="px-3 py-2 text-right">
+													{canExportReceipts && payment.ReceiptNumber ? (
+														<button
+															type="button"
+															onClick={() =>
+																handleExportReceipt(selectedSale, payment)
+															}
+															className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+														>
+															Receipt PDF
+														</button>
+													) : (
+														<span className="text-xs text-gray-400">-</span>
+													)}
+												</td>
 											</tr>
 										))}
 											{(selectedSale.partial_payments || []).length === 0 && (
 												<tr>
 													<td
-														colSpan="3"
+														colSpan="5"
 													className="px-3 py-3 text-center text-gray-500"
 												>
 													No partial payments recorded.

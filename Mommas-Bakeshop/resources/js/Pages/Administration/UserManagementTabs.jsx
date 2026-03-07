@@ -3,6 +3,8 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import Users from "./UserManagementSubviews/Users";
 import Permissions from "./UserManagementSubviews/Permissions";
+import Roles from "./UserManagementSubviews/Roles";
+import PermissionGroups from "./UserManagementSubviews/PermissionGroups";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
 
@@ -11,19 +13,31 @@ export default function UserManagementTabs({
 	roles,
 	permissionsUsers = [],
 	permissionGroups = {},
+	rolePresets = [],
+	permissionGroupRows = [],
 	currentUserRoleRank = null,
 	initialTab = "Users",
 }) {
 	const { can } = usePermissions();
 	const canViewUsersTab = can("CanViewUserManagementUsers");
 	const canViewPermissionsTab = can("CanViewUserManagementPermissions");
+	const canViewRolesTab = can("CanViewUserManagementRoles");
+	const canViewPermissionGroupsTab = can("CanViewUserManagementPermissionGroups");
 
 	const tabs = [
 		{ label: "Users", href: route("admin.users") },
 		{ label: "Permissions", href: route("admin.permissions") },
+		{ label: "Roles", href: route("admin.roles") },
+		{ label: "Permission Groups", href: route("admin.permission-groups") },
 	];
 	const visibleTabs = tabs.filter((tab) =>
-		tab.label === "Users" ? canViewUsersTab : canViewPermissionsTab,
+		tab.label === "Users"
+			? canViewUsersTab
+			: tab.label === "Permissions"
+				? canViewPermissionsTab
+				: tab.label === "Roles"
+					? canViewRolesTab
+					: canViewPermissionGroupsTab,
 	);
 	const tabLabels = visibleTabs.map((tab) => tab.label);
 	const normalizedInitialTab = tabLabels.includes(initialTab)
@@ -37,6 +51,18 @@ export default function UserManagementTabs({
 				countLabel: formatCountLabel((users || []).length, "user"),
 			};
 		}
+		if (tab === "Roles") {
+			return {
+				subtitle: "Roles",
+				countLabel: formatCountLabel((rolePresets || []).length, "role"),
+			};
+		}
+		if (tab === "Permission Groups") {
+			return {
+				subtitle: "Permission Groups",
+				countLabel: formatCountLabel((permissionGroupRows || []).length, "group"),
+			};
+		}
 			return {
 				subtitle: "Permissions",
 				countLabel: formatCountLabel((permissionsUsers || []).length, "record"),
@@ -48,7 +74,7 @@ export default function UserManagementTabs({
 
 	useEffect(() => {
 		setHeaderMeta(getDefaultHeaderMeta(activeTab));
-	}, [activeTab, users, permissionsUsers]);
+	}, [activeTab, users, permissionsUsers, rolePresets, permissionGroupRows]);
 
 	return (
 		<AuthenticatedLayout
@@ -114,6 +140,20 @@ export default function UserManagementTabs({
 								onHeaderMetaChange={setHeaderMeta}
 							/>
 						)}
+				{activeTab === "Roles" && canViewRolesTab && (
+					<Roles
+						rolePresets={rolePresets}
+						permissionGroups={permissionGroups}
+						currentUserRoleRank={currentUserRoleRank}
+						onHeaderMetaChange={setHeaderMeta}
+					/>
+				)}
+				{activeTab === "Permission Groups" && canViewPermissionGroupsTab && (
+					<PermissionGroups
+						rows={permissionGroupRows}
+						onHeaderMetaChange={setHeaderMeta}
+					/>
+				)}
 			</div>
 		</AuthenticatedLayout>
 	);

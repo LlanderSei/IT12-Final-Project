@@ -47,6 +47,8 @@ class HandleInertiaRequests extends Middleware {
           'name'  => $user->FullName,
           'email' => $user->email,
           'role'  => strtolower($user->role?->RoleName ?? 'admin'),
+          'roleLabel' => $user->role?->RoleName ?? 'Admin',
+          'roleRank' => $user->role?->RoleRank,
           'permissions' => $user->permissionNames()->all(),
           'recentAudits' => $recentAudits->map(fn($audit) => [
             'ID' => $audit->ID,
