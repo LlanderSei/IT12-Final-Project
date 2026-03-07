@@ -1,9 +1,9 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
+export const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
-const formatDateTime = (value) => {
+export const formatDateTime = (value) => {
 	if (!value) return "-";
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return "-";
@@ -17,12 +17,12 @@ const safeFileName = (value, fallback) =>
 		.replace(/^-|-$/g, "")
 		.toLowerCase();
 
-const getCustomOrderLines = (sale) =>
+export const getCustomOrderLines = (sale) =>
 	(sale.custom_order_details || sale.customOrderDetails || []).flatMap(
 		(detail) => detail.custom_orders || detail.customOrders || [],
 	);
 
-const getSoldLines = (sale) => sale.sold_products || [];
+export const getSoldLines = (sale) => sale.sold_products || [];
 
 function addBrandingHeader(doc, title, documentNumber) {
 	doc.setFillColor(245, 158, 11);

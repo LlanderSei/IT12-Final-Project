@@ -3,8 +3,10 @@ import { Head, useForm, usePage } from "@inertiajs/react";
 import { useEffect } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
+import SaleDocumentPreviewModal from "@/Components/SaleDocumentPreviewModal";
 import CashierTabs from "./CashierTabs";
 import usePermissions from "@/hooks/usePermissions";
+import { exportInvoicePdf, exportReceiptPdf } from "@/utils/saleDocuments";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -26,10 +28,14 @@ export default function CashSale({
 	customers = [],
 }) {
 	const { can, requirePermission } = usePermissions();
-	const { auth } = usePage().props;
+	const { auth, flash } = usePage().props;
 	const canProcessWalkIn = can("CanProcessSalesWalkIn");
 	const canProcessJobOrders = can("CanProcessSalesJobOrders");
 	const canProcessShrinkage = can("CanProcessSalesShrinkage");
+	const canViewInvoices = can("CanViewJobOrderInvoices");
+	const canExportInvoices = can("CanExportJobOrderInvoices");
+	const canViewReceipts = can("CanViewPaymentReceipts");
+	const canExportReceipts = can("CanExportPaymentReceipts");
 	const canProcessAny =
 		canProcessWalkIn || canProcessJobOrders || canProcessShrinkage;
 	const userRole = String(auth?.user?.role || "").toLowerCase();
@@ -50,6 +56,14 @@ export default function CashSale({
 	const [customOrderEditIndex, setCustomOrderEditIndex] = useState(null);
 	const [customOrderClearConfirmOpen, setCustomOrderClearConfirmOpen] =
 		useState(false);
+	const [jobOrderDocumentPromptOpen, setJobOrderDocumentPromptOpen] =
+		useState(false);
+	const [jobOrderDocumentSale, setJobOrderDocumentSale] = useState(null);
+	const [documentPreview, setDocumentPreview] = useState({
+		type: null,
+		sale: null,
+		receiptPayment: null,
+	});
 	const [customOrderDraft, setCustomOrderDraft] = useState({
 		description: "",
 		quantity: "1",
@@ -122,6 +136,17 @@ export default function CashSale({
 			setTransactionType(transactionOptions[0]);
 		}
 	}, [transactionOptions, transactionType]);
+
+	useEffect(() => {
+		const flashedSale = flash?.documentPayload?.sale;
+		if (
+			flash?.documentPayload?.source === "job-order" &&
+			flashedSale?.ID
+		) {
+			setJobOrderDocumentSale(flashedSale);
+			setJobOrderDocumentPromptOpen(true);
+		}
+	}, [flash?.documentPayload]);
 
 	const availableProducts = useMemo(() => {
 		return products
@@ -934,6 +959,119 @@ export default function CashSale({
 				</form>
 			</Modal>
 
+			<Modal
+				show={jobOrderDocumentPromptOpen && Boolean(jobOrderDocumentSale)}
+				onClose={() => setJobOrderDocumentPromptOpen(false)}
+				maxWidth="lg"
+			>
+				{jobOrderDocumentSale && (
+					<div className="p-6">
+						<h3 className="text-lg font-semibold text-gray-900">
+							Job Order Documents Ready
+						</h3>
+						<p className="mt-2 text-sm text-gray-600">
+							Sale #{jobOrderDocumentSale.ID} has been recorded as a job order.
+						</p>
+						<div className="mt-4 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+							<div>
+								<span className="font-semibold text-gray-700">Invoice:</span>{" "}
+								{jobOrderDocumentSale.payment?.InvoiceNumber || "Pending"}
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Receipt:</span>{" "}
+								{jobOrderDocumentSale.payment?.ReceiptNumber || "Not issued"}
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Customer:</span>{" "}
+								{jobOrderDocumentSale.customer?.CustomerName || "Walk-In"}
+							</div>
+						</div>
+						<div className="mt-5 flex flex-wrap gap-2">
+							{canViewInvoices && jobOrderDocumentSale.payment?.InvoiceNumber && (
+								<>
+									<button
+										type="button"
+										onClick={() =>
+											setDocumentPreview({
+												type: "invoice",
+												sale: jobOrderDocumentSale,
+												receiptPayment: null,
+											})
+										}
+										className="rounded-md border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+									>
+										Preview Invoice
+									</button>
+									{canExportInvoices && (
+										<button
+											type="button"
+											onClick={() => exportInvoicePdf(jobOrderDocumentSale)}
+											className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+										>
+											Download Invoice PDF
+										</button>
+									)}
+								</>
+							)}
+							{canViewReceipts && jobOrderDocumentSale.payment?.ReceiptNumber && (
+								<>
+									<button
+										type="button"
+										onClick={() =>
+											setDocumentPreview({
+												type: "receipt",
+												sale: jobOrderDocumentSale,
+												receiptPayment: null,
+											})
+										}
+										className="rounded-md border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+									>
+										Preview Receipt
+									</button>
+									{canExportReceipts && (
+										<button
+											type="button"
+											onClick={() => exportReceiptPdf(jobOrderDocumentSale)}
+											className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+										>
+											Download Receipt PDF
+										</button>
+									)}
+								</>
+							)}
+						</div>
+						<div className="mt-6 flex justify-end">
+							<button
+								type="button"
+								onClick={() => setJobOrderDocumentPromptOpen(false)}
+								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				)}
+			</Modal>
+
+			<SaleDocumentPreviewModal
+				show={Boolean(documentPreview.type && documentPreview.sale)}
+				onClose={() =>
+					setDocumentPreview({
+						type: null,
+						sale: null,
+						receiptPayment: null,
+					})
+				}
+				sale={documentPreview.sale}
+				type={documentPreview.type || "invoice"}
+				receiptPayment={documentPreview.receiptPayment}
+				canExport={
+					documentPreview.type === "invoice"
+						? canExportInvoices
+						: canExportReceipts
+				}
+			/>
+
 			{jobOrderOpen && (
 				<div className="fixed inset-0 z-50 overflow-y-auto">
 					<div className="flex min-h-screen items-center justify-center p-4">
@@ -992,10 +1130,10 @@ export default function CashSale({
 															key={`custom-order-item-${index}`}
 															className="rounded-md border border-gray-200 p-2 text-sm"
 														>
-															<p className="font-medium text-gray-900">
+															<p className="font-medium text-gray-900 whitespace-pre-wrap break-words">
 																{item.description}
 															</p>
-															<div className="mt-1 flex items-center justify-between text-gray-600">
+															<div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-gray-600">
 																<span>Qty: {item.quantity}</span>
 																<span>
 																	Price: {currency(item.pricePerUnit)}
@@ -1030,11 +1168,11 @@ export default function CashSale({
 											</div>
 										)}
 									</div>
-									<div className="mt-3 flex items-center justify-center gap-2">
+									<div className="mt-3 flex items-stretch justify-center gap-2">
 										<button
 											type="button"
 											onClick={() => openCustomOrderEditor(null)}
-											className="w-full rounded-md border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+											className="flex-1 min-h-[2.5rem] rounded-md border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary-soft"
 										>
 											Add Custom Order
 										</button>
@@ -1044,7 +1182,7 @@ export default function CashSale({
 											disabled={
 												(jobOrderForm.data.customOrders || []).length === 0
 											}
-											className="w-full mx-auto px-6 py-4 rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+											className="flex-1 min-h-[2.5rem] rounded-md border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
 										>
 											Clear All Custom Orders
 										</button>

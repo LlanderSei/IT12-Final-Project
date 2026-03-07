@@ -27,7 +27,6 @@ Route::middleware('auth')->group(function () {
     return redirect()->route('pos.cash-sale');
   })->middleware('permission:CanViewCashier')->name('pos.cashier');
   Route::get('/pos/cash-sale', [PosController::class, 'cashSale'])->middleware('permission:CanViewCashier')->name('pos.cash-sale');
-  Route::get('/pos/consignments', [PosController::class, 'consignments'])->middleware('permission:CanViewCashier')->name('pos.consignments');
   Route::get('/pos/sale-history', [PosController::class, 'saleHistory'])
     ->defaults('tab', 'Sales')
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistorySales'])
@@ -47,7 +46,6 @@ Route::middleware('auth')->group(function () {
   Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->middleware('permission:CanRecordSalePayment')->name('pos.sale-history.payments.store');
   Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware('permission:CanProcessSalesWalkIn')->name('pos.checkout.walk-in');
   Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware('permission:CanProcessSalesJobOrders')->name('pos.checkout.job-order');
-  Route::post('/pos/checkout/consignment', [PosController::class, 'checkoutConsignment'])->middleware('permission:CanProcessSalesJobOrders')->name('pos.checkout.consignment');
   Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->middleware('permission:CanProcessSalesShrinkage')->name('pos.checkout.shrinkage');
 
   // Inventory

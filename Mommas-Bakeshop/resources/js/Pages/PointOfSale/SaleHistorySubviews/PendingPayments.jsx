@@ -21,7 +21,7 @@ export default function PendingPayments({
 	rows = [],
 	onView,
 	onInvoice,
-	canExportInvoices = false,
+	canViewInvoices = false,
 	sortConfig,
 	requestSort,
 }) {
@@ -109,7 +109,9 @@ export default function PendingPayments({
 								>
 									View
 								</button>
-								{canExportInvoices && sale.payment?.InvoiceNumber && (
+								{canViewInvoices &&
+									sale.SaleType === "JobOrder" &&
+									sale.payment?.InvoiceNumber && (
 									<button
 										type="button"
 										onClick={() => onInvoice?.(sale)}

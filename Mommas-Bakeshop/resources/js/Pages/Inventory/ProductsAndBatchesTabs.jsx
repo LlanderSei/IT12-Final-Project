@@ -5,6 +5,10 @@ import Products from "./ProductsAndBatchesSubviews/Products";
 import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
 import Snapshots from "./ProductsAndBatchesSubviews/Snapshots";
 import { formatCountLabel } from "@/utils/countLabel";
+import {
+	PRODUCTS_BATCHES_FOOTER_ACTIONS,
+	setPendingProductsBatchesFooterAction,
+} from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 
@@ -123,6 +127,21 @@ export default function ProductsAndBatchesTabs({
 		submitSnapshotRecord(false);
 	};
 
+	const triggerFooterAction = ({
+		targetTab,
+		targetHref,
+		pendingAction,
+		openHandler,
+	}) => {
+		if (activeTab === targetTab && typeof openHandler === "function") {
+			openHandler();
+			return;
+		}
+
+		setPendingProductsBatchesFooterAction(pendingAction);
+		router.visit(targetHref);
+	};
+
 	return (
 		<AuthenticatedLayout
 			header={
@@ -206,13 +225,14 @@ export default function ProductsAndBatchesTabs({
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 					<button
 						type="button"
-						onClick={() => {
-							if (footerActions.openAddProduct) {
-								footerActions.openAddProduct();
-								return;
-							}
-							router.visit(route("products.index"));
-						}}
+						onClick={() =>
+							triggerFooterAction({
+								targetTab: "Products",
+								targetHref: route("products.index"),
+								pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.ADD_PRODUCT,
+								openHandler: footerActions.openAddProduct,
+							})
+						}
 						disabled={!canCreateProduct}
 						className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
 					>
@@ -220,13 +240,14 @@ export default function ProductsAndBatchesTabs({
 					</button>
 					<button
 						type="button"
-						onClick={() => {
-							if (footerActions.openRecordBatch) {
-								footerActions.openRecordBatch();
-								return;
-							}
-							router.visit(route("products.batches"));
-						}}
+						onClick={() =>
+							triggerFooterAction({
+								targetTab: "Production Batches",
+								targetHref: route("products.batches"),
+								pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.RECORD_BATCH,
+								openHandler: footerActions.openRecordBatch,
+							})
+						}
 						disabled={!canCreateProductionBatch}
 						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
 					>
@@ -234,13 +255,14 @@ export default function ProductsAndBatchesTabs({
 					</button>
 					<button
 						type="button"
-						onClick={() => {
-							if (footerActions.openModifyCategories) {
-								footerActions.openModifyCategories();
-								return;
-							}
-							router.visit(route("products.index"));
-						}}
+						onClick={() =>
+							triggerFooterAction({
+								targetTab: "Products",
+								targetHref: route("products.index"),
+								pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.MODIFY_CATEGORIES,
+								openHandler: footerActions.openModifyCategories,
+							})
+						}
 						disabled={!canManageCategories}
 						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
 					>

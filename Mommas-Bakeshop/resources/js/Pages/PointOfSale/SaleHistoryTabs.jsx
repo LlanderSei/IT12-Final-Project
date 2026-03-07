@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { Head, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
+import SaleDocumentPreviewModal from "@/Components/SaleDocumentPreviewModal";
 import { formatCountLabel } from "@/utils/countLabel";
 import { exportInvoicePdf, exportReceiptPdf } from "@/utils/saleDocuments";
 import usePermissions from "@/hooks/usePermissions";
+import CashierTabs from "./CashierTabs";
 import Sales from "./SaleHistorySubviews/Sales";
 import PendingPayments from "./SaleHistorySubviews/PendingPayments";
 
@@ -50,6 +52,11 @@ export default function SaleHistoryTabs({
 	const activeTab = tabLabels.includes(initialTab) ? initialTab : fallbackTab;
 
 	const [selectedSale, setSelectedSale] = useState(null);
+	const [documentPreview, setDocumentPreview] = useState({
+		type: null,
+		sale: null,
+		receiptPayment: null,
+	});
 	const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -332,6 +339,31 @@ export default function SaleHistoryTabs({
 		setIsPaymentModalOpen(true);
 	};
 
+	const openInvoicePreview = (sale) => {
+		if (!requirePermission("CanViewJobOrderInvoices")) return;
+		if (sale?.SaleType !== "JobOrder" || !sale?.payment?.InvoiceNumber) {
+			return deny("Only job orders with an issued invoice can be previewed.");
+		}
+		setDocumentPreview({
+			type: "invoice",
+			sale,
+			receiptPayment: null,
+		});
+	};
+
+	const openReceiptPreview = (sale, receiptPayment = null) => {
+		if (!requirePermission("CanViewPaymentReceipts")) return;
+		const receiptNumber = receiptPayment?.ReceiptNumber || sale?.payment?.ReceiptNumber;
+		if (sale?.SaleType !== "JobOrder" || !receiptNumber) {
+			return deny("Only job-order payments with an issued receipt can be previewed.");
+		}
+		setDocumentPreview({
+			type: "receipt",
+			sale,
+			receiptPayment,
+		});
+	};
+
 	const handleExportInvoice = (sale) => {
 		if (!requirePermission("CanExportJobOrderInvoices")) return;
 		try {
@@ -390,28 +422,7 @@ export default function SaleHistoryTabs({
 		>
 			<Head title="Sale History" />
 
-			<div className="bg-white border-b border-gray-200 mt-0">
-				<div className="mx-auto px-4">
-					<nav className="-mb-px flex gap-2" aria-label="Tabs">
-						{visibleTabs.map((tab) => {
-							const active = route().current(tab.routeName);
-							return (
-								<Link
-									key={tab.routeName}
-									href={route(tab.routeName)}
-									className={`${
-										active
-											? "bg-primary-soft border-primary text-primary"
-											: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-									} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
-								>
-									{tab.label}
-								</Link>
-							);
-						})}
-					</nav>
-				</div>
-			</div>
+			<CashierTabs />
 
 			<div className="flex-1 p-4 md:p-6 min-h-0">
 				{visibleTabs.length === 0 ? (
@@ -512,10 +523,10 @@ export default function SaleHistoryTabs({
 								<Sales
 											rows={paginatedRows}
 											onView={setSelectedSale}
-											onInvoice={handleExportInvoice}
-											onReceipt={handleExportReceipt}
-											canExportInvoices={canExportInvoices}
-											canExportReceipts={canExportReceipts}
+											onInvoice={openInvoicePreview}
+											onReceipt={openReceiptPreview}
+											canViewInvoices={canViewInvoices}
+											canViewReceipts={canViewReceipts}
 											sortConfig={sortConfig}
 											requestSort={requestSort}
 										/>
@@ -523,8 +534,8 @@ export default function SaleHistoryTabs({
 								<PendingPayments
 											rows={paginatedRows}
 											onView={setSelectedSale}
-											onInvoice={handleExportInvoice}
-											canExportInvoices={canExportInvoices}
+											onInvoice={openInvoicePreview}
+											canViewInvoices={canViewInvoices}
 											sortConfig={sortConfig}
 											requestSort={requestSort}
 										/>
@@ -629,7 +640,8 @@ export default function SaleHistoryTabs({
 								<h3 className="text-lg font-semibold text-gray-900">
 									Sale Details
 								</h3>
-								<div className="mt-1 space-y-1 text-xs text-gray-500">
+							<div className="mt-1 space-y-1 text-xs text-gray-500">
+								<div>Sale Type: {selectedSale.SaleType || "-"}</div>
 									{canViewInvoices && selectedSale.payment?.InvoiceNumber && (
 										<div>
 											Invoice: {selectedSale.payment.InvoiceNumber}
@@ -649,22 +661,26 @@ export default function SaleHistoryTabs({
 								</div>
 							</div>
 							<div className="flex flex-wrap justify-end gap-2">
-								{canExportInvoices && selectedSale.payment?.InvoiceNumber && (
+								{canViewInvoices &&
+									selectedSale.SaleType === "JobOrder" &&
+									selectedSale.payment?.InvoiceNumber && (
 									<button
 										type="button"
-										onClick={() => handleExportInvoice(selectedSale)}
+										onClick={() => openInvoicePreview(selectedSale)}
 										className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 									>
-										Export Invoice PDF
+										Preview Invoice
 									</button>
 								)}
-								{canExportReceipts && selectedSale.payment?.ReceiptNumber && (
+								{canViewReceipts &&
+									selectedSale.SaleType === "JobOrder" &&
+									selectedSale.payment?.ReceiptNumber && (
 									<button
 										type="button"
-										onClick={() => handleExportReceipt(selectedSale)}
+										onClick={() => openReceiptPreview(selectedSale)}
 										className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 									>
-										Export Receipt PDF
+										Preview Receipt
 									</button>
 								)}
 							</div>
@@ -787,8 +803,10 @@ export default function SaleHistoryTabs({
 										<tbody className="divide-y divide-gray-200 bg-white">
 											{selectedSaleCustomOrderLines.map((line) => (
 												<tr key={`custom-order-line-${line.ID}`}>
-													<td className="px-3 py-2 text-gray-900">
-														{line.CustomOrderDescription || "-"}
+													<td className="px-3 py-2 text-gray-900 align-top">
+														<div className="max-w-md whitespace-pre-wrap break-words">
+															{line.CustomOrderDescription || "-"}
+														</div>
 													</td>
 													<td className="px-3 py-2 text-gray-700">
 														{line.Quantity ?? "-"}
@@ -859,15 +877,15 @@ export default function SaleHistoryTabs({
 													{formatDateTime(payment.DateAdded)}
 												</td>
 												<td className="px-3 py-2 text-right">
-													{canExportReceipts && payment.ReceiptNumber ? (
+													{canViewReceipts && payment.ReceiptNumber ? (
 														<button
 															type="button"
 															onClick={() =>
-																handleExportReceipt(selectedSale, payment)
+																openReceiptPreview(selectedSale, payment)
 															}
 															className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
 														>
-															Receipt PDF
+															Preview Receipt
 														</button>
 													) : (
 														<span className="text-xs text-gray-400">-</span>
@@ -901,6 +919,25 @@ export default function SaleHistoryTabs({
 					</div>
 				)}
 			</Modal>
+
+			<SaleDocumentPreviewModal
+				show={Boolean(documentPreview.type && documentPreview.sale)}
+				onClose={() =>
+					setDocumentPreview({
+						type: null,
+						sale: null,
+						receiptPayment: null,
+					})
+				}
+				sale={documentPreview.sale}
+				type={documentPreview.type || "invoice"}
+				receiptPayment={documentPreview.receiptPayment}
+				canExport={
+					documentPreview.type === "invoice"
+						? canExportInvoices
+						: canExportReceipts
+				}
+			/>
 
 			<Modal
 				show={isPaymentModalOpen && canRecordSalePayment}

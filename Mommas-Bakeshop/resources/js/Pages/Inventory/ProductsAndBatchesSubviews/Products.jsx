@@ -3,6 +3,11 @@ import { useForm } from "@inertiajs/react";
 import { useEffect } from "react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
+import {
+	clearPendingProductsBatchesFooterAction,
+	getPendingProductsBatchesFooterAction,
+	PRODUCTS_BATCHES_FOOTER_ACTIONS,
+} from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
 
 export default function Products({
@@ -375,6 +380,19 @@ export default function Products({
 			});
 		};
 	}, [setFooterActions, canCreateProduct, canCreateProductCategory, canUpdateProductCategory, canDeleteProductCategory]);
+
+	useEffect(() => {
+		const pendingAction = getPendingProductsBatchesFooterAction();
+		if (pendingAction === PRODUCTS_BATCHES_FOOTER_ACTIONS.ADD_PRODUCT) {
+			clearPendingProductsBatchesFooterAction();
+			openAddModal();
+			return;
+		}
+		if (pendingAction === PRODUCTS_BATCHES_FOOTER_ACTIONS.MODIFY_CATEGORIES) {
+			clearPendingProductsBatchesFooterAction();
+			openModifyCategories();
+		}
+	}, [canCreateProduct, canCreateProductCategory, canUpdateProductCategory, canDeleteProductCategory]);
 
 	return (
 		<div className="flex flex-col flex-1 w-full relative overflow-hidden min-h-0">
