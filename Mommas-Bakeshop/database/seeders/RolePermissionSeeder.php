@@ -92,6 +92,13 @@ class RolePermissionSeeder extends Seeder {
 				'CanUpdatePermissionGroup',
 				'CanDeletePermissionGroup',
 				'CanViewAudits',
+				'CanViewDatabase',
+				'CanCreateDatabaseSnapshot',
+				'CanCreateDatabaseIncremental',
+				'CanRestoreDatabaseBackup',
+				'CanManageDatabaseBackupSettings',
+				'CanCleanupDatabaseBackups',
+				'CanDownloadDatabaseBackup',
 			],
 
 			// POS-focused access.

@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DatabaseController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
@@ -137,6 +138,13 @@ Route::middleware('auth')->group(function () {
   Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->middleware('permission:CanUpdateUser')->name('admin.users.update');
   Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->middleware('permission:CanDeleteUser')->name('admin.users.destroy');
   Route::get('/admin/audits', [\App\Http\Controllers\AuditController::class, 'index'])->middleware('permission:CanViewAudits')->name('admin.audits');
+  Route::get('/admin/database', [DatabaseController::class, 'index'])->middleware('permission:CanViewDatabase')->name('admin.database');
+  Route::post('/admin/database/snapshots', [DatabaseController::class, 'storeSnapshot'])->middleware('permission:CanCreateDatabaseSnapshot')->name('admin.database.snapshots.store');
+  Route::post('/admin/database/incrementals', [DatabaseController::class, 'storeIncremental'])->middleware('permission:CanCreateDatabaseIncremental')->name('admin.database.incrementals.store');
+  Route::post('/admin/database/backups/{id}/restore', [DatabaseController::class, 'restore'])->middleware('permission:CanRestoreDatabaseBackup')->name('admin.database.restore');
+  Route::put('/admin/database/settings', [DatabaseController::class, 'updateSettings'])->middleware('permission:CanManageDatabaseBackupSettings')->name('admin.database.settings.update');
+  Route::post('/admin/database/cleanup', [DatabaseController::class, 'cleanup'])->middleware('permission:CanCleanupDatabaseBackups')->name('admin.database.cleanup');
+  Route::get('/admin/database/backups/{id}/download', [DatabaseController::class, 'download'])->middleware('permission:CanDownloadDatabaseBackup')->name('admin.database.download');
 });
 
 
