@@ -93,8 +93,14 @@ class RolePermissionSeeder extends Seeder {
 				'CanDeletePermissionGroup',
 				'CanViewAudits',
 				'CanViewDatabase',
+				'CanManageDatabaseConnections',
+				'CanTestDatabaseConnections',
+				'CanInitializeRemoteDatabase',
+				'CanRunDatabaseSchemaReport',
+				'CanTransferDatabaseToRemote',
 				'CanCreateDatabaseSnapshot',
 				'CanCreateDatabaseIncremental',
+				'CanVerifyDatabaseBackup',
 				'CanRestoreDatabaseBackup',
 				'CanManageDatabaseBackupSettings',
 				'CanCleanupDatabaseBackups',
@@ -190,7 +196,7 @@ class RolePermissionSeeder extends Seeder {
 				->where('RoleID', $role->ID)
 				->where('Allowable', true)
 				->pluck('PermissionID')
-				->map(fn ($id) => (int) $id)
+				->map(fn($id) => (int) $id)
 				->all();
 
 			if ($role->RoleName === 'Owner' && count($allowedPermissionIds) === 0) {
