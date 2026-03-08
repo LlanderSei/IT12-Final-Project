@@ -21,8 +21,8 @@ return new class extends Migration {
 		Schema::create('permission_groups', function (Blueprint $table) {
 			$table->id('ID');
 			$table->string('GroupName')->unique();
-			$table->string('GroupDescription')->nullable();
-			$table->unsignedBigInteger('DisplayOrder')->default(0);
+			$table->text('GroupDescription')->nullable();
+			$table->unsignedInteger('DisplayOrder')->default(0);
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
 		});
@@ -314,9 +314,19 @@ return new class extends Migration {
 			$table->index(['TableName', 'RecordID']);
 			$table->index(['ChangedAt']);
 		});
+
+		Schema::create('database_backup_settings', function (Blueprint $table) {
+			$table->id('ID');
+			$table->unsignedInteger('SnapshotRetentionCount')->default(10);
+			$table->unsignedInteger('IncrementalRetentionCount')->default(30);
+			$table->boolean('DeleteFailedBackups')->default(false);
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
+		});
 	}
 
 	public function down(): void {
+		Schema::dropIfExists('database_backup_settings');
 		Schema::dropIfExists('database_backup_changes');
 		Schema::dropIfExists('database_backups');
 		Schema::dropIfExists('inventory_leftovers');

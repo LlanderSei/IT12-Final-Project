@@ -139,8 +139,15 @@ Route::middleware('auth')->group(function () {
   Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->middleware('permission:CanDeleteUser')->name('admin.users.destroy');
   Route::get('/admin/audits', [\App\Http\Controllers\AuditController::class, 'index'])->middleware('permission:CanViewAudits')->name('admin.audits');
   Route::get('/admin/database', [DatabaseController::class, 'index'])->middleware('permission:CanViewDatabase')->name('admin.database');
+  Route::put('/admin/database/connections/remote', [DatabaseController::class, 'saveConnectionSettings'])->middleware('permission:CanManageDatabaseConnections')->name('admin.database.connections.remote.update');
+  Route::post('/admin/database/connections/test', [DatabaseController::class, 'testConnection'])->middleware('permission:CanTestDatabaseConnections')->name('admin.database.connections.test');
+  Route::post('/admin/database/connections/initialize', [DatabaseController::class, 'initializeRemoteConnection'])->middleware('permission:CanInitializeRemoteDatabase')->name('admin.database.connections.initialize');
+  Route::post('/admin/database/connections/schema-report', [DatabaseController::class, 'schemaReport'])->middleware('permission:CanRunDatabaseSchemaReport')->name('admin.database.connections.schema-report');
+  Route::post('/admin/database/connections/switch', [DatabaseController::class, 'switchConnection'])->middleware('permission:CanManageDatabaseConnections')->name('admin.database.connections.switch');
+  Route::post('/admin/database/transfers/local-to-remote', [DatabaseController::class, 'transferLocalToRemote'])->middleware('permission:CanTransferDatabaseToRemote')->name('admin.database.transfers.local-to-remote');
   Route::post('/admin/database/snapshots', [DatabaseController::class, 'storeSnapshot'])->middleware('permission:CanCreateDatabaseSnapshot')->name('admin.database.snapshots.store');
   Route::post('/admin/database/incrementals', [DatabaseController::class, 'storeIncremental'])->middleware('permission:CanCreateDatabaseIncremental')->name('admin.database.incrementals.store');
+  Route::post('/admin/database/backups/{id}/verify', [DatabaseController::class, 'verify'])->middleware('permission:CanVerifyDatabaseBackup')->name('admin.database.verify');
   Route::post('/admin/database/backups/{id}/restore', [DatabaseController::class, 'restore'])->middleware('permission:CanRestoreDatabaseBackup')->name('admin.database.restore');
   Route::put('/admin/database/settings', [DatabaseController::class, 'updateSettings'])->middleware('permission:CanManageDatabaseBackupSettings')->name('admin.database.settings.update');
   Route::post('/admin/database/cleanup', [DatabaseController::class, 'cleanup'])->middleware('permission:CanCleanupDatabaseBackups')->name('admin.database.cleanup');

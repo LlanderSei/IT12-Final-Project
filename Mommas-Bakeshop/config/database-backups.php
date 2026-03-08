@@ -33,4 +33,6 @@ return [
     ],
     'snapshot_directory' => 'backups/snapshots',
     'incremental_directory' => 'backups/incrementals',
+    'lock_name' => 'mommas_bakeshop_database_backups',
+    'lock_timeout_seconds' => 15,
 ];
