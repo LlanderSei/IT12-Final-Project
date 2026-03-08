@@ -694,6 +694,13 @@ class UserManagementController extends Controller {
         'CanUpdatePermissionGroup',
         'CanDeletePermissionGroup',
         'CanViewAudits',
+        'CanViewDatabase',
+        'CanCreateDatabaseSnapshot',
+        'CanCreateDatabaseIncremental',
+        'CanRestoreDatabaseBackup',
+        'CanManageDatabaseBackupSettings',
+        'CanCleanupDatabaseBackups',
+        'CanDownloadDatabaseBackup',
       ],
     ];
   }

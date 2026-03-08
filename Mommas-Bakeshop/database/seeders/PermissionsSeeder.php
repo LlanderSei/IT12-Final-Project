@@ -23,6 +23,7 @@ class PermissionsSeeder extends Seeder {
 			['GroupName' => 'Reports', 'GroupDescription' => 'Reports viewing and export access.', 'DisplayOrder' => 9],
 			['GroupName' => 'User Management', 'GroupDescription' => 'Users, permissions, and roles administration.', 'DisplayOrder' => 10],
 			['GroupName' => 'Audits', 'GroupDescription' => 'Audit history access.', 'DisplayOrder' => 11],
+			['GroupName' => 'Database', 'GroupDescription' => 'Database backup management and local backup downloads.', 'DisplayOrder' => 12],
 		];
 		foreach ($groups as $group) {
 			PermissionGroup::updateOrCreate(
@@ -114,6 +115,13 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanUpdatePermissionGroup', 'PermissionDescription' => 'Can edit permission groups.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanDeletePermissionGroup', 'PermissionDescription' => 'Can delete permission groups that are no longer assigned.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanViewAudits', 'PermissionDescription' => 'Can read audit logs and details.', 'PermissionGroup' => 'Audits'],
+			['PermissionName' => 'CanViewDatabase', 'PermissionDescription' => 'Can access the database backup administration page.', 'PermissionGroup' => 'Database'],
+			['PermissionName' => 'CanCreateDatabaseSnapshot', 'PermissionDescription' => 'Can create full snapshot backups locally.', 'PermissionGroup' => 'Database'],
+			['PermissionName' => 'CanCreateDatabaseIncremental', 'PermissionDescription' => 'Can create incremental backups from the database change log.', 'PermissionGroup' => 'Database'],
+			['PermissionName' => 'CanRestoreDatabaseBackup', 'PermissionDescription' => 'Can restore local database backups and create a fresh post-restore baseline.', 'PermissionGroup' => 'Database'],
+			['PermissionName' => 'CanManageDatabaseBackupSettings', 'PermissionDescription' => 'Can update local backup retention and cleanup settings.', 'PermissionGroup' => 'Database'],
+			['PermissionName' => 'CanCleanupDatabaseBackups', 'PermissionDescription' => 'Can delete old local backups using the configured retention rules.', 'PermissionGroup' => 'Database'],
+			['PermissionName' => 'CanDownloadDatabaseBackup', 'PermissionDescription' => 'Can download generated database backup files.', 'PermissionGroup' => 'Database'],
 
 			// Deferred:
 			// Sales and Shrinkage report tab permissions are intentionally postponed
