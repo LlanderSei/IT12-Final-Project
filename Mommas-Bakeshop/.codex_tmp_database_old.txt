@@ -36,6 +36,8 @@ export default function Database({
 	settings = {},
 	connectionStatus = {},
 	ongoingOperation = null,
+	maintenanceOperation = null,
+	maintenanceOperations = [],
 }) {
 	const { can, requirePermission } = usePermissions();
 	const canCreateSnapshot = can("CanCreateDatabaseSnapshot");
@@ -84,7 +86,7 @@ export default function Database({
 	const [activeManagementTab, setActiveManagementTab] = useState("connections");
 	const canCreateIncrementalRun =
 		canCreateIncremental && Number(stats.completedBackups || 0) > 0;
-	const hasOngoingOperation = Boolean(ongoingOperation);
+	const hasOngoingOperation = Boolean(ongoingOperation || maintenanceOperation);
 
 	const filteredBackups = useMemo(() => {
 		const query = searchQuery.trim().toLowerCase();
@@ -141,7 +143,15 @@ export default function Database({
 
 		const interval = window.setInterval(() => {
 			router.reload({
-				only: ["backups", "stats", "settings", "ongoingOperation"],
+				only: [
+					"backups",
+					"stats",
+					"settings",
+					"ongoingOperation",
+					"maintenanceOperation",
+					"maintenanceOperations",
+					"connectionStatus",
+				],
 				preserveScroll: true,
 				preserveState: true,
 			});
@@ -401,7 +411,7 @@ export default function Database({
 
 			<div className="flex flex-1 flex-col overflow-hidden min-h-0">
 				<div className="mx-auto flex w-full flex-1 flex-col overflow-hidden min-h-0 p-6 gap-6">
-					{hasOngoingOperation && (
+					{ongoingOperation && (
 						<div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
 							<div className="font-medium">
 								Backup job in progress: {ongoingOperation.BackupType} #
@@ -417,6 +427,46 @@ export default function Database({
 							{ongoingOperation.Notes && (
 								<div className="mt-1 break-words text-xs text-amber-800">
 									Notes: {ongoingOperation.Notes}
+								</div>
+							)}
+						</div>
+					)}
+					{maintenanceOperation && (
+						<div
+							className={`rounded-lg border px-4 py-3 text-sm ${
+								maintenanceOperation.LockWrites
+									? "border-red-200 bg-red-50 text-red-900"
+									: "border-sky-200 bg-sky-50 text-sky-900"
+							}`}
+						>
+							<div className="font-medium">
+								Maintenance job in progress: {maintenanceOperation.Title} #
+								{maintenanceOperation.id}
+							</div>
+							<div
+								className={`mt-1 text-xs ${
+									maintenanceOperation.LockWrites
+										? "text-red-800"
+										: "text-sky-800"
+								}`}
+							>
+								Status: {maintenanceOperation.Status}.
+								{maintenanceOperation.CreatedBy
+									? ` Started by ${maintenanceOperation.CreatedBy}.`
+									: ""}
+								{maintenanceOperation.LockWrites
+									? " Write actions across the system are locked until this job completes."
+									: " This job does not lock transactional writes."}
+							</div>
+							{maintenanceOperation.Notes && (
+								<div
+									className={`mt-1 break-words text-xs ${
+										maintenanceOperation.LockWrites
+											? "text-red-800"
+											: "text-sky-800"
+									}`}
+								>
+									Notes: {maintenanceOperation.Notes}
 								</div>
 							)}
 						</div>
@@ -669,6 +719,74 @@ export default function Database({
 
 						<div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
 							<div className="border-b border-gray-200 px-5 pt-5">
+								<div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+									<div className="flex items-start justify-between gap-3">
+										<div>
+											<h4 className="text-sm font-semibold text-gray-900">
+												Maintenance Jobs
+											</h4>
+											<p className="mt-1 text-xs text-gray-500">
+												Queued and running database maintenance actions are tracked here.
+											</p>
+										</div>
+										<div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700">
+											{formatCountLabel(
+												(maintenanceOperations || []).length,
+												"job",
+											)}
+										</div>
+									</div>
+									<div className="mt-4 max-h-44 space-y-2 overflow-y-auto">
+										{(maintenanceOperations || []).length > 0 ? (
+											maintenanceOperations.map((operation) => (
+												<div
+													key={operation.id}
+													className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700"
+												>
+													<div className="flex items-center justify-between gap-3">
+														<div className="font-medium text-gray-900">
+															{operation.Title}
+														</div>
+														<span
+															className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+																operation.Status === "Completed"
+																	? "bg-emerald-100 text-emerald-700"
+																	: operation.Status === "Failed"
+																		? "bg-red-100 text-red-700"
+																		: "bg-amber-100 text-amber-700"
+															}`}
+														>
+															{operation.Status}
+														</span>
+													</div>
+													<div className="mt-1 text-[11px] text-gray-500">
+														{operation.OperationType} #{operation.id}
+														{operation.CreatedBy ? ` • ${operation.CreatedBy}` : ""}
+														{operation.StartedAt
+															? ` • ${formatDateTime(operation.StartedAt)}`
+															: operation.DateAdded
+																? ` • ${formatDateTime(operation.DateAdded)}`
+																: ""}
+													</div>
+													{operation.FailureMessage && (
+														<div className="mt-2 break-words text-[11px] text-red-600">
+															{operation.FailureMessage}
+														</div>
+													)}
+													{operation.Result?.message && (
+														<div className="mt-2 break-words text-[11px] text-emerald-700">
+															{operation.Result.message}
+														</div>
+													)}
+												</div>
+											))
+										) : (
+											<div className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500">
+												No maintenance jobs recorded yet.
+											</div>
+										)}
+									</div>
+								</div>
 								<div className="flex items-center justify-between gap-3">
 									<div>
 										<h3 className="text-sm font-semibold text-gray-900">

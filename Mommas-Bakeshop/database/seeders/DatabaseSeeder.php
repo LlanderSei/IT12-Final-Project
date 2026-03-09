@@ -18,10 +18,10 @@ class DatabaseSeeder extends Seeder {
 		// User::factory(10)->create();
 
 		$roles = [
-			['RoleName' => 'Owner', 'RoleDescription' => 'Business owner with full access.', 'RoleRank' => 1],
-			['RoleName' => 'Admin', 'RoleDescription' => 'Administrative access for operations.', 'RoleRank' => 2],
-			['RoleName' => 'Cashier', 'RoleDescription' => 'Sales and payment handling access.', 'RoleRank' => 3],
-			['RoleName' => 'Clerk', 'RoleDescription' => 'Basic operational access.', 'RoleRank' => 4],
+			['RoleName' => 'Owner', 'RoleDescription' => 'Business owner with full access.', 'RoleColor' => '#2563EB', 'RoleRank' => 1],
+			['RoleName' => 'Admin', 'RoleDescription' => 'Administrative access for operations.', 'RoleColor' => '#7C3AED', 'RoleRank' => 2],
+			['RoleName' => 'Cashier', 'RoleDescription' => 'Sales and payment handling access.', 'RoleColor' => '#F59E0B', 'RoleRank' => 3],
+			['RoleName' => 'Clerk', 'RoleDescription' => 'Basic operational access.', 'RoleColor' => '#10B981', 'RoleRank' => 4],
 		];
 
 		foreach ($roles as $role) {
@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder {
 				['RoleName' => $role['RoleName']],
 				[
 					'RoleDescription' => $role['RoleDescription'],
+					'RoleColor' => $role['RoleColor'],
 					'RoleRank' => $role['RoleRank'],
 					'DateModified' => now(),
 				]

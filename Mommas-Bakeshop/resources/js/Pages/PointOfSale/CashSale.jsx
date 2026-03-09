@@ -642,10 +642,14 @@ export default function CashSale({
 											disabled={!canProcessSelectedTransaction}
 											className="text-left border border-gray-200 rounded-lg p-3 hover:border-primary hover:bg-primary-soft transition-colors"
 										>
+											{(() => {
+												const productImageSrc =
+													product.ProductImageUrl || product.ProductImage || null;
+												return (
 											<div className="h-28 bg-gray-100 rounded-md mb-2 overflow-hidden">
-												{product.ProductImage ? (
+												{productImageSrc ? (
 													<img
-														src={product.ProductImage}
+														src={productImageSrc}
 														alt={product.ProductName}
 														className="w-full h-full object-cover"
 														onError={(e) => {
@@ -658,12 +662,14 @@ export default function CashSale({
 												<div
 													className="w-full h-full flex items-center justify-center text-xs text-gray-500"
 													style={{
-														display: product.ProductImage ? "none" : "flex",
+														display: productImageSrc ? "none" : "flex",
 													}}
 												>
 													No Image
 												</div>
 											</div>
+												);
+											})()}
 											<p className="font-semibold text-gray-900 text-sm truncate">
 												{product.ProductName}
 											</p>

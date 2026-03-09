@@ -323,9 +323,36 @@ return new class extends Migration {
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
 		});
+
+		$controlSchema = Schema::connection('mysql_control');
+		if (!$controlSchema->hasTable('system_operations')) {
+			$controlSchema->create('system_operations', function (Blueprint $table) {
+				$table->id('ID');
+				$table->foreignId('UserID')->nullable()->constrained('users', 'id')->nullOnDelete();
+				$table->string('CreatedByName')->nullable();
+				$table->string('Scope', 100)->default('Database');
+				$table->string('OperationType', 150);
+				$table->string('Title', 255);
+				$table->enum('Status', ['Pending', 'Running', 'Completed', 'Failed'])->default('Pending');
+				$table->boolean('LockWrites')->default(false);
+				$table->json('Payload')->nullable();
+				$table->json('Result')->nullable();
+				$table->text('Notes')->nullable();
+				$table->text('FailureMessage')->nullable();
+				$table->timestamp('StartedAt')->nullable();
+				$table->timestamp('CompletedAt')->nullable();
+				$table->timestamp('DateAdded')->useCurrent();
+				$table->timestamp('DateModified')->useCurrent();
+
+				$table->index(['Scope', 'Status']);
+				$table->index(['LockWrites', 'Status']);
+				$table->index(['OperationType', 'Status']);
+			});
+		}
 	}
 
 	public function down(): void {
+		Schema::connection('mysql_control')->dropIfExists('system_operations');
 		Schema::dropIfExists('database_backup_settings');
 		Schema::dropIfExists('database_backup_changes');
 		Schema::dropIfExists('database_backups');

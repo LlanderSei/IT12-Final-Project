@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'permission' => \App\Http\Middleware\EnsurePermission::class,
+            'maintenance.lock' => \App\Http\Middleware\EnsureNoMaintenanceWriteLock::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

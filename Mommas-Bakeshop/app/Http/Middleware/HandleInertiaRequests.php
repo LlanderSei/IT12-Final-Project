@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Audit;
+use App\Services\SystemOperationService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,6 +30,22 @@ class HandleInertiaRequests extends Middleware {
   public function share(Request $request): array {
     $user = $request->user();
     $user?->loadMissing('role');
+    $operationService = app(SystemOperationService::class);
+    $maintenanceOperation = $operationService->activeWriteLock();
+    $recentMaintenanceOperations = $operationService
+      ->recent('Database', 10)
+      ->map(fn($operation) => [
+        'id' => (int) $operation->ID,
+        'title' => $operation->Title,
+        'type' => $operation->OperationType,
+        'status' => $operation->Status,
+        'notes' => $operation->Notes,
+        'failureMessage' => $operation->FailureMessage,
+        'completedAt' => optional($operation->CompletedAt)->toIso8601String(),
+        'startedAt' => optional($operation->StartedAt ?? $operation->DateAdded)->toIso8601String(),
+      ])
+      ->values()
+      ->all();
     $recentAudits = collect();
     if ($user) {
       $recentAudits = Audit::query()
@@ -48,6 +65,7 @@ class HandleInertiaRequests extends Middleware {
           'email' => $user->email,
           'role'  => strtolower($user->role?->RoleName ?? 'admin'),
           'roleLabel' => $user->role?->RoleName ?? 'Admin',
+          'roleColor' => $user->role?->RoleColor ?? '#6B7280',
           'roleRank' => $user->role?->RoleRank,
           'permissions' => $user->permissionNames()->all(),
           'recentAudits' => $recentAudits->map(fn($audit) => [
@@ -64,6 +82,18 @@ class HandleInertiaRequests extends Middleware {
         'success' => $request->session()->get('success'),
         'error'   => $request->session()->get('error'),
         'documentPayload' => $request->session()->get('documentPayload'),
+      ],
+      'system' => [
+        'maintenance' => $maintenanceOperation ? [
+          'id' => (int) $maintenanceOperation->ID,
+          'title' => $maintenanceOperation->Title,
+          'type' => $maintenanceOperation->OperationType,
+          'status' => $maintenanceOperation->Status,
+          'notes' => $maintenanceOperation->Notes,
+          'createdBy' => $maintenanceOperation->CreatedByName,
+          'startedAt' => optional($maintenanceOperation->StartedAt ?? $maintenanceOperation->DateAdded)->toIso8601String(),
+        ] : null,
+        'recentMaintenanceOperations' => $recentMaintenanceOperations,
       ],
     ];
   }

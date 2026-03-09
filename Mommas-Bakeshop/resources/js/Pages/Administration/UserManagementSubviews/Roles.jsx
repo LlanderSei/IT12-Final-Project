@@ -32,6 +32,8 @@ const showErrorToast = (message) => {
 	);
 };
 
+const DEFAULT_ROLE_COLOR = "#6B7280";
+
 function PermissionChecklistColumn({
 	title,
 	columnKey,
@@ -93,6 +95,7 @@ export default function Roles({
 	const [form, setForm] = useState({
 		RoleName: "",
 		RoleDescription: "",
+		RoleColor: DEFAULT_ROLE_COLOR,
 		permissions: createEmptyPermissions(permissionGroups),
 	});
 	const [errors, setErrors] = useState({});
@@ -133,11 +136,13 @@ export default function Roles({
 
 	const canManageRole = (role) => currentRank <= Number(role?.RoleRank ?? Number.MAX_SAFE_INTEGER);
 	const isOwnerRole = (role) => Boolean(role?.IsSystemOwner);
+	const isEditingOwnerRole = isOwnerRole(editingRole);
 
 	const resetForm = () => {
 		setForm({
 			RoleName: "",
 			RoleDescription: "",
+			RoleColor: DEFAULT_ROLE_COLOR,
 			permissions: createEmptyPermissions(permissionGroups),
 		});
 		setErrors({});
@@ -152,10 +157,6 @@ export default function Roles({
 
 	const openEditModal = (role) => {
 		if (!canUpdateRole) return requirePermission("CanUpdateRole");
-		if (isOwnerRole(role)) {
-			showErrorToast("The Owner role is locked and cannot be edited.");
-			return;
-		}
 		if (!canManageRole(role)) {
 			showErrorToast("You can only edit roles with the same rank or lower.");
 			return;
@@ -164,6 +165,7 @@ export default function Roles({
 		setForm({
 			RoleName: role.RoleName || "",
 			RoleDescription: role.RoleDescription || "",
+			RoleColor: role.RoleColor || DEFAULT_ROLE_COLOR,
 			permissions: { ...createEmptyPermissions(permissionGroups), ...(role.permissions || {}) },
 		});
 		setErrors({});
@@ -202,6 +204,7 @@ export default function Roles({
 		const payload = {
 			RoleName: form.RoleName,
 			RoleDescription: form.RoleDescription,
+			RoleColor: form.RoleColor,
 			permissions: form.permissions,
 		};
 		const options = {
@@ -315,6 +318,7 @@ export default function Roles({
 									<thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
 										<tr>
 											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
+											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Color</th>
 											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Description</th>
 											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Rank</th>
 											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Users</th>
@@ -324,7 +328,7 @@ export default function Roles({
 									</thead>
 									<tbody className="divide-y divide-gray-200 bg-white">
 										{filteredRoles.map((role) => {
-											const canEdit = canUpdateRole && !isOwnerRole(role) && canManageRole(role);
+											const canEdit = canUpdateRole && canManageRole(role);
 											const canDelete =
 												canDeleteRole &&
 												!isOwnerRole(role) &&
@@ -339,6 +343,17 @@ export default function Roles({
 																System Locked
 															</span>
 														)}
+													</td>
+													<td className="px-6 py-4 text-sm text-gray-700">
+														<div className="flex items-center gap-3">
+															<span
+																className="h-5 w-5 rounded-full border border-gray-200"
+																style={{ backgroundColor: role.RoleColor || DEFAULT_ROLE_COLOR }}
+															/>
+															<span className="font-mono text-xs uppercase">
+																{role.RoleColor || DEFAULT_ROLE_COLOR}
+															</span>
+														</div>
 													</td>
 													<td className="px-6 py-4 text-sm text-gray-700">{role.RoleDescription || "-"}</td>
 													<td className="px-6 py-4 text-sm text-gray-700">#{role.RoleRank}</td>
@@ -370,7 +385,7 @@ export default function Roles({
 										})}
 										{filteredRoles.length === 0 && (
 											<tr>
-												<td colSpan="6" className="px-6 py-10 text-center text-sm text-gray-500">
+												<td colSpan="7" className="px-6 py-10 text-center text-sm text-gray-500">
 													No roles found.
 												</td>
 											</tr>
@@ -410,7 +425,9 @@ export default function Roles({
 						{editingRole ? "Edit Role Preset" : "Add Role"}
 					</h3>
 					<p className="mt-2 text-sm text-gray-500">
-						Role preset changes re-sync users currently assigned to that role.
+						{isEditingOwnerRole
+							? "Owner keeps its locked name, description, rank, and permissions. Only the badge color can be changed."
+							: "Role preset changes re-sync users currently assigned to that role."}
 					</p>
 					<div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
 						<div>
@@ -422,7 +439,8 @@ export default function Roles({
 								type="text"
 								value={form.RoleName}
 								onChange={(e) => setForm((prev) => ({ ...prev, RoleName: e.target.value }))}
-								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								disabled={isEditingOwnerRole}
+								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 sm:text-sm"
 							/>
 							{errors.RoleName && <p className="mt-2 text-sm text-red-600">{errors.RoleName}</p>}
 						</div>
@@ -435,9 +453,32 @@ export default function Roles({
 								type="text"
 								value={form.RoleDescription}
 								onChange={(e) => setForm((prev) => ({ ...prev, RoleDescription: e.target.value }))}
-								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								disabled={isEditingOwnerRole}
+								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 sm:text-sm"
 							/>
 							{errors.RoleDescription && <p className="mt-2 text-sm text-red-600">{errors.RoleDescription}</p>}
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700" htmlFor="role-color">
+								Role Color
+							</label>
+							<div className="mt-1 flex items-center gap-3">
+								<input
+									id="role-color"
+									type="color"
+									value={form.RoleColor}
+									onChange={(e) => setForm((prev) => ({ ...prev, RoleColor: e.target.value.toUpperCase() }))}
+									className="h-10 w-16 cursor-pointer rounded-md border border-gray-300 bg-white p-1 shadow-sm"
+								/>
+								<input
+									type="text"
+									value={form.RoleColor}
+									onChange={(e) => setForm((prev) => ({ ...prev, RoleColor: e.target.value.toUpperCase() }))}
+									className="block w-full rounded-md border-gray-300 font-mono uppercase shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+									placeholder={DEFAULT_ROLE_COLOR}
+								/>
+							</div>
+							{errors.RoleColor && <p className="mt-2 text-sm text-red-600">{errors.RoleColor}</p>}
 						</div>
 					</div>
 					{errors.permissions && <p className="mt-4 text-sm text-red-600">{errors.permissions}</p>}
@@ -447,7 +488,7 @@ export default function Roles({
 							columnKey="cashierLevel"
 							permissions={permissionGroups.cashierLevel || []}
 							selectedPermissions={form.permissions}
-							disabled={currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.cashierLevel}
+							disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.cashierLevel}
 							onToggle={togglePermission}
 						/>
 						<PermissionChecklistColumn
@@ -455,7 +496,7 @@ export default function Roles({
 							columnKey="clerkLevel"
 							permissions={permissionGroups.clerkLevel || []}
 							selectedPermissions={form.permissions}
-							disabled={currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.clerkLevel}
+							disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.clerkLevel}
 							onToggle={togglePermission}
 						/>
 						<PermissionChecklistColumn
@@ -463,7 +504,7 @@ export default function Roles({
 							columnKey="adminLevel"
 							permissions={permissionGroups.adminLevel || []}
 							selectedPermissions={form.permissions}
-							disabled={currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.adminLevel}
+							disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.adminLevel}
 							onToggle={togglePermission}
 						/>
 					</div>

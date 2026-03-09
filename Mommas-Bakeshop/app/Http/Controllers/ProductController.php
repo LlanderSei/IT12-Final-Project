@@ -11,11 +11,15 @@ use App\Models\ProductionBatchDetail;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller {
   public function index(Request $request) {
-    $products = Product::with('category')->get();
+    $products = Product::with('category')
+      ->get()
+      ->map(fn ($product) => $this->transformProductForView($product))
+      ->values();
     $categories = Category::all();
     $batches = ProductionBatchDetail::with(['user', 'batches.product'])
       ->orderBy('DateAdded', 'desc')
@@ -128,15 +132,19 @@ class ProductController extends Controller {
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
-      'ProductImage' => 'nullable|string',
+      'ProductImage' => 'nullable|file|image|max:5120',
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
+
+    $productImagePath = $request->hasFile('ProductImage')
+      ? $request->file('ProductImage')->store('products', 'public')
+      : null;
 
     Product::create([
       'ProductName' => $data['ProductName'],
       'ProductDescription' => $data['ProductDescription'] ?? '',
       'CategoryID' => $data['CategoryID'],
-      'ProductImage' => $data['ProductImage'] ?? 'default.png',
+      'ProductImage' => $productImagePath,
       'Price' => $data['Price'],
       'Quantity' => '0',
       'LowStockThreshold' => $data['LowStockThreshold'] ?? 10,
@@ -155,15 +163,27 @@ class ProductController extends Controller {
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
-      'ProductImage' => 'nullable|string',
+      'ProductImage' => 'nullable|file|image|max:5120',
+      'RemoveProductImage' => 'nullable|boolean',
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
+
+    $removeProductImage = filter_var($request->input('RemoveProductImage', false), FILTER_VALIDATE_BOOL);
+    $productImagePath = $product->ProductImage;
+
+    if ($request->hasFile('ProductImage')) {
+      $productImagePath = $request->file('ProductImage')->store('products', 'public');
+      $this->deleteProductImage($product->ProductImage);
+    } elseif ($removeProductImage) {
+      $this->deleteProductImage($product->ProductImage);
+      $productImagePath = null;
+    }
 
     $product->update([
       'ProductName' => $data['ProductName'],
       'ProductDescription' => $data['ProductDescription'] ?? $product->ProductDescription,
       'CategoryID' => $data['CategoryID'],
-      'ProductImage' => $data['ProductImage'] ?? $product->ProductImage,
+      'ProductImage' => $productImagePath,
       'Price' => $data['Price'],
       'LowStockThreshold' => $data['LowStockThreshold'] ?? $product->LowStockThreshold,
       'DateModified' => now(),
@@ -174,6 +194,7 @@ class ProductController extends Controller {
 
   public function destroy($id) {
     $product = Product::findOrFail($id);
+    $this->deleteProductImage($product->ProductImage);
     $product->delete();
 
     return redirect()->back()->with('success', 'Product deleted successfully.');
@@ -272,5 +293,43 @@ class ProductController extends Controller {
     }
 
     return [$rows, $totalQuantity];
+  }
+
+  private function transformProductForView(Product $product): Product {
+    $product->ProductImageUrl = $this->resolveProductImageUrl($product->ProductImage);
+
+    return $product;
+  }
+
+  private function resolveProductImageUrl(?string $path): ?string {
+    $normalized = trim((string) $path);
+    if ($normalized === '') {
+      return null;
+    }
+
+    if (preg_match('/^(https?:)?\/\//i', $normalized) === 1) {
+      return $normalized;
+    }
+
+    if (str_starts_with($normalized, '/storage/')) {
+      return $normalized;
+    }
+
+    if (Storage::disk('public')->exists($normalized)) {
+      return Storage::disk('public')->url($normalized);
+    }
+
+    return $normalized;
+  }
+
+  private function deleteProductImage(?string $path): void {
+    $normalized = trim((string) $path);
+    if ($normalized === '' || preg_match('/^(https?:)?\/\//i', $normalized) === 1) {
+      return;
+    }
+
+    if (Storage::disk('public')->exists($normalized)) {
+      Storage::disk('public')->delete($normalized);
+    }
   }
 }

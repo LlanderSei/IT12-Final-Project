@@ -236,6 +236,23 @@ trait BuildsReadableAuditChanges {
           'DeleteFailedBackups' => 'Delete Failed Backups',
         ],
       ],
+      'SystemOperation' => [
+        'entity' => 'System Operation',
+        'priority_keys' => ['Scope', 'OperationType', 'Title', 'Status', 'LockWrites', 'StartedAt', 'CompletedAt'],
+        'labels' => [
+          'Scope' => 'Scope',
+          'OperationType' => 'Operation Type',
+          'Title' => 'Title',
+          'Status' => 'Status',
+          'LockWrites' => 'Lock Writes',
+          'Payload' => 'Payload',
+          'Result' => 'Result',
+          'Notes' => 'Notes',
+          'FailureMessage' => 'Failure Message',
+          'StartedAt' => 'Started At',
+          'CompletedAt' => 'Completed At',
+        ],
+      ],
       'RolePresetPermission' => [
         'entity' => 'Role Preset Permission',
         'priority_keys' => ['RoleID', 'PermissionID', 'Allowable'],

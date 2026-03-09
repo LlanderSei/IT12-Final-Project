@@ -47,6 +47,20 @@ const Icon = ({ name, size = 20, style }) => {
 	);
 };
 
+const DEFAULT_ROLE_COLOR = "#6B7280";
+
+const rgbaFromHex = (hex, alpha = 0.12) => {
+	if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+		return `rgba(107,114,128,${alpha})`;
+	}
+
+	const normalized = hex.replace("#", "");
+	const red = parseInt(normalized.slice(0, 2), 16);
+	const green = parseInt(normalized.slice(2, 4), 16);
+	const blue = parseInt(normalized.slice(4, 6), 16);
+	return `rgba(${red},${green},${blue},${alpha})`;
+};
+
 // ─── Navigation Structure (mirrors reference app.js navStructure) ────────────
 const NAV_STRUCTURE = [
 	{
@@ -145,11 +159,25 @@ const NAV_STRUCTURE = [
 			},
 			{
 				id: "admin.database",
-				activeRoutes: ["admin.database"],
+				activeRoutes: [
+					"admin.database",
+					"admin.database.connections",
+					"admin.database.maintenance-jobs",
+					"admin.database.schema",
+					"admin.database.data-transfer",
+					"admin.database.retention",
+				],
 				label: "Database",
 				icon: "database",
 				href: route("admin.database"),
-				requiredPermissions: ["CanViewDatabase"],
+				requiredPermissions: [
+					"CanViewDatabaseBackups",
+					"CanViewDatabaseConnections",
+					"CanViewDatabaseMaintenanceJobs",
+					"CanViewDatabaseSchemaReport",
+					"CanViewDatabaseDataTransfer",
+					"CanViewDatabaseRetentionCleanup",
+				],
 			},
 			{
 				id: "admin.audits",
@@ -163,25 +191,6 @@ const NAV_STRUCTURE = [
 ];
 
 // ─── Role badge colour variants (matches reference .badge.admin/.cashier/.clerk) ─
-const ROLE_BADGE = {
-	owner: {
-		label: "Owner",
-		bg: "rgba(37,99,235,0.12)",
-		color: "#2563EB",
-	},
-	admin: {
-		label: "Administrator",
-		bg: "rgba(139,92,246,0.12)",
-		color: "#7C3AED",
-	},
-	cashier: { label: "Cashier", bg: "rgb(var(--color-primary) / 0.12)", color: "var(--color-primary-hex)" },
-	clerk: {
-		label: "Inventory Clerk",
-		bg: "rgba(16,185,129,0.12)",
-		color: "#10B981",
-	},
-};
-
 // ─── Sidebar Component ────────────────────────────────────────────────────────
 const Sidebar = () => {
 	const { auth } = usePage().props;
@@ -207,6 +216,19 @@ const Sidebar = () => {
 		canViewUserMgmtPermissions ||
 		canViewUserMgmtRoles ||
 		canViewUserMgmtPermissionGroups;
+	const canViewDatabaseBackups = can("CanViewDatabaseBackups");
+	const canViewDatabaseConnections = can("CanViewDatabaseConnections");
+	const canViewDatabaseMaintenanceJobs = can("CanViewDatabaseMaintenanceJobs");
+	const canViewDatabaseSchemaReport = can("CanViewDatabaseSchemaReport");
+	const canViewDatabaseDataTransfer = can("CanViewDatabaseDataTransfer");
+	const canViewDatabaseRetentionCleanup = can("CanViewDatabaseRetentionCleanup");
+	const canViewDatabaseNav =
+		canViewDatabaseBackups ||
+		canViewDatabaseConnections ||
+		canViewDatabaseMaintenanceJobs ||
+		canViewDatabaseSchemaReport ||
+		canViewDatabaseDataTransfer ||
+		canViewDatabaseRetentionCleanup;
 
 	const [isExpanded, setIsExpanded] = useState(() => {
 		if (typeof window === "undefined") return true;
@@ -252,10 +274,13 @@ const Sidebar = () => {
 	}, [theme]);
 
 	const currentRoute = route().current?.() ?? "";
-	const roleMeta = ROLE_BADGE[user.role] ?? {
+	const resolvedRoleColor = /^#[0-9A-Fa-f]{6}$/.test(user.roleColor || "")
+		? user.roleColor.toUpperCase()
+		: DEFAULT_ROLE_COLOR;
+	const roleMeta = {
 		label: user.roleLabel || user.role || "User",
-		bg: "rgba(107,114,128,0.12)",
-		color: "var(--color-text-muted)",
+		bg: rgbaFromHex(resolvedRoleColor, 0.12),
+		color: resolvedRoleColor,
 	};
 	const avatarInitials = user.name
 		? user.name.substring(0, 2).toUpperCase()
@@ -538,6 +563,9 @@ const Sidebar = () => {
 							if (item.id === "admin.users") {
 								return canViewUserMgmtNav;
 							}
+							if (item.id === "admin.database") {
+								return canViewDatabaseNav;
+							}
 							return hasAnyPermission(item.requiredPermissions || []);
 						});
 					if (visibleItems.length === 0) return null;
@@ -619,10 +647,40 @@ const Sidebar = () => {
 															? route("admin.roles")
 															: item.id === "admin.users" &&
 																	!canViewUserMgmtUsers &&
-																	!canViewUserMgmtPermissions &&
-																	!canViewUserMgmtRoles &&
-																	canViewUserMgmtPermissionGroups
+															!canViewUserMgmtPermissions &&
+															!canViewUserMgmtRoles &&
+															canViewUserMgmtPermissionGroups
 																? route("admin.permission-groups")
+														: item.id === "admin.database" &&
+																canViewDatabaseConnections &&
+																!canViewDatabaseBackups
+															? route("admin.database.connections")
+														: item.id === "admin.database" &&
+																!canViewDatabaseBackups &&
+																!canViewDatabaseConnections &&
+																canViewDatabaseMaintenanceJobs
+															? route("admin.database.maintenance-jobs")
+														: item.id === "admin.database" &&
+																!canViewDatabaseBackups &&
+																!canViewDatabaseConnections &&
+																!canViewDatabaseMaintenanceJobs &&
+																canViewDatabaseSchemaReport
+															? route("admin.database.schema")
+														: item.id === "admin.database" &&
+																!canViewDatabaseBackups &&
+																!canViewDatabaseConnections &&
+																!canViewDatabaseMaintenanceJobs &&
+																!canViewDatabaseSchemaReport &&
+																canViewDatabaseDataTransfer
+															? route("admin.database.data-transfer")
+														: item.id === "admin.database" &&
+																!canViewDatabaseBackups &&
+																!canViewDatabaseConnections &&
+																!canViewDatabaseMaintenanceJobs &&
+																!canViewDatabaseSchemaReport &&
+																!canViewDatabaseDataTransfer &&
+																canViewDatabaseRetentionCleanup
+															? route("admin.database.retention")
 														: item.href;
 
 										return (
@@ -805,3 +863,5 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 };
 
 export default Sidebar;
+
+
