@@ -20,8 +20,8 @@ Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('aut
 Route::middleware('auth')->group(function () {
   // Profile
   Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-  Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-  Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+  Route::patch('/profile', [ProfileController::class, 'update'])->middleware('maintenance.lock')->name('profile.update');
+  Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('maintenance.lock')->name('profile.destroy');
 
   // Point of Sale
   Route::get('/pos/cashier', function () {
@@ -37,17 +37,17 @@ Route::middleware('auth')->group(function () {
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistoryPendingPayments'])
     ->name('pos.sale-history.pending');
   Route::get('/pos/shrinkage-history', [PosController::class, 'shrinkageHistory'])->middleware('permission:CanViewShrinkageHistory')->name('pos.shrinkage-history');
-  Route::post('/pos/shrinkage-history', [PosController::class, 'storeShrinkageHistory'])->middleware('permission:CanCreateShrinkageRecord')->name('pos.shrinkage-history.store');
-  Route::put('/pos/shrinkage-history/{id}', [PosController::class, 'updateShrinkageHistory'])->middleware('permission:CanUpdateShrinkageRecord')->name('pos.shrinkage-history.update');
-  Route::delete('/pos/shrinkage-history/{id}', [PosController::class, 'destroyShrinkageHistory'])->middleware('permission:CanDeleteShrinkageRecord')->name('pos.shrinkage-history.destroy');
+  Route::post('/pos/shrinkage-history', [PosController::class, 'storeShrinkageHistory'])->middleware(['permission:CanCreateShrinkageRecord', 'maintenance.lock'])->name('pos.shrinkage-history.store');
+  Route::put('/pos/shrinkage-history/{id}', [PosController::class, 'updateShrinkageHistory'])->middleware(['permission:CanUpdateShrinkageRecord', 'maintenance.lock'])->name('pos.shrinkage-history.update');
+  Route::delete('/pos/shrinkage-history/{id}', [PosController::class, 'destroyShrinkageHistory'])->middleware(['permission:CanDeleteShrinkageRecord', 'maintenance.lock'])->name('pos.shrinkage-history.destroy');
   Route::get('/pos/customers', [PosController::class, 'customers'])->middleware('permission:CanViewCustomers')->name('pos.customers');
-  Route::post('/pos/customers', [PosController::class, 'storeCustomer'])->middleware('permission:CanCreateCustomer')->name('pos.customers.store');
-  Route::put('/pos/customers/{id}', [PosController::class, 'updateCustomer'])->middleware('permission:CanUpdateCustomer')->name('pos.customers.update');
-  Route::delete('/pos/customers/{id}', [PosController::class, 'destroyCustomer'])->middleware('permission:CanDeleteCustomer')->name('pos.customers.destroy');
-  Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->middleware('permission:CanRecordSalePayment')->name('pos.sale-history.payments.store');
-  Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware('permission:CanProcessSalesWalkIn')->name('pos.checkout.walk-in');
-  Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware('permission:CanProcessSalesJobOrders')->name('pos.checkout.job-order');
-  Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->middleware('permission:CanProcessSalesShrinkage')->name('pos.checkout.shrinkage');
+  Route::post('/pos/customers', [PosController::class, 'storeCustomer'])->middleware(['permission:CanCreateCustomer', 'maintenance.lock'])->name('pos.customers.store');
+  Route::put('/pos/customers/{id}', [PosController::class, 'updateCustomer'])->middleware(['permission:CanUpdateCustomer', 'maintenance.lock'])->name('pos.customers.update');
+  Route::delete('/pos/customers/{id}', [PosController::class, 'destroyCustomer'])->middleware(['permission:CanDeleteCustomer', 'maintenance.lock'])->name('pos.customers.destroy');
+  Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->middleware(['permission:CanRecordSalePayment', 'maintenance.lock'])->name('pos.sale-history.payments.store');
+  Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware(['permission:CanProcessSalesWalkIn', 'maintenance.lock'])->name('pos.checkout.walk-in');
+  Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware(['permission:CanProcessSalesJobOrders', 'maintenance.lock'])->name('pos.checkout.job-order');
+  Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->middleware(['permission:CanProcessSalesShrinkage', 'maintenance.lock'])->name('pos.checkout.shrinkage');
 
   // Inventory
   Route::get('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'index'])->middleware('permission:CanViewInventoryLevels')->name('inventory.levels');
@@ -67,15 +67,15 @@ Route::middleware('auth')->group(function () {
     ->defaults('tab', 'Snapshots')
     ->middleware('permission:CanViewInventorySnapshots')
     ->name('inventory.snapshots');
-  Route::post('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'store'])->middleware('permission:CanCreateInventoryItem')->name('inventory.levels.store');
-  Route::put('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'update'])->middleware('permission:CanUpdateInventoryItem')->name('inventory.levels.update');
-  Route::delete('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'destroy'])->middleware('permission:CanDeleteInventoryItem')->name('inventory.levels.destroy');
+  Route::post('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'store'])->middleware(['permission:CanCreateInventoryItem', 'maintenance.lock'])->name('inventory.levels.store');
+  Route::put('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'update'])->middleware(['permission:CanUpdateInventoryItem', 'maintenance.lock'])->name('inventory.levels.update');
+  Route::delete('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'destroy'])->middleware(['permission:CanDeleteInventoryItem', 'maintenance.lock'])->name('inventory.levels.destroy');
 
-  Route::post('/inventory/stock-in', [\App\Http\Controllers\InventoryController::class, 'storeStockIn'])->middleware('permission:CanCreateStockIn')->name('inventory.stock-in.store');
-  Route::put('/inventory/stock-in/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockIn'])->middleware('permission:CanUpdateStockIn')->name('inventory.stock-in.update');
-  Route::post('/inventory/stock-out', [\App\Http\Controllers\InventoryController::class, 'storeStockOut'])->middleware('permission:CanCreateStockOut')->name('inventory.stock-out.store');
-  Route::put('/inventory/stock-out/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockOut'])->middleware('permission:CanUpdateStockOut')->name('inventory.stock-out.update');
-  Route::post('/inventory/snapshots', [\App\Http\Controllers\InventoryController::class, 'storeSnapshot'])->middleware('permission:CanRecordInventorySnapshot')->name('inventory.snapshots.store');
+  Route::post('/inventory/stock-in', [\App\Http\Controllers\InventoryController::class, 'storeStockIn'])->middleware(['permission:CanCreateStockIn', 'maintenance.lock'])->name('inventory.stock-in.store');
+  Route::put('/inventory/stock-in/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockIn'])->middleware(['permission:CanUpdateStockIn', 'maintenance.lock'])->name('inventory.stock-in.update');
+  Route::post('/inventory/stock-out', [\App\Http\Controllers\InventoryController::class, 'storeStockOut'])->middleware(['permission:CanCreateStockOut', 'maintenance.lock'])->name('inventory.stock-out.store');
+  Route::put('/inventory/stock-out/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockOut'])->middleware(['permission:CanUpdateStockOut', 'maintenance.lock'])->name('inventory.stock-out.update');
+  Route::post('/inventory/snapshots', [\App\Http\Controllers\InventoryController::class, 'storeSnapshot'])->middleware(['permission:CanRecordInventorySnapshot', 'maintenance.lock'])->name('inventory.snapshots.store');
 
   Route::get('/inventory/products', [\App\Http\Controllers\ProductController::class, 'index'])->middleware('permission:CanViewProductsAndBatches')->name('inventory.products');
   Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index'])
@@ -90,16 +90,16 @@ Route::middleware('auth')->group(function () {
     ->defaults('tab', 'Snapshots')
     ->middleware('permission:CanViewProductSnapshots')
     ->name('products.snapshots');
-  Route::post('/inventory/products', [\App\Http\Controllers\ProductController::class, 'store'])->middleware('permission:CanCreateProduct')->name('inventory.products.store');
-  Route::put('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'update'])->middleware('permission:CanUpdateProduct')->name('inventory.products.update');
-  Route::delete('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'destroy'])->middleware('permission:CanDeleteProduct')->name('inventory.products.destroy');
-  Route::post('/inventory/products/snapshots', [\App\Http\Controllers\ProductController::class, 'storeSnapshot'])->middleware('permission:CanRecordProductSnapshot')->name('inventory.products.snapshots.store');
+  Route::post('/inventory/products', [\App\Http\Controllers\ProductController::class, 'store'])->middleware(['permission:CanCreateProduct', 'maintenance.lock'])->name('inventory.products.store');
+  Route::put('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'update'])->middleware(['permission:CanUpdateProduct', 'maintenance.lock'])->name('inventory.products.update');
+  Route::delete('/inventory/products/{id}', [\App\Http\Controllers\ProductController::class, 'destroy'])->middleware(['permission:CanDeleteProduct', 'maintenance.lock'])->name('inventory.products.destroy');
+  Route::post('/inventory/products/snapshots', [\App\Http\Controllers\ProductController::class, 'storeSnapshot'])->middleware(['permission:CanRecordProductSnapshot', 'maintenance.lock'])->name('inventory.products.snapshots.store');
 
-  Route::post('/inventory/batches', [\App\Http\Controllers\ProductController::class, 'storeBatch'])->middleware('permission:CanCreateProductionBatch')->name('inventory.batches.store');
+  Route::post('/inventory/batches', [\App\Http\Controllers\ProductController::class, 'storeBatch'])->middleware(['permission:CanCreateProductionBatch', 'maintenance.lock'])->name('inventory.batches.store');
 
-  Route::post('/inventory/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->middleware('permission:CanCreateProductCategory')->name('inventory.categories.store');
-  Route::put('/inventory/categories/{id}', [\App\Http\Controllers\CategoryController::class, 'update'])->middleware('permission:CanUpdateProductCategory')->name('inventory.categories.update');
-  Route::delete('/inventory/categories/{id}', [\App\Http\Controllers\CategoryController::class, 'destroy'])->middleware('permission:CanDeleteProductCategory')->name('inventory.categories.destroy');
+  Route::post('/inventory/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->middleware(['permission:CanCreateProductCategory', 'maintenance.lock'])->name('inventory.categories.store');
+  Route::put('/inventory/categories/{id}', [\App\Http\Controllers\CategoryController::class, 'update'])->middleware(['permission:CanUpdateProductCategory', 'maintenance.lock'])->name('inventory.categories.update');
+  Route::delete('/inventory/categories/{id}', [\App\Http\Controllers\CategoryController::class, 'destroy'])->middleware(['permission:CanDeleteProductCategory', 'maintenance.lock'])->name('inventory.categories.destroy');
 
   // Administration
   Route::get('/admin/reports', [ReportsController::class, 'index'])
@@ -126,19 +126,42 @@ Route::middleware('auth')->group(function () {
     ->defaults('tab', 'Permission Groups')
     ->middleware('permission:CanViewUserManagementPermissionGroups')
     ->name('admin.permission-groups');
-  Route::put('/admin/permissions/{id}', [UserManagementController::class, 'updatePermissions'])->middleware('permission:CanUpdateUserPermissions')->name('admin.permissions.update');
-  Route::put('/admin/roles/order', [UserManagementController::class, 'reorderRoles'])->middleware('permission:CanUpdateRoleOrder')->name('admin.roles.reorder');
-  Route::post('/admin/roles', [UserManagementController::class, 'storeRole'])->middleware('permission:CanCreateRole')->name('admin.roles.store');
-  Route::put('/admin/roles/{id}', [UserManagementController::class, 'updateRole'])->middleware('permission:CanUpdateRole')->name('admin.roles.update');
-  Route::delete('/admin/roles/{id}', [UserManagementController::class, 'destroyRole'])->middleware('permission:CanDeleteRole')->name('admin.roles.destroy');
-  Route::post('/admin/permission-groups', [UserManagementController::class, 'storePermissionGroup'])->middleware('permission:CanCreatePermissionGroup')->name('admin.permission-groups.store');
-  Route::put('/admin/permission-groups/{id}', [UserManagementController::class, 'updatePermissionGroup'])->middleware('permission:CanUpdatePermissionGroup')->name('admin.permission-groups.update');
-  Route::delete('/admin/permission-groups/{id}', [UserManagementController::class, 'destroyPermissionGroup'])->middleware('permission:CanDeletePermissionGroup')->name('admin.permission-groups.destroy');
-  Route::post('/admin/users', [UserManagementController::class, 'store'])->middleware('permission:CanCreateUser')->name('admin.users.store');
-  Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->middleware('permission:CanUpdateUser')->name('admin.users.update');
-  Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->middleware('permission:CanDeleteUser')->name('admin.users.destroy');
+  Route::put('/admin/permissions/{id}', [UserManagementController::class, 'updatePermissions'])->middleware(['permission:CanUpdateUserPermissions', 'maintenance.lock'])->name('admin.permissions.update');
+  Route::put('/admin/roles/order', [UserManagementController::class, 'reorderRoles'])->middleware(['permission:CanUpdateRoleOrder', 'maintenance.lock'])->name('admin.roles.reorder');
+  Route::post('/admin/roles', [UserManagementController::class, 'storeRole'])->middleware(['permission:CanCreateRole', 'maintenance.lock'])->name('admin.roles.store');
+  Route::put('/admin/roles/{id}', [UserManagementController::class, 'updateRole'])->middleware(['permission:CanUpdateRole', 'maintenance.lock'])->name('admin.roles.update');
+  Route::delete('/admin/roles/{id}', [UserManagementController::class, 'destroyRole'])->middleware(['permission:CanDeleteRole', 'maintenance.lock'])->name('admin.roles.destroy');
+  Route::post('/admin/permission-groups', [UserManagementController::class, 'storePermissionGroup'])->middleware(['permission:CanCreatePermissionGroup', 'maintenance.lock'])->name('admin.permission-groups.store');
+  Route::put('/admin/permission-groups/{id}', [UserManagementController::class, 'updatePermissionGroup'])->middleware(['permission:CanUpdatePermissionGroup', 'maintenance.lock'])->name('admin.permission-groups.update');
+  Route::delete('/admin/permission-groups/{id}', [UserManagementController::class, 'destroyPermissionGroup'])->middleware(['permission:CanDeletePermissionGroup', 'maintenance.lock'])->name('admin.permission-groups.destroy');
+  Route::post('/admin/users', [UserManagementController::class, 'store'])->middleware(['permission:CanCreateUser', 'maintenance.lock'])->name('admin.users.store');
+  Route::put('/admin/users/{id}', [UserManagementController::class, 'update'])->middleware(['permission:CanUpdateUser', 'maintenance.lock'])->name('admin.users.update');
+  Route::delete('/admin/users/{id}', [UserManagementController::class, 'destroy'])->middleware(['permission:CanDeleteUser', 'maintenance.lock'])->name('admin.users.destroy');
   Route::get('/admin/audits', [\App\Http\Controllers\AuditController::class, 'index'])->middleware('permission:CanViewAudits')->name('admin.audits');
-  Route::get('/admin/database', [DatabaseController::class, 'index'])->middleware('permission:CanViewDatabase')->name('admin.database');
+  Route::get('/admin/database', [DatabaseController::class, 'index'])
+    ->defaults('tab', 'Backups')
+    ->middleware('permission:CanViewDatabaseBackups')
+    ->name('admin.database');
+  Route::get('/admin/database/connections', [DatabaseController::class, 'index'])
+    ->defaults('tab', 'Connection Management')
+    ->middleware('permission:CanViewDatabaseConnections')
+    ->name('admin.database.connections');
+  Route::get('/admin/database/maintenance-jobs', [DatabaseController::class, 'index'])
+    ->defaults('tab', 'Maintenance Jobs')
+    ->middleware('permission:CanViewDatabaseMaintenanceJobs')
+    ->name('admin.database.maintenance-jobs');
+  Route::get('/admin/database/schema-report', [DatabaseController::class, 'index'])
+    ->defaults('tab', 'Schema Report')
+    ->middleware('permission:CanViewDatabaseSchemaReport')
+    ->name('admin.database.schema');
+  Route::get('/admin/database/data-transfer', [DatabaseController::class, 'index'])
+    ->defaults('tab', 'Data Transfer')
+    ->middleware('permission:CanViewDatabaseDataTransfer')
+    ->name('admin.database.data-transfer');
+  Route::get('/admin/database/retention-cleanup', [DatabaseController::class, 'index'])
+    ->defaults('tab', 'Retention & Cleanup')
+    ->middleware('permission:CanViewDatabaseRetentionCleanup')
+    ->name('admin.database.retention');
   Route::put('/admin/database/connections/remote', [DatabaseController::class, 'saveConnectionSettings'])->middleware('permission:CanManageDatabaseConnections')->name('admin.database.connections.remote.update');
   Route::post('/admin/database/connections/test', [DatabaseController::class, 'testConnection'])->middleware('permission:CanTestDatabaseConnections')->name('admin.database.connections.test');
   Route::post('/admin/database/connections/initialize', [DatabaseController::class, 'initializeRemoteConnection'])->middleware('permission:CanInitializeRemoteDatabase')->name('admin.database.connections.initialize');

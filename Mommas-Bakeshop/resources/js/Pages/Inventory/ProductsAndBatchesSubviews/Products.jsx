@@ -40,6 +40,9 @@ export default function Products({
 	const [maxQty, setMaxQty] = useState("");
 	const [currentPage, setCurrentPage] = useState(1);
 	const [itemsPerPage, setItemsPerPage] = useState(25);
+	const [imageInputKey, setImageInputKey] = useState(0);
+	const [selectedImagePreview, setSelectedImagePreview] = useState(null);
+	const [existingImageUrl, setExistingImageUrl] = useState(null);
 
 	const categoryOptions = useMemo(
 		() => [...new Set((products || []).map((p) => p.category?.CategoryName).filter(Boolean))],
@@ -66,7 +69,8 @@ export default function Products({
 		ProductDescription: "",
 		CategoryID: "",
 		Price: "",
-		ProductImage: "",
+		ProductImage: null,
+		RemoveProductImage: false,
 		LowStockThreshold: 10,
 	});
 
@@ -94,6 +98,11 @@ export default function Products({
 		if (!canCreateProduct) return requirePermission("CanCreateProduct");
 		setEditingProduct(null);
 		reset();
+		setData("ProductImage", null);
+		setData("RemoveProductImage", false);
+		setSelectedImagePreview(null);
+		setExistingImageUrl(null);
+		setImageInputKey((prev) => prev + 1);
 		setIsModalOpen(true);
 	};
 
@@ -105,15 +114,52 @@ export default function Products({
 			ProductDescription: product.ProductDescription || "",
 			CategoryID: product.CategoryID,
 			Price: product.Price,
-			ProductImage: product.ProductImage || "",
+			ProductImage: null,
+			RemoveProductImage: false,
 			LowStockThreshold: product.LowStockThreshold ?? 10,
 		});
+		setSelectedImagePreview(null);
+		setExistingImageUrl(product.ProductImageUrl || null);
+		setImageInputKey((prev) => prev + 1);
 		setIsModalOpen(true);
 	};
 
 	const closeModal = () => {
 		setIsModalOpen(false);
 		reset();
+		setSelectedImagePreview(null);
+		setExistingImageUrl(null);
+		setImageInputKey((prev) => prev + 1);
+	};
+
+	useEffect(() => {
+		if (!(data.ProductImage instanceof File)) {
+			return undefined;
+		}
+
+		const previewUrl = URL.createObjectURL(data.ProductImage);
+		setSelectedImagePreview(previewUrl);
+
+		return () => URL.revokeObjectURL(previewUrl);
+	}, [data.ProductImage]);
+
+	const removeSelectedImage = () => {
+		setData("ProductImage", null);
+		setSelectedImagePreview(null);
+		if (existingImageUrl) {
+			setData("RemoveProductImage", true);
+			setExistingImageUrl(null);
+		}
+		setImageInputKey((prev) => prev + 1);
+	};
+
+	const handleImageSelection = (event) => {
+		const file = event.target.files?.[0] || null;
+		setData("ProductImage", file);
+		setData("RemoveProductImage", false);
+		if (file) {
+			setExistingImageUrl(null);
+		}
 	};
 
 	const submitProduct = (e) => {
@@ -122,10 +168,12 @@ export default function Products({
 		if (!editingProduct && !canCreateProduct) return;
 		if (editingProduct) {
 			put(route("inventory.products.update", editingProduct.ID), {
+				forceFormData: true,
 				onSuccess: () => closeModal(),
 			});
 		} else {
 			post(route("inventory.products.store"), {
+				forceFormData: true,
 				onSuccess: () => closeModal(),
 			});
 		}
@@ -353,6 +401,7 @@ export default function Products({
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
 	const countLabel = formatCountLabel(filteredAndSortedProducts.length, "product");
+	const productPreviewImage = selectedImagePreview || existingImageUrl;
 
 	const goToPage = (page) => {
 		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
@@ -908,6 +957,52 @@ export default function Products({
 													{errors.LowStockThreshold && (
 														<p className="mt-2 text-sm text-red-600">
 															{errors.LowStockThreshold}
+														</p>
+													)}
+												</div>
+
+												<div>
+													<label
+														htmlFor="ProductImage"
+														className="block text-sm font-medium text-gray-700"
+													>
+														Product Image
+													</label>
+													<div className="mt-1 space-y-3">
+														<input
+															key={imageInputKey}
+															type="file"
+															id="ProductImage"
+															accept="image/*"
+															onChange={handleImageSelection}
+															className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-primary-soft file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary-soft"
+														/>
+														{productPreviewImage ? (
+															<div className="rounded-lg border border-gray-200 p-3">
+																<img
+																	src={productPreviewImage}
+																	alt="Product preview"
+																	className="h-40 w-full rounded-md object-cover"
+																/>
+																<div className="mt-3 flex justify-end">
+																	<button
+																		type="button"
+																		onClick={removeSelectedImage}
+																		className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+																	>
+																		Remove Image
+																	</button>
+																</div>
+															</div>
+														) : (
+															<div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">
+																No image selected.
+															</div>
+														)}
+													</div>
+													{errors.ProductImage && (
+														<p className="mt-2 text-sm text-red-600">
+															{errors.ProductImage}
 														</p>
 													)}
 												</div>

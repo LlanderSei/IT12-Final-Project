@@ -14,6 +14,7 @@ use App\Models\Shrinkage;
 use App\Models\ShrinkedProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -21,7 +22,14 @@ use Inertia\Inertia;
 class PosController extends Controller {
   public function cashSale() {
     return Inertia::render('PointOfSale/CashSale', [
-      'products' => Product::with('category')->orderBy('ProductName')->get(),
+      'products' => Product::with('category')
+        ->orderBy('ProductName')
+        ->get()
+        ->map(function ($product) {
+          $product->ProductImageUrl = $this->resolveProductImageUrl($product->ProductImage);
+          return $product;
+        })
+        ->values(),
       'categories' => \App\Models\Category::orderBy('CategoryName')->get(),
       'customers' => Customer::orderBy('CustomerName')->get(),
     ]);
@@ -937,5 +945,26 @@ class PosController extends Controller {
     $number = (int) ltrim($suffix, '0');
 
     return $number + 1;
+  }
+
+  private function resolveProductImageUrl(?string $path): ?string {
+    $normalized = trim((string) $path);
+    if ($normalized === '') {
+      return null;
+    }
+
+    if (preg_match('/^(https?:)?\/\//i', $normalized) === 1) {
+      return $normalized;
+    }
+
+    if (str_starts_with($normalized, '/storage/')) {
+      return $normalized;
+    }
+
+    if (Storage::disk('public')->exists($normalized)) {
+      return Storage::disk('public')->url($normalized);
+    }
+
+    return $normalized;
   }
 }

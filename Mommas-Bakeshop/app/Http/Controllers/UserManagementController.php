@@ -53,7 +53,7 @@ class UserManagementController extends Controller {
 
     $actorRoleRank = $actor?->role?->RoleRank;
     $roles = Role::query()
-      ->select(['ID', 'RoleName', 'RoleDescription', 'RoleRank'])
+      ->select(['ID', 'RoleName', 'RoleDescription', 'RoleColor', 'RoleRank'])
       ->withCount('users')
       ->orderBy('RoleRank', 'asc')
       ->orderBy('RoleName', 'asc')
@@ -61,7 +61,7 @@ class UserManagementController extends Controller {
 
     $users = User::query()
       ->select(['id', 'FullName', 'email', 'RoleID', 'created_at'])
-      ->with(['role:ID,RoleName,RoleRank'])
+      ->with(['role:ID,RoleName,RoleColor,RoleRank'])
       ->with(['permissionsSet.permission:ID,PermissionName'])
       ->withCount([
         'permissionsSet',
@@ -140,7 +140,7 @@ class UserManagementController extends Controller {
     })->values();
 
     $rolePresetRows = Role::query()
-      ->select(['ID', 'RoleName', 'RoleDescription', 'RoleRank'])
+      ->select(['ID', 'RoleName', 'RoleDescription', 'RoleColor', 'RoleRank'])
       ->withCount('users')
       ->with([
         'presetPermissions' => fn ($query) => $query
@@ -166,6 +166,7 @@ class UserManagementController extends Controller {
           'id' => (int) $role->ID,
           'RoleName' => $role->RoleName,
           'RoleDescription' => $role->RoleDescription,
+          'RoleColor' => $role->RoleColor,
           'RoleRank' => (int) $role->RoleRank,
           'UsersCount' => (int) $role->users_count,
           'PresetPermissionCount' => count(array_filter($flags)),
@@ -402,6 +403,7 @@ class UserManagementController extends Controller {
     $validated = $request->validate([
       'RoleName' => ['required', 'string', 'max:255', 'unique:roles,RoleName'],
       'RoleDescription' => ['nullable', 'string', 'max:1000'],
+      'RoleColor' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
       'permissions' => ['required', 'array'],
       'permissions.*' => ['nullable'],
     ]);
@@ -419,6 +421,7 @@ class UserManagementController extends Controller {
     $role = Role::query()->create([
       'RoleName' => trim($validated['RoleName']),
       'RoleDescription' => trim((string) ($validated['RoleDescription'] ?? '')),
+      'RoleColor' => strtoupper($validated['RoleColor']),
       'RoleRank' => max(2, $nextRank),
       'DateAdded' => now(),
       'DateModified' => now(),
@@ -435,16 +438,22 @@ class UserManagementController extends Controller {
     $role = Role::query()->withCount('users')->findOrFail($id);
     $this->assertRoleManageable($actor?->role?->RoleRank, $role);
 
-    if ($this->isSystemOwnerRole($role)) {
-      return redirect()->back()->with('error', 'The Owner role is locked and cannot be edited.');
-    }
-
     $validated = $request->validate([
       'RoleName' => ['required', 'string', 'max:255', Rule::unique('roles', 'RoleName')->ignore($role->ID, 'ID')],
       'RoleDescription' => ['nullable', 'string', 'max:1000'],
+      'RoleColor' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
       'permissions' => ['required', 'array'],
       'permissions.*' => ['nullable'],
     ]);
+
+    if ($this->isSystemOwnerRole($role)) {
+      $role->update([
+        'RoleColor' => strtoupper($validated['RoleColor']),
+        'DateModified' => now(),
+      ]);
+
+      return redirect()->route('admin.roles')->with('success', 'Owner role color updated successfully.');
+    }
 
     if (strtolower(trim($validated['RoleName'])) === 'owner') {
       throw ValidationException::withMessages([
@@ -458,6 +467,7 @@ class UserManagementController extends Controller {
     $role->update([
       'RoleName' => trim($validated['RoleName']),
       'RoleDescription' => trim((string) ($validated['RoleDescription'] ?? '')),
+      'RoleColor' => strtoupper($validated['RoleColor']),
       'DateModified' => now(),
     ]);
 
@@ -695,6 +705,12 @@ class UserManagementController extends Controller {
         'CanDeletePermissionGroup',
         'CanViewAudits',
         'CanViewDatabase',
+        'CanViewDatabaseBackups',
+        'CanViewDatabaseConnections',
+        'CanViewDatabaseMaintenanceJobs',
+        'CanViewDatabaseSchemaReport',
+        'CanViewDatabaseDataTransfer',
+        'CanViewDatabaseRetentionCleanup',
         'CanManageDatabaseConnections',
         'CanTestDatabaseConnections',
         'CanInitializeRemoteDatabase',

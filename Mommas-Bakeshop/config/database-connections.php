@@ -14,10 +14,18 @@ return [
         'users',
         'permissions',
     ],
+    'schema_excluded_tables' => [
+        'jobs',
+        'job_batches',
+        'failed_jobs',
+        'system_operations',
+    ],
     'transfer_excluded_tables' => [
         'migrations',
         'jobs',
         'failed_jobs',
+        'job_batches',
+        'system_operations',
         'cache',
         'cache_locks',
         'sessions',

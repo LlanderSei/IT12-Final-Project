@@ -13,6 +13,7 @@ return new class extends Migration {
 			$table->id('ID');
 			$table->text('RoleName');
 			$table->text('RoleDescription');
+			$table->string('RoleColor', 7)->default('#6B7280');
 			$table->unsignedBigInteger('RoleRank');
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
