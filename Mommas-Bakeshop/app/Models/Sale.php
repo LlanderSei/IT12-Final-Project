@@ -6,6 +6,7 @@ use App\Models\Concerns\BuildsReadableAuditChanges;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
+use App\Models\JobOrder;
 
 class Sale extends Model implements Auditable {
   use AuditableTrait, BuildsReadableAuditChanges;
@@ -67,8 +68,8 @@ class Sale extends Model implements Auditable {
     return $this->hasMany(PartialPayment::class, 'SalesID');
   }
 
-  public function customOrderDetails() {
-    return $this->hasMany(CustomOrderDetail::class, 'SalesID');
+  public function jobOrder() {
+    return $this->hasOne(JobOrder::class, 'SalesID');
   }
 
   public function isWalkIn(): bool {

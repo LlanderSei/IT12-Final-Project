@@ -19,12 +19,14 @@ class Shrinkage extends Model implements Auditable {
     'Quantity',
     'TotalAmount',
     'Reason',
+    'VerificationStatus',
     'DateAdded',
   ];
 
   protected $casts = [
     'Quantity' => 'integer',
     'TotalAmount' => 'decimal:2',
+    'VerificationStatus' => 'string',
     'DateAdded' => 'datetime',
   ];
 

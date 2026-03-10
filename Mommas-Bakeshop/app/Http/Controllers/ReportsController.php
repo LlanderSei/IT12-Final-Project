@@ -283,10 +283,12 @@ class ReportsController extends Controller {
       ->sum('TotalQuantity');
 
     $shrinkedUnits = (int) Shrinkage::query()
+      ->where('VerificationStatus', 'Verified')
       ->whereBetween('DateAdded', [$start, $end])
       ->sum('Quantity');
 
     $losses = (float) Shrinkage::query()
+      ->where('VerificationStatus', 'Verified')
       ->whereBetween('DateAdded', [$start, $end])
       ->sum('TotalAmount');
 
@@ -334,6 +336,7 @@ class ReportsController extends Controller {
     $topMostShrinked = DB::table('shrinked_products as sp')
       ->join('shrinkages as sh', 'sh.ID', '=', 'sp.ShrinkageID')
       ->leftJoin('products as p', 'p.ID', '=', 'sp.ProductID')
+      ->where('sh.VerificationStatus', 'Verified')
       ->whereBetween('sh.DateAdded', [$start, $end])
       ->groupBy('sp.ProductID', 'p.ProductName')
       ->selectRaw('sp.ProductID as product_id, COALESCE(p.ProductName, "Deleted Product") as product_name, SUM(sp.Quantity) as units, SUM(sp.SubAmount) as losses')
@@ -457,6 +460,7 @@ class ReportsController extends Controller {
     $mostShrinkedProducts = DB::table('shrinked_products as sp')
       ->join('shrinkages as sh', 'sh.ID', '=', 'sp.ShrinkageID')
       ->leftJoin('products as p', 'p.ID', '=', 'sp.ProductID')
+      ->where('sh.VerificationStatus', 'Verified')
       ->whereBetween('sh.DateAdded', [$start, $end])
       ->groupBy('sp.ProductID', 'p.ProductName')
       ->selectRaw('sp.ProductID as product_id, COALESCE(p.ProductName, "Deleted Product") as product_name, SUM(sp.Quantity) as units, SUM(sp.SubAmount) as losses')
@@ -569,6 +573,7 @@ class ReportsController extends Controller {
       $start,
       $end,
       $granularity,
+      fn($query) => $query->where('VerificationStatus', 'Verified'),
     );
 
     $losses = $this->fetchSimpleMetricByBucket(
@@ -578,6 +583,7 @@ class ReportsController extends Controller {
       $start,
       $end,
       $granularity,
+      fn($query) => $query->where('VerificationStatus', 'Verified'),
     );
 
     $series = [
@@ -657,14 +663,21 @@ class ReportsController extends Controller {
     string $metricSelect,
     Carbon $start,
     Carbon $end,
-    string $granularity
+    string $granularity,
+    ?callable $constraints = null
   ): array {
     $bucketExpr = $granularity === 'monthly'
       ? 'DATE_FORMAT(' . $dateColumn . ', "%Y-%m")'
       : 'DATE(' . $dateColumn . ')';
 
-    return DB::table($table)
-      ->whereBetween($dateColumn, [$start, $end])
+    $query = DB::table($table)
+      ->whereBetween($dateColumn, [$start, $end]);
+
+    if ($constraints) {
+      $constraints($query);
+    }
+
+    return $query
       ->groupBy(DB::raw($bucketExpr))
       ->selectRaw($bucketExpr . ' as bucket_key, ' . $metricSelect)
       ->pluck('metric_value', 'bucket_key')

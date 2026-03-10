@@ -170,22 +170,34 @@ return new class extends Migration {
 			$table->decimal('SubAmount', 10, 2);
 		});
 
-		Schema::create('custom_order_details', function (Blueprint $table) {
+		Schema::create('job_orders', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('SalesID')->constrained('sales', 'ID')->onDelete('cascade');
-			$table->text('OrderDescription');
+			$table->foreignId('UserID')->constrained('users', 'id')->onDelete('cascade');
+			$table->foreignId('CustomerID')->constrained('customers', 'ID')->onDelete('cascade');
+			$table->foreignId('SalesID')->nullable()->constrained('sales', 'ID')->nullOnDelete();
+			$table->enum('Status', ['Pending', 'Delivered', 'Cancelled'])->default('Pending')->index();
+			$table->timestamp('DeliveryAt');
+			$table->text('Notes')->nullable();
 			$table->decimal('TotalAmount', 10, 2);
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
 		});
 
-		Schema::create('custom_orders', function (Blueprint $table) {
+		Schema::create('job_order_items', function (Blueprint $table) {
 			$table->id('ID');
-			$table->foreignId('CustomOrderDetailsID')->constrained('custom_order_details', 'ID')->onDelete('cascade');
+			$table->foreignId('JobOrderID')->constrained('job_orders', 'ID')->onDelete('cascade');
+			$table->foreignId('ProductID')->constrained('products', 'ID')->onDelete('cascade');
+			$table->decimal('PricePerUnit', 10, 2);
+			$table->unsignedBigInteger('Quantity');
+			$table->decimal('SubAmount', 10, 2);
+		});
+
+		Schema::create('job_order_custom_items', function (Blueprint $table) {
+			$table->id('ID');
+			$table->foreignId('JobOrderID')->constrained('job_orders', 'ID')->onDelete('cascade');
 			$table->text('CustomOrderDescription');
 			$table->unsignedBigInteger('Quantity');
 			$table->decimal('PricePerUnit', 10, 2);
-			$table->timestamp('DateAdded')->useCurrent();
 		});
 
 		Schema::create('shrinkages', function (Blueprint $table) {
@@ -194,6 +206,7 @@ return new class extends Migration {
 			$table->unsignedBigInteger('Quantity');
 			$table->decimal('TotalAmount', 10, 2);
 			$table->enum('Reason', ['Spoiled', 'Theft', 'Lost'])->default('Spoiled');
+			$table->enum('VerificationStatus', ['Pending', 'Verified', 'Rejected'])->default('Pending')->index();
 			$table->timestamp('DateAdded')->useCurrent();
 		});
 
@@ -362,6 +375,9 @@ return new class extends Migration {
 		Schema::dropIfExists('stock_out_details');
 		Schema::dropIfExists('stock_ins');
 		Schema::dropIfExists('stock_in_details');
+		Schema::dropIfExists('job_order_custom_items');
+		Schema::dropIfExists('job_order_items');
+		Schema::dropIfExists('job_orders');
 		Schema::dropIfExists('custom_orders');
 		Schema::dropIfExists('custom_order_details');
 		Schema::dropIfExists('inventory');

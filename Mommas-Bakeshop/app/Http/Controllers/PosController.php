@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
-use App\Models\CustomOrder;
-use App\Models\CustomOrderDetail;
+use App\Models\JobOrder;
+use App\Models\JobOrderCustomItem;
+use App\Models\JobOrderItem;
 use App\Models\Payment;
 use App\Models\PartialPayment;
 use App\Models\Product;
@@ -12,6 +13,7 @@ use App\Models\Sale;
 use App\Models\SoldProduct;
 use App\Models\Shrinkage;
 use App\Models\ShrinkedProduct;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +24,52 @@ use Inertia\Inertia;
 class PosController extends Controller {
   public function cashSale() {
     return Inertia::render('PointOfSale/CashSale', [
+      'products' => Product::with('category')
+        ->orderBy('ProductName')
+        ->get()
+        ->map(function ($product) {
+          $product->ProductImageUrl = $this->resolveProductImageUrl($product->ProductImage);
+          return $product;
+        })
+        ->values(),
+      'categories' => \App\Models\Category::orderBy('CategoryName')->get(),
+      'customers' => Customer::orderBy('CustomerName')->get(),
+    ]);
+  }
+
+  public function jobOrders(Request $request) {
+    $requestedTab = $request->route('tab');
+    $initialTab = in_array($requestedTab, ['Job Orders', 'Pending Job Orders', 'Job Orders History'], true)
+      ? $requestedTab
+      : 'Job Orders';
+
+    $jobOrders = JobOrder::with([
+      'customer',
+      'user:id,FullName',
+      'items.product:ID,ProductName',
+      'customItems',
+      'sale.payment',
+    ])
+      ->orderByDesc('DateAdded')
+      ->get()
+      ->map(function ($jobOrder) {
+        return $this->transformJobOrderForView($jobOrder);
+      })
+      ->values();
+
+    $pendingJobOrders = $jobOrders
+      ->filter(fn ($jobOrder) => ($jobOrder['Status'] ?? '') === 'Pending')
+      ->values();
+
+    $historyJobOrders = $jobOrders
+      ->filter(fn ($jobOrder) => in_array(($jobOrder['Status'] ?? ''), ['Delivered', 'Cancelled'], true))
+      ->values();
+
+    return Inertia::render('PointOfSale/JobOrdersTabs', [
+      'initialTab' => $initialTab,
+      'jobOrders' => $jobOrders,
+      'pendingJobOrders' => $pendingJobOrders,
+      'historyJobOrders' => $historyJobOrders,
       'products' => Product::with('category')
         ->orderBy('ProductName')
         ->get()
@@ -67,7 +115,7 @@ class PosController extends Controller {
       'payment',
       'soldProducts.product:ID,ProductName',
       'partialPayments',
-      'customOrderDetails.customOrders',
+      'jobOrder.customItems',
     ])
       ->orderByDesc('DateAdded')
       ->get();
@@ -106,7 +154,7 @@ class PosController extends Controller {
       ])
       ->values();
 
-    return Inertia::render('PointOfSale/ShrinkageHistory', [
+    return Inertia::render('Inventory/ShrinkageHistory', [
       'shrinkages' => $shrinkages,
       'products' => $products,
       'allowedReasons' => $this->allowedShrinkageReasons($request->user()),
@@ -122,7 +170,7 @@ class PosController extends Controller {
             'payment',
             'soldProducts.product:ID,ProductName',
             'partialPayments',
-            'customOrderDetails.customOrders',
+            'jobOrder.customItems',
           ])->orderByDesc('DateAdded');
         },
       ])
@@ -161,21 +209,19 @@ class PosController extends Controller {
                   'product' => $line->product,
                 ];
               })->values(),
-              'custom_order_details' => $sale->customOrderDetails->map(function ($detail) {
-                return [
-                  'ID' => $detail->ID,
-                  'OrderDescription' => $detail->OrderDescription,
-                  'TotalAmount' => (float) $detail->TotalAmount,
-                  'custom_orders' => $detail->customOrders->map(function ($line) {
-                    return [
-                      'ID' => $line->ID,
-                      'CustomOrderDescription' => $line->CustomOrderDescription,
-                      'Quantity' => (int) $line->Quantity,
-                      'PricePerUnit' => (float) $line->PricePerUnit,
-                    ];
-                  })->values(),
-                ];
-              })->values(),
+              'job_order' => $sale->jobOrder
+                ? [
+                    'ID' => $sale->jobOrder->ID,
+                    'custom_items' => $sale->jobOrder->customItems->map(function ($line) {
+                      return [
+                        'ID' => $line->ID,
+                        'CustomOrderDescription' => $line->CustomOrderDescription,
+                        'Quantity' => (int) $line->Quantity,
+                        'PricePerUnit' => (float) $line->PricePerUnit,
+                      ];
+                    })->values(),
+                  ]
+                : null,
             ];
           })->values(),
         ];
@@ -233,12 +279,12 @@ class PosController extends Controller {
 
       $this->persistShrinkageRecord($payload, (int) $request->user()->id);
 
-      return redirect()->route('pos.shrinkage-history')->with('success', 'Shrinkage recorded successfully.');
+      return redirect()->route('inventory.shrinkage-history')->with('success', 'Shrinkage recorded successfully.');
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('pos.shrinkage-history')->with('error', 'Failed to record shrinkage.');
+      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to record shrinkage.');
     }
   }
 
@@ -246,6 +292,11 @@ class PosController extends Controller {
     $shrinkage = Shrinkage::with(['shrinkedProducts'])->findOrFail($id);
 
     try {
+      if (($shrinkage->VerificationStatus ?? 'Pending') !== 'Pending') {
+        throw ValidationException::withMessages([
+          'status' => 'Only pending shrinkage records can be updated.',
+        ]);
+      }
       $payload = $this->validateShrinkagePayload(
         $request,
         $this->allowedShrinkageReasons($request->user(), $shrinkage->Reason)
@@ -253,7 +304,6 @@ class PosController extends Controller {
 
       DB::transaction(function () use ($payload, $shrinkage) {
         $shrinkage->load('shrinkedProducts');
-        $this->restoreProductsForShrinkageLines($shrinkage->shrinkedProducts);
         [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
 
         foreach ($shrinkage->shrinkedProducts as $line) {
@@ -280,12 +330,12 @@ class PosController extends Controller {
         }
       });
 
-      return redirect()->route('pos.shrinkage-history')->with('success', 'Shrinkage record updated successfully.');
+      return redirect()->route('inventory.shrinkage-history')->with('success', 'Shrinkage record updated successfully.');
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('pos.shrinkage-history')->with('error', 'Failed to update shrinkage record.');
+      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to update shrinkage record.');
     }
   }
 
@@ -293,7 +343,11 @@ class PosController extends Controller {
     try {
       DB::transaction(function () use ($id) {
         $shrinkage = Shrinkage::with('shrinkedProducts')->lockForUpdate()->findOrFail($id);
-        $this->restoreProductsForShrinkageLines($shrinkage->shrinkedProducts);
+        if (($shrinkage->VerificationStatus ?? 'Pending') !== 'Pending') {
+          throw ValidationException::withMessages([
+            'status' => 'Only pending shrinkage records can be deleted.',
+          ]);
+        }
 
         foreach ($shrinkage->shrinkedProducts as $line) {
           $line->delete();
@@ -302,10 +356,75 @@ class PosController extends Controller {
         $shrinkage->delete();
       });
 
-      return redirect()->route('pos.shrinkage-history')->with('success', 'Shrinkage record deleted successfully.');
+      return redirect()->route('inventory.shrinkage-history')->with('success', 'Shrinkage record deleted successfully.');
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('pos.shrinkage-history')->with('error', 'Failed to delete shrinkage record.');
+      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to delete shrinkage record.');
+    }
+  }
+
+  public function verifyShrinkage(Request $request, int $id) {
+    $payload = $request->validate([
+      'status' => ['required', Rule::in(['Verified', 'Rejected'])],
+    ]);
+
+    try {
+      DB::transaction(function () use ($payload, $id) {
+        $shrinkage = Shrinkage::with('shrinkedProducts')->lockForUpdate()->findOrFail($id);
+        if (($shrinkage->VerificationStatus ?? 'Pending') !== 'Pending') {
+          throw ValidationException::withMessages([
+            'status' => 'Only pending shrinkage records can be verified.',
+          ]);
+        }
+
+        if ($payload['status'] === 'Verified') {
+          $grouped = $shrinkage->shrinkedProducts
+            ->groupBy('ProductID')
+            ->map(fn ($rows) => (int) $rows->sum('Quantity'))
+            ->all();
+
+          if (!empty($grouped)) {
+            $productIDs = array_map('intval', array_keys($grouped));
+            $products = Product::whereIn('ID', $productIDs)->lockForUpdate()->get()->keyBy('ID');
+            if ($products->count() !== count($productIDs)) {
+              throw ValidationException::withMessages([
+                'items' => 'One or more shrinkage products no longer exist.',
+              ]);
+            }
+
+            foreach ($grouped as $productID => $quantity) {
+              $product = $products[(int) $productID];
+              if ((int) $product->Quantity < (int) $quantity) {
+                throw ValidationException::withMessages([
+                  'items' => "Insufficient stock for {$product->ProductName}.",
+                ]);
+              }
+            }
+
+            foreach ($grouped as $productID => $quantity) {
+              $product = $products[(int) $productID];
+              $product->update([
+                'Quantity' => (int) $product->Quantity - (int) $quantity,
+                'DateModified' => now(),
+              ]);
+            }
+          }
+        }
+
+        $shrinkage->update([
+          'VerificationStatus' => $payload['status'],
+        ]);
+      });
+
+      $message = $payload['status'] === 'Verified'
+        ? 'Shrinkage record verified successfully.'
+        : 'Shrinkage record rejected.';
+      return redirect()->route('inventory.shrinkage-history')->with('success', $message);
+    } catch (ValidationException $e) {
+      throw $e;
+    } catch (\Throwable $e) {
+      report($e);
+      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to verify shrinkage record.');
     }
   }
 
@@ -429,6 +548,8 @@ class PosController extends Controller {
 
         $finalPaid = $paidAmount === null ? $totalAmount : (float)$paidAmount;
 
+        $receiptNumber = $this->generateReceiptNumber();
+
         Payment::create([
           'SalesID' => $sale->ID,
           'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
@@ -438,6 +559,8 @@ class PosController extends Controller {
           'PaymentStatus' => 'Paid',
           'PaymentDueDate' => null,
           'AdditionalDetails' => $payload['additionalDetails'] ?? null,
+          'ReceiptNumber' => $receiptNumber,
+          'ReceiptIssuedAt' => now(),
           'DateAdded' => now(),
         ]);
       });
@@ -451,7 +574,7 @@ class PosController extends Controller {
     }
   }
 
-  public function checkoutJobOrder(Request $request) {
+  public function storeJobOrder(Request $request) {
     try {
       $payload = $request->validate([
         'items' => 'nullable|array',
@@ -467,11 +590,9 @@ class PosController extends Controller {
         'newCustomer.CustomerType' => 'nullable|in:Retail,Business',
         'newCustomer.ContactDetails' => 'nullable|string|max:255',
         'newCustomer.Address' => 'nullable|string|max:500',
-        'paymentSelection' => 'required|in:pay_now,pay_later',
-        'paidAmount' => 'nullable|numeric|min:0',
-        'paymentMethod' => 'nullable|string|max:255',
-        'additionalDetails' => 'nullable|string|max:1000',
-        'dueDate' => 'nullable|date|after:today',
+        'deliveryDate' => 'required|date|after_or_equal:today',
+        'deliveryTime' => 'required|date_format:H:i',
+        'notes' => 'nullable|string|max:1000',
       ]);
 
       $productItems = collect($payload['items'] ?? [])->values()->all();
@@ -499,28 +620,50 @@ class PosController extends Controller {
         }
       }
 
-      if ($payload['paymentSelection'] === 'pay_later' && empty($payload['dueDate'] ?? null)) {
-        throw ValidationException::withMessages([
-          'dueDate' => 'Due date is required when payment is set to Pay Later.',
-        ]);
+      $deliveryAt = Carbon::createFromFormat(
+        'Y-m-d H:i',
+        $payload['deliveryDate'] . ' ' . $payload['deliveryTime'],
+        config('app.timezone')
+      );
+
+      $groupedItems = collect($productItems)
+        ->groupBy('ProductID')
+        ->map(fn ($rows) => (int) $rows->sum('Quantity'))
+        ->all();
+
+      $products = [];
+      if (!empty($groupedItems)) {
+        $productIDs = array_map('intval', array_keys($groupedItems));
+        $products = Product::whereIn('ID', $productIDs)->get()->keyBy('ID');
+        if ($products->count() !== count($productIDs)) {
+          throw ValidationException::withMessages([
+            'items' => 'One or more selected products are invalid.',
+          ]);
+        }
       }
 
-      $invoiceNumber = null;
-      $receiptNumber = null;
-      $createdSaleId = null;
+      $lines = [];
+      $productTotal = 0.0;
+      foreach ($groupedItems as $productID => $quantity) {
+        $product = $products[(int) $productID];
+        $pricePerUnit = (float) $product->Price;
+        $subAmount = round($pricePerUnit * $quantity, 2);
+        $lines[] = [
+          'product' => $product,
+          'quantity' => $quantity,
+          'pricePerUnit' => $pricePerUnit,
+          'subAmount' => $subAmount,
+        ];
+        $productTotal += $subAmount;
+      }
 
-      DB::transaction(function () use ($payload, $request, &$invoiceNumber, &$receiptNumber, &$createdSaleId) {
-        $productItems = collect($payload['items'] ?? [])->values()->all();
-        $customOrderItems = collect($payload['customOrders'] ?? [])->values()->all();
-        [$lines, $totalQuantity, $productTotalAmount] = !empty($productItems)
-          ? $this->calculateCartTotals($productItems)
-          : [[], 0, 0.0];
-        $customOrdersTotal = round(collect($customOrderItems)->sum(function ($item) {
-          return ((float)$item['quantity']) * ((float)$item['pricePerUnit']);
-        }), 2);
-        $totalAmount = round($productTotalAmount + $customOrdersTotal, 2);
+      $customOrdersTotal = round(collect($customOrderItems)->sum(function ($item) {
+        return ((float) $item['quantity']) * ((float) $item['pricePerUnit']);
+      }), 2);
+      $totalAmount = round($productTotal + $customOrdersTotal, 2);
 
-        $customerID = isset($payload['CustomerID']) ? (int)$payload['CustomerID'] : 0;
+      DB::transaction(function () use ($payload, $request, $lines, $customOrderItems, $totalAmount, $deliveryAt) {
+        $customerID = isset($payload['CustomerID']) ? (int) $payload['CustomerID'] : 0;
         if ($payload['customerMode'] === 'new') {
           $customer = Customer::create([
             'CustomerName' => $payload['newCustomer']['CustomerName'],
@@ -533,121 +676,213 @@ class PosController extends Controller {
           $customerID = $customer->ID;
         }
 
-        $sale = Sale::create([
+        $jobOrder = JobOrder::create([
           'UserID' => $request->user()->id,
           'CustomerID' => $customerID,
-          'SaleType' => 'JobOrder',
+          'SalesID' => null,
+          'Status' => 'Pending',
+          'DeliveryAt' => $deliveryAt,
+          'Notes' => $payload['notes'] ?? null,
           'TotalAmount' => $totalAmount,
           'DateAdded' => now(),
+          'DateModified' => now(),
         ]);
-        $createdSaleId = (int) $sale->ID;
 
         foreach ($lines as $line) {
-          SoldProduct::create([
-            'SalesID' => $sale->ID,
+          JobOrderItem::create([
+            'JobOrderID' => $jobOrder->ID,
             'ProductID' => $line['product']->ID,
             'PricePerUnit' => $line['pricePerUnit'],
             'Quantity' => $line['quantity'],
             'SubAmount' => $line['subAmount'],
           ]);
+        }
 
-          $line['product']->update([
-            'DateModified' => now(),
+        foreach ($customOrderItems as $customOrderItem) {
+          JobOrderCustomItem::create([
+            'JobOrderID' => $jobOrder->ID,
+            'CustomOrderDescription' => trim((string) $customOrderItem['description']),
+            'Quantity' => (int) $customOrderItem['quantity'],
+            'PricePerUnit' => round((float) $customOrderItem['pricePerUnit'], 2),
+          ]);
+        }
+      });
+
+      return redirect()->back()->with('success', 'Job order created successfully.');
+    } catch (ValidationException $e) {
+      throw $e;
+    } catch (\Throwable $e) {
+      report($e);
+      return redirect()->back()->with('error', 'Failed to create job order.');
+    }
+  }
+
+  public function deliverJobOrder(Request $request, int $id) {
+    try {
+      $payload = $request->validate([
+        'paymentSelection' => 'required|in:pay_now,pay_later',
+        'paymentType' => 'nullable|in:full,partial',
+        'paidAmount' => 'nullable|numeric|min:0',
+        'paymentMethod' => 'nullable|string|max:255',
+        'additionalDetails' => 'nullable|string|max:1000',
+        'dueDate' => 'nullable|date|after_or_equal:today',
+      ]);
+
+      $paymentSelection = $payload['paymentSelection'];
+      $paymentType = $payload['paymentType'] ?? 'full';
+
+      if ($paymentSelection === 'pay_later' && empty($payload['dueDate'] ?? null)) {
+        throw ValidationException::withMessages([
+          'dueDate' => 'Due date is required when payment is set to Pay Later.',
+        ]);
+      }
+
+      if ($paymentSelection === 'pay_now' && $paymentType === 'partial' && empty($payload['dueDate'] ?? null)) {
+        throw ValidationException::withMessages([
+          'dueDate' => 'Due date is required for partial payments.',
+        ]);
+      }
+
+      DB::transaction(function () use ($payload, $paymentSelection, $paymentType, $id, $request) {
+        $jobOrder = JobOrder::with([
+          'items',
+          'customItems',
+        ])->lockForUpdate()->findOrFail($id);
+
+        if ($jobOrder->Status !== 'Pending') {
+          throw ValidationException::withMessages([
+            'status' => 'Only pending job orders can be delivered.',
           ]);
         }
 
-        if (!empty($customOrderItems)) {
-          $customOrderDetail = CustomOrderDetail::create([
+        $groupedItems = $jobOrder->items
+          ->groupBy('ProductID')
+          ->map(fn ($rows) => (int) $rows->sum('Quantity'))
+          ->all();
+
+        $products = $this->assertAndLockProducts($groupedItems);
+
+        $totalAmount = (float) $jobOrder->TotalAmount;
+        $paidAmount = 0.0;
+        $paymentStatus = 'Unpaid';
+        $paymentReceiptNumber = null;
+        $partialReceiptNumber = null;
+
+        if ($paymentSelection === 'pay_now') {
+          if ($paymentType === 'partial') {
+            $paidAmount = round((float) ($payload['paidAmount'] ?? 0), 2);
+            if ($paidAmount <= 0 || $paidAmount >= $totalAmount) {
+              throw ValidationException::withMessages([
+                'paidAmount' => 'Partial payment must be greater than 0 and less than total amount.',
+              ]);
+            }
+            $paymentStatus = 'Partially Paid';
+            $partialReceiptNumber = $this->generateReceiptNumber();
+          } else {
+            $paidAmount = round((float) ($payload['paidAmount'] ?? $totalAmount), 2);
+            if ($paidAmount < $totalAmount) {
+              throw ValidationException::withMessages([
+                'paidAmount' => 'Paid amount must be greater than or equal to total amount.',
+              ]);
+            }
+            $paymentStatus = 'Paid';
+            $paymentReceiptNumber = $this->generateReceiptNumber();
+          }
+        }
+
+        $sale = Sale::create([
+          'UserID' => $request->user()->id,
+          'CustomerID' => $jobOrder->CustomerID,
+          'SaleType' => 'JobOrder',
+          'TotalAmount' => $totalAmount,
+          'DateAdded' => now(),
+        ]);
+
+        foreach ($jobOrder->items as $line) {
+          SoldProduct::create([
             'SalesID' => $sale->ID,
-            'OrderDescription' => sprintf(
-              'Custom order entries: %d',
-              count($customOrderItems)
-            ),
-            'TotalAmount' => $customOrdersTotal,
-            'DateAdded' => now(),
-            'DateModified' => now(),
+            'ProductID' => $line->ProductID,
+            'PricePerUnit' => (float) $line->PricePerUnit,
+            'Quantity' => (int) $line->Quantity,
+            'SubAmount' => (float) $line->SubAmount,
           ]);
 
-          foreach ($customOrderItems as $customOrderItem) {
-            CustomOrder::create([
-              'CustomOrderDetailsID' => $customOrderDetail->ID,
-              'CustomOrderDescription' => trim((string)$customOrderItem['description']),
-              'Quantity' => (int)$customOrderItem['quantity'],
-              'PricePerUnit' => round((float)$customOrderItem['pricePerUnit'], 2),
-              'DateAdded' => now(),
+          if (isset($products[$line->ProductID])) {
+            $products[$line->ProductID]->update([
+              'DateModified' => now(),
             ]);
           }
         }
 
         $invoiceNumber = $this->generateInvoiceNumber();
-
-        if ($payload['paymentSelection'] === 'pay_now') {
-          $paidAmount = (float)($payload['paidAmount'] ?? 0);
-          if ($paidAmount < $totalAmount) {
-            throw ValidationException::withMessages([
-              'paidAmount' => 'Paid amount must be greater than or equal to total amount.',
-            ]);
-          }
-
-          $receiptNumber = $this->generateReceiptNumber();
-
-          Payment::create([
-            'SalesID' => $sale->ID,
-            'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
-            'PaidAmount' => $paidAmount,
-            'TotalAmount' => $totalAmount,
-            'Change' => max(0, $paidAmount - $totalAmount),
-            'PaymentStatus' => 'Paid',
-            'InvoiceNumber' => $invoiceNumber,
-            'InvoiceIssuedAt' => now(),
-            'ReceiptNumber' => $receiptNumber,
-            'ReceiptIssuedAt' => now(),
-            'PaymentDueDate' => null,
-            'AdditionalDetails' => $payload['additionalDetails'] ?? null,
-            'DateAdded' => now(),
-          ]);
-          return;
-        }
+        $dueDate = $payload['dueDate'] ?? null;
+        $finalDueDate = $paymentStatus === 'Paid' ? null : $dueDate;
 
         Payment::create([
           'SalesID' => $sale->ID,
           'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
-          'PaidAmount' => 0,
+          'PaidAmount' => $paidAmount,
           'TotalAmount' => $totalAmount,
-          'Change' => 0,
-          'PaymentStatus' => 'Unpaid',
+          'Change' => max(0, round($paidAmount - $totalAmount, 2)),
+          'PaymentStatus' => $paymentStatus,
           'InvoiceNumber' => $invoiceNumber,
           'InvoiceIssuedAt' => now(),
-          'PaymentDueDate' => $payload['dueDate'],
+          'ReceiptNumber' => $paymentReceiptNumber,
+          'ReceiptIssuedAt' => $paymentReceiptNumber ? now() : null,
+          'PaymentDueDate' => $finalDueDate,
           'AdditionalDetails' => $payload['additionalDetails'] ?? null,
           'DateAdded' => now(),
         ]);
+
+        if ($paymentSelection === 'pay_now' && $paymentType === 'partial') {
+          PartialPayment::create([
+            'SalesID' => $sale->ID,
+            'PaidAmount' => $paidAmount,
+            'ReceiptNumber' => $partialReceiptNumber,
+            'ReceiptIssuedAt' => $partialReceiptNumber ? now() : null,
+            'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
+            'AdditionalDetails' => $payload['additionalDetails'] ?? null,
+            'DateAdded' => now(),
+          ]);
+        }
+
+        $jobOrder->update([
+          'SalesID' => $sale->ID,
+          'Status' => 'Delivered',
+          'DateModified' => now(),
+        ]);
       });
 
-      $message = 'Job order recorded successfully.';
-      if ($invoiceNumber) {
-        $message .= " Invoice #{$invoiceNumber} issued.";
-      }
-      if ($receiptNumber) {
-        $message .= " Receipt #{$receiptNumber} issued.";
-      }
-
-      $documentPayload = $createdSaleId
-        ? [
-            'source' => 'job-order',
-            'sale' => $this->buildSaleViewPayload($createdSaleId),
-          ]
-        : null;
-
-      return redirect()
-        ->back()
-        ->with('success', $message)
-        ->with('documentPayload', $documentPayload);
+      return redirect()->back()->with('success', 'Job order delivered and sale recorded.');
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->back()->with('error', 'Failed to process job order.');
+      return redirect()->back()->with('error', 'Failed to deliver job order.');
+    }
+  }
+
+  public function cancelJobOrder(int $id) {
+    try {
+      DB::transaction(function () use ($id) {
+        $jobOrder = JobOrder::lockForUpdate()->findOrFail($id);
+        if ($jobOrder->Status !== 'Pending') {
+          throw ValidationException::withMessages([
+            'status' => 'Only pending job orders can be cancelled.',
+          ]);
+        }
+        $jobOrder->update([
+          'Status' => 'Cancelled',
+          'DateModified' => now(),
+        ]);
+      });
+
+      return redirect()->back()->with('success', 'Job order cancelled.');
+    } catch (ValidationException $e) {
+      throw $e;
+    } catch (\Throwable $e) {
+      report($e);
+      return redirect()->back()->with('error', 'Failed to cancel job order.');
     }
   }
 
@@ -667,6 +902,47 @@ class PosController extends Controller {
       report($e);
       return redirect()->back()->with('error', 'Failed to process checkout.');
     }
+  }
+
+  private function transformJobOrderForView(JobOrder $jobOrder): array {
+    return [
+      'ID' => $jobOrder->ID,
+      'UserID' => $jobOrder->UserID,
+      'CustomerID' => $jobOrder->CustomerID,
+      'SalesID' => $jobOrder->SalesID,
+      'Status' => $jobOrder->Status,
+      'DeliveryAt' => optional($jobOrder->DeliveryAt)->toIso8601String(),
+      'Notes' => $jobOrder->Notes,
+      'TotalAmount' => (float) $jobOrder->TotalAmount,
+      'DateAdded' => optional($jobOrder->DateAdded)->toIso8601String(),
+      'DateModified' => optional($jobOrder->DateModified)->toIso8601String(),
+      'user' => $jobOrder->user,
+      'customer' => $jobOrder->customer,
+      'sale' => $jobOrder->sale
+        ? [
+            'ID' => $jobOrder->sale->ID,
+            'payment' => $jobOrder->sale->payment,
+          ]
+        : null,
+      'items' => $jobOrder->items->map(function ($line) {
+        return [
+          'ID' => $line->ID,
+          'ProductID' => $line->ProductID,
+          'ProductName' => $line->product?->ProductName ?? 'Unknown Product',
+          'Quantity' => (int) $line->Quantity,
+          'PricePerUnit' => (float) $line->PricePerUnit,
+          'SubAmount' => (float) $line->SubAmount,
+        ];
+      })->values(),
+      'custom_items' => $jobOrder->customItems->map(function ($line) {
+        return [
+          'ID' => $line->ID,
+          'CustomOrderDescription' => $line->CustomOrderDescription,
+          'Quantity' => (int) $line->Quantity,
+          'PricePerUnit' => (float) $line->PricePerUnit,
+        ];
+      })->values(),
+    ];
   }
 
   private function calculateCartTotals(array $items): array {
@@ -732,6 +1008,7 @@ class PosController extends Controller {
         'Quantity' => $totalQuantity,
         'TotalAmount' => $totalAmount,
         'Reason' => $payload['reason'],
+        'VerificationStatus' => 'Pending',
         'DateAdded' => now(),
       ]);
 
@@ -760,6 +1037,7 @@ class PosController extends Controller {
       'Quantity' => (int) $shrinkage->Quantity,
       'TotalAmount' => (float) $shrinkage->TotalAmount,
       'Reason' => $shrinkage->Reason,
+      'VerificationStatus' => $shrinkage->VerificationStatus ?? 'Pending',
       'DateAdded' => optional($shrinkage->DateAdded)->toIso8601String(),
       'items' => $shrinkage->shrinkedProducts->map(function ($line) {
         $pricePerUnit = (int) $line->Quantity > 0
@@ -844,7 +1122,7 @@ class PosController extends Controller {
       'payment',
       'soldProducts.product:ID,ProductName',
       'partialPayments',
-      'customOrderDetails.customOrders',
+      'jobOrder.customItems',
     ])->findOrFail($saleId);
 
     $paymentTotal = (float) ($sale->payment?->TotalAmount ?? $sale->TotalAmount ?? 0);
@@ -884,21 +1162,19 @@ class PosController extends Controller {
           'DateAdded' => optional($payment->DateAdded)->toIso8601String(),
         ];
       })->values(),
-      'custom_order_details' => $sale->customOrderDetails->map(function ($detail) {
-        return [
-          'ID' => $detail->ID,
-          'OrderDescription' => $detail->OrderDescription,
-          'TotalAmount' => (float) $detail->TotalAmount,
-          'custom_orders' => $detail->customOrders->map(function ($line) {
-            return [
-              'ID' => $line->ID,
-              'CustomOrderDescription' => $line->CustomOrderDescription,
-              'Quantity' => (int) $line->Quantity,
-              'PricePerUnit' => (float) $line->PricePerUnit,
-            ];
-          })->values(),
-        ];
-      })->values(),
+      'job_order' => $sale->jobOrder
+        ? [
+            'ID' => $sale->jobOrder->ID,
+            'custom_items' => $sale->jobOrder->customItems->map(function ($line) {
+              return [
+                'ID' => $line->ID,
+                'CustomOrderDescription' => $line->CustomOrderDescription,
+                'Quantity' => (int) $line->Quantity,
+                'PricePerUnit' => (float) $line->PricePerUnit,
+              ];
+            })->values(),
+          ]
+        : null,
     ];
   }
 

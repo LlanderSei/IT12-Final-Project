@@ -18,11 +18,16 @@ const safeFileName = (value, fallback) =>
 		.toLowerCase();
 
 export const getCustomOrderLines = (sale) =>
-	(sale.custom_order_details || sale.customOrderDetails || []).flatMap(
-		(detail) => detail.custom_orders || detail.customOrders || [],
-	);
+	sale?.job_order?.custom_items ||
+	sale?.jobOrder?.customItems ||
+	sale?.jobOrder?.custom_items ||
+	[];
 
 export const getSoldLines = (sale) => sale.sold_products || [];
+
+export const getJobOrderProductLines = (jobOrder) => jobOrder.items || [];
+
+export const getJobOrderCustomLines = (jobOrder) => jobOrder.custom_items || [];
 
 function addBrandingHeader(doc, title, documentNumber) {
 	doc.setFillColor(245, 158, 11);
@@ -207,4 +212,61 @@ export function exportReceiptPdf(sale, receiptPayment = null) {
 	doc.text(`Remaining Balance: ${currency(balanceAfterPayment)}`, 105, cursorY);
 
 	doc.save(`${safeFileName(receiptNumber, "receipt")}.pdf`);
+}
+
+export function exportJobOrderPdf(jobOrder) {
+	if (!jobOrder?.ID) {
+		throw new Error("No job order data available.");
+	}
+
+	const doc = new jsPDF();
+	const jobOrderNumber = `JO-${jobOrder.ID}`;
+	addBrandingHeader(doc, "Job Order Summary", `Job Order No. ${jobOrderNumber}`);
+
+	doc.setFontSize(10);
+	doc.setFont("helvetica", "normal");
+	const customerName = jobOrder.customer?.CustomerName || "Walk-In";
+	const customerType = jobOrder.customer?.CustomerType || "-";
+	const customerContact = jobOrder.customer?.ContactDetails || "-";
+	const customerAddress = jobOrder.customer?.Address || "-";
+	const deliveryAt = jobOrder.DeliveryAt ? formatDateTime(jobOrder.DeliveryAt) : "-";
+
+	doc.text(`Job Order ID: #${jobOrder.ID}`, 14, 58);
+	doc.text(`Issued: ${formatDateTime(jobOrder.DateAdded)}`, 105, 58);
+	doc.text(`Customer: ${customerName}`, 14, 64);
+	doc.text(`Customer Type: ${customerType}`, 105, 64);
+	doc.text(`Contact: ${customerContact}`, 14, 70);
+	doc.text(`Delivery: ${deliveryAt}`, 105, 70);
+	doc.text(`Address: ${customerAddress}`, 14, 76);
+	doc.text(`Status: ${jobOrder.Status || "-"}`, 105, 76);
+	if (jobOrder.Notes) {
+		doc.text(`Notes: ${jobOrder.Notes}`, 14, 82);
+	}
+
+	const productRows = getJobOrderProductLines(jobOrder).map((line) => [
+		line.ProductName || "-",
+		Number(line.Quantity || 0),
+		currency(line.PricePerUnit),
+		currency(line.SubAmount || Number(line.Quantity || 0) * Number(line.PricePerUnit || 0)),
+	]);
+	const customRows = getJobOrderCustomLines(jobOrder).map((line) => [
+		line.CustomOrderDescription || "-",
+		Number(line.Quantity || 0),
+		currency(line.PricePerUnit),
+		currency(Number(line.Quantity || 0) * Number(line.PricePerUnit || 0)),
+	]);
+
+	autoTable(doc, {
+		startY: jobOrder.Notes ? 92 : 88,
+		head: [["Item", "Qty", "Price", "Subtotal"]],
+		body: [...productRows, ...customRows],
+		styles: { fontSize: 9, cellPadding: 3 },
+		headStyles: { fillColor: [245, 158, 11] },
+	});
+
+	let cursorY = doc.lastAutoTable.finalY + 8;
+	doc.setFont("helvetica", "bold");
+	doc.text(`Total Amount: ${currency(jobOrder.TotalAmount || 0)}`, 14, cursorY);
+
+	doc.save(`${safeFileName(jobOrderNumber, "job-order")}.pdf`);
 }
