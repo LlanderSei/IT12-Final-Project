@@ -86,3 +86,23 @@ Turn the Laravel + Vite + local MySQL application into a locally runnable deskto
 - installer UX
 - desktop notifications
 - OS-specific tray/menu behavior
+
+## Phase 4 progress
+Implemented:
+- localhost-only desktop health endpoint at `/desktop/health`
+- Electron main process scaffold with single-instance guard
+- Laravel child-process launcher
+- optional managed MySQL child-process scaffold
+- desktop bootstrap command `php artisan desktop:bootstrap --force`
+- Electron packaging scripts in `package.json`
+
+Current assumptions:
+- development can fall back to `php` and `mysqld` on PATH
+- packaged PHP and MySQL binaries are not bundled yet
+- managed MySQL stays opt-in through `DESKTOP_MANAGED_MYSQL=true`
+
+Next packaging tasks:
+1. Bundle Windows PHP runtime under `desktop/runtime/php/`
+2. Bundle Windows MySQL/MariaDB runtime under `desktop/runtime/mysql/`
+3. Add first-run desktop owner setup UI when `/desktop/health` reports `firstRunRequired=true`
+4. Run a real `electron-builder` packaging pass on a disposable machine and trim the distribution payload

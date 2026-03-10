@@ -42,6 +42,12 @@ class PermissionsSeeder extends Seeder {
 		$permissions = [
 			// POS
 			['PermissionName' => 'CanViewCashier', 'PermissionDescription' => 'Can access the cashier interface.', 'PermissionGroup' => 'Cashier'],
+			['PermissionName' => 'CanViewJobOrders', 'PermissionDescription' => 'Can access job order management screens.', 'PermissionGroup' => 'Cashier'],
+			['PermissionName' => 'CanCreateJobOrders', 'PermissionDescription' => 'Can create new job orders.', 'PermissionGroup' => 'Cashier'],
+			['PermissionName' => 'CanViewPendingJobOrders', 'PermissionDescription' => 'Can access pending job orders.', 'PermissionGroup' => 'Cashier'],
+			['PermissionName' => 'CanViewJobOrdersHistory', 'PermissionDescription' => 'Can access job order history records.', 'PermissionGroup' => 'Cashier'],
+			['PermissionName' => 'CanCancelJobOrders', 'PermissionDescription' => 'Can cancel pending job orders.', 'PermissionGroup' => 'Cashier'],
+			['PermissionName' => 'CanPrintJobOrders', 'PermissionDescription' => 'Can print job order summaries.', 'PermissionGroup' => 'Cashier'],
 			['PermissionName' => 'CanProcessSalesWalkIn', 'PermissionDescription' => 'Can process walk-in sales checkout.', 'PermissionGroup' => 'Cashier'],
 			['PermissionName' => 'CanProcessSalesJobOrders', 'PermissionDescription' => 'Can process job-order sales checkout.', 'PermissionGroup' => 'Cashier'],
 			['PermissionName' => 'CanProcessSalesShrinkage', 'PermissionDescription' => 'Can record shrinkage transactions.', 'PermissionGroup' => 'Cashier'],
@@ -55,7 +61,8 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanViewShrinkageHistory', 'PermissionDescription' => 'Can access shrinkage history records and details.', 'PermissionGroup' => 'Shrinkage History'],
 			['PermissionName' => 'CanCreateShrinkageRecord', 'PermissionDescription' => 'Can record new shrinkage entries from shrinkage history.', 'PermissionGroup' => 'Shrinkage History'],
 			['PermissionName' => 'CanUpdateShrinkageRecord', 'PermissionDescription' => 'Can modify existing shrinkage records and their line items.', 'PermissionGroup' => 'Shrinkage History'],
-			['PermissionName' => 'CanDeleteShrinkageRecord', 'PermissionDescription' => 'Can delete shrinkage records and restore affected quantities.', 'PermissionGroup' => 'Shrinkage History'],
+			['PermissionName' => 'CanDeleteShrinkageRecord', 'PermissionDescription' => 'Can delete pending shrinkage records.', 'PermissionGroup' => 'Shrinkage History'],
+			['PermissionName' => 'CanVerifyShrinkageRecord', 'PermissionDescription' => 'Can verify or reject pending shrinkage records.', 'PermissionGroup' => 'Shrinkage History'],
 			['PermissionName' => 'CanRecordSalePayment', 'PermissionDescription' => 'Can record or update pending payment entries.', 'PermissionGroup' => 'Sale History'],
 			['PermissionName' => 'CanViewCustomers', 'PermissionDescription' => 'Can access customer records and details.', 'PermissionGroup' => 'Customers'],
 			['PermissionName' => 'CanCreateCustomer', 'PermissionDescription' => 'Can add new customers.', 'PermissionGroup' => 'Customers'],
@@ -149,5 +156,9 @@ class PermissionsSeeder extends Seeder {
 				]
 			);
 		}
+
+		Permission::query()
+			->whereIn('PermissionName', ['CanManageJobOrders'])
+			->delete();
 	}
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatabaseController;
+use App\Http\Controllers\DesktopController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +14,10 @@ use Inertia\Inertia;
 Route::get('/', function () {
   return redirect()->route('login');
 });
+
+Route::get('/desktop/health', [DesktopController::class, 'health'])
+  ->middleware('desktop.local')
+  ->name('desktop.health');
 
 // Dashboard — protected by auth
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
@@ -28,6 +33,18 @@ Route::middleware('auth')->group(function () {
     return redirect()->route('pos.cash-sale');
   })->middleware('permission:CanViewCashier')->name('pos.cashier');
   Route::get('/pos/cash-sale', [PosController::class, 'cashSale'])->middleware('permission:CanViewCashier')->name('pos.cash-sale');
+  Route::get('/pos/job-orders', [PosController::class, 'jobOrders'])
+    ->defaults('tab', 'Job Orders')
+    ->middleware('permission:CanViewJobOrders')
+    ->name('pos.job-orders');
+  Route::get('/pos/job-orders/pending', [PosController::class, 'jobOrders'])
+    ->defaults('tab', 'Pending Job Orders')
+    ->middleware('permission:CanViewPendingJobOrders')
+    ->name('pos.job-orders.pending');
+  Route::get('/pos/job-orders/history', [PosController::class, 'jobOrders'])
+    ->defaults('tab', 'Job Orders History')
+    ->middleware('permission:CanViewJobOrdersHistory')
+    ->name('pos.job-orders.history');
   Route::get('/pos/sale-history', [PosController::class, 'saleHistory'])
     ->defaults('tab', 'Sales')
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistorySales'])
@@ -36,17 +53,15 @@ Route::middleware('auth')->group(function () {
     ->defaults('tab', 'Pending Payments')
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistoryPendingPayments'])
     ->name('pos.sale-history.pending');
-  Route::get('/pos/shrinkage-history', [PosController::class, 'shrinkageHistory'])->middleware('permission:CanViewShrinkageHistory')->name('pos.shrinkage-history');
-  Route::post('/pos/shrinkage-history', [PosController::class, 'storeShrinkageHistory'])->middleware(['permission:CanCreateShrinkageRecord', 'maintenance.lock'])->name('pos.shrinkage-history.store');
-  Route::put('/pos/shrinkage-history/{id}', [PosController::class, 'updateShrinkageHistory'])->middleware(['permission:CanUpdateShrinkageRecord', 'maintenance.lock'])->name('pos.shrinkage-history.update');
-  Route::delete('/pos/shrinkage-history/{id}', [PosController::class, 'destroyShrinkageHistory'])->middleware(['permission:CanDeleteShrinkageRecord', 'maintenance.lock'])->name('pos.shrinkage-history.destroy');
   Route::get('/pos/customers', [PosController::class, 'customers'])->middleware('permission:CanViewCustomers')->name('pos.customers');
   Route::post('/pos/customers', [PosController::class, 'storeCustomer'])->middleware(['permission:CanCreateCustomer', 'maintenance.lock'])->name('pos.customers.store');
   Route::put('/pos/customers/{id}', [PosController::class, 'updateCustomer'])->middleware(['permission:CanUpdateCustomer', 'maintenance.lock'])->name('pos.customers.update');
   Route::delete('/pos/customers/{id}', [PosController::class, 'destroyCustomer'])->middleware(['permission:CanDeleteCustomer', 'maintenance.lock'])->name('pos.customers.destroy');
   Route::post('/pos/sale-history/payments', [PosController::class, 'recordSalePayment'])->middleware(['permission:CanRecordSalePayment', 'maintenance.lock'])->name('pos.sale-history.payments.store');
   Route::post('/pos/checkout/walk-in', [PosController::class, 'checkoutWalkIn'])->middleware(['permission:CanProcessSalesWalkIn', 'maintenance.lock'])->name('pos.checkout.walk-in');
-  Route::post('/pos/checkout/job-order', [PosController::class, 'checkoutJobOrder'])->middleware(['permission:CanProcessSalesJobOrders', 'maintenance.lock'])->name('pos.checkout.job-order');
+  Route::post('/pos/job-orders', [PosController::class, 'storeJobOrder'])->middleware(['permission:CanCreateJobOrders', 'maintenance.lock'])->name('pos.job-orders.store');
+  Route::post('/pos/job-orders/{id}/deliver', [PosController::class, 'deliverJobOrder'])->middleware(['permission:CanProcessSalesJobOrders', 'maintenance.lock'])->name('pos.job-orders.deliver');
+  Route::post('/pos/job-orders/{id}/cancel', [PosController::class, 'cancelJobOrder'])->middleware(['permission:CanCancelJobOrders', 'maintenance.lock'])->name('pos.job-orders.cancel');
   Route::post('/pos/checkout/shrinkage', [PosController::class, 'recordShrinkage'])->middleware(['permission:CanProcessSalesShrinkage', 'maintenance.lock'])->name('pos.checkout.shrinkage');
 
   // Inventory
@@ -70,6 +85,21 @@ Route::middleware('auth')->group(function () {
   Route::post('/inventory/levels', [\App\Http\Controllers\InventoryController::class, 'store'])->middleware(['permission:CanCreateInventoryItem', 'maintenance.lock'])->name('inventory.levels.store');
   Route::put('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'update'])->middleware(['permission:CanUpdateInventoryItem', 'maintenance.lock'])->name('inventory.levels.update');
   Route::delete('/inventory/levels/{id}', [\App\Http\Controllers\InventoryController::class, 'destroy'])->middleware(['permission:CanDeleteInventoryItem', 'maintenance.lock'])->name('inventory.levels.destroy');
+  Route::get('/inventory/shrinkage-history', [PosController::class, 'shrinkageHistory'])
+    ->middleware('permission:CanViewShrinkageHistory')
+    ->name('inventory.shrinkage-history');
+  Route::post('/inventory/shrinkage-history', [PosController::class, 'storeShrinkageHistory'])
+    ->middleware(['permission:CanCreateShrinkageRecord', 'maintenance.lock'])
+    ->name('inventory.shrinkage-history.store');
+  Route::put('/inventory/shrinkage-history/{id}', [PosController::class, 'updateShrinkageHistory'])
+    ->middleware(['permission:CanUpdateShrinkageRecord', 'maintenance.lock'])
+    ->name('inventory.shrinkage-history.update');
+  Route::delete('/inventory/shrinkage-history/{id}', [PosController::class, 'destroyShrinkageHistory'])
+    ->middleware(['permission:CanDeleteShrinkageRecord', 'maintenance.lock'])
+    ->name('inventory.shrinkage-history.destroy');
+  Route::post('/inventory/shrinkage-history/{id}/verify', [PosController::class, 'verifyShrinkage'])
+    ->middleware(['permission:CanVerifyShrinkageRecord', 'maintenance.lock'])
+    ->name('inventory.shrinkage-history.verify');
 
   Route::post('/inventory/stock-in', [\App\Http\Controllers\InventoryController::class, 'storeStockIn'])->middleware(['permission:CanCreateStockIn', 'maintenance.lock'])->name('inventory.stock-in.store');
   Route::put('/inventory/stock-in/{id}', [\App\Http\Controllers\InventoryController::class, 'updateStockIn'])->middleware(['permission:CanUpdateStockIn', 'maintenance.lock'])->name('inventory.stock-in.update');
@@ -179,3 +209,5 @@ Route::middleware('auth')->group(function () {
 
 
 require __DIR__ . '/auth.php';
+
+

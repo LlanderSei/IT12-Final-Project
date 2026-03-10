@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Head, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import CashierTabs from "./CashierTabs";
 import Modal from "@/Components/Modal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
@@ -42,6 +41,7 @@ export default function ShrinkageHistory({
 	const canCreateShrinkage = can("CanCreateShrinkageRecord");
 	const canUpdateShrinkage = can("CanUpdateShrinkageRecord");
 	const canDeleteShrinkage = can("CanDeleteShrinkageRecord");
+	const canVerifyShrinkage = can("CanVerifyShrinkageRecord");
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [reasonFilter, setReasonFilter] = useState("all");
@@ -55,6 +55,7 @@ export default function ShrinkageHistory({
 	const [isFormModalOpen, setIsFormModalOpen] = useState(false);
 	const [editingShrinkage, setEditingShrinkage] = useState(null);
 	const [shrinkageToDelete, setShrinkageToDelete] = useState(null);
+	const [verifyTarget, setVerifyTarget] = useState(null);
 	const [selectedProductId, setSelectedProductId] = useState("");
 	const [selectedQuantity, setSelectedQuantity] = useState("1");
 	const [formError, setFormError] = useState("");
@@ -62,6 +63,9 @@ export default function ShrinkageHistory({
 	const form = useForm({
 		reason: allowedReasons[0] || "Spoiled",
 		items: [],
+	});
+	const verifyForm = useForm({
+		status: "Verified",
 	});
 
 	const productsById = useMemo(
@@ -71,14 +75,6 @@ export default function ShrinkageHistory({
 				return accumulator;
 			}, {}),
 		[products],
-	);
-
-	const originalGrouped = useMemo(
-		() =>
-			buildGroupedQuantities(
-				editingShrinkage ? normalizeItems(editingShrinkage.items) : [],
-			),
-		[editingShrinkage],
 	);
 
 	const reasonOptions = useMemo(() => {
@@ -94,11 +90,8 @@ export default function ShrinkageHistory({
 		[shrinkages],
 	);
 
-	const getBaseAvailable = (productId) => {
-		const currentStock = Number(productsById[String(productId)]?.Quantity || 0);
-		const originalQuantity = Number(originalGrouped[String(productId)] || 0);
-		return currentStock + originalQuantity;
-	};
+	const getBaseAvailable = (productId) =>
+		Number(productsById[String(productId)]?.Quantity || 0);
 
 	const getRemainingAllowance = (productId, excludeIndex = null) => {
 		const grouped = buildGroupedQuantities(form.data.items || [], excludeIndex);
@@ -124,6 +117,7 @@ export default function ShrinkageHistory({
 				record.Quantity,
 				record.TotalAmount,
 				record.Reason,
+				record.VerificationStatus,
 				...(record.items || []).map((item) => item.ProductName),
 			]
 				.join(" ")
@@ -221,6 +215,10 @@ export default function ShrinkageHistory({
 
 	const openEditModal = (record) => {
 		if (!canUpdateShrinkage) return requirePermission("CanUpdateShrinkageRecord");
+		if (record?.VerificationStatus && record.VerificationStatus !== "Pending") {
+			setFormError("Only pending shrinkage records can be edited.");
+			return;
+		}
 		setEditingShrinkage(record);
 		form.setData({
 			reason: record.Reason,
@@ -309,6 +307,14 @@ export default function ShrinkageHistory({
 	const submitForm = (e) => {
 		e.preventDefault();
 		setFormError("");
+		if (
+			editingShrinkage &&
+			editingShrinkage.VerificationStatus &&
+			editingShrinkage.VerificationStatus !== "Pending"
+		) {
+			setFormError("Only pending shrinkage records can be updated.");
+			return;
+		}
 		if ((form.data.items || []).length === 0) {
 			setFormError("Add at least one shrinkage item.");
 			return;
@@ -335,20 +341,42 @@ export default function ShrinkageHistory({
 
 		if (editingShrinkage) {
 			if (!canUpdateShrinkage) return requirePermission("CanUpdateShrinkageRecord");
-			form.put(route("pos.shrinkage-history.update", editingShrinkage.ID), options);
+			form.put(route("inventory.shrinkage-history.update", editingShrinkage.ID), options);
 			return;
 		}
 
 		if (!canCreateShrinkage) return requirePermission("CanCreateShrinkageRecord");
-		form.post(route("pos.shrinkage-history.store"), options);
+		form.post(route("inventory.shrinkage-history.store"), options);
 	};
 
 	const confirmDelete = () => {
 		if (!shrinkageToDelete) return;
 		if (!canDeleteShrinkage) return requirePermission("CanDeleteShrinkageRecord");
-		form.delete(route("pos.shrinkage-history.destroy", shrinkageToDelete.ID), {
+		form.delete(route("inventory.shrinkage-history.destroy", shrinkageToDelete.ID), {
 			preserveScroll: true,
 			onSuccess: () => setShrinkageToDelete(null),
+		});
+	};
+
+	const openVerifyModal = (record) => {
+		if (!canVerifyShrinkage) return requirePermission("CanVerifyShrinkageRecord");
+		if (record?.VerificationStatus && record.VerificationStatus !== "Pending") return;
+		setVerifyTarget(record);
+		verifyForm.setData("status", "Verified");
+		verifyForm.clearErrors();
+	};
+
+	const closeVerifyModal = () => {
+		setVerifyTarget(null);
+	};
+
+	const submitVerification = (status) => {
+		if (!verifyTarget) return;
+		if (!canVerifyShrinkage) return requirePermission("CanVerifyShrinkageRecord");
+		verifyForm.setData("status", status);
+		verifyForm.post(route("inventory.shrinkage-history.verify", verifyTarget.ID), {
+			preserveScroll: true,
+			onSuccess: () => closeVerifyModal(),
 		});
 	};
 
@@ -403,8 +431,6 @@ export default function ShrinkageHistory({
 			disableScroll={true}
 		>
 			<Head title="Shrinkage History" />
-
-			<CashierTabs />
 
 			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
 				<div className="mx-auto flex-1 flex flex-col overflow-hidden min-h-0 w-full">
@@ -476,6 +502,7 @@ export default function ShrinkageHistory({
 													["Quantity", "Quantity"],
 													["TotalAmount", "Total Amount"],
 													["Reason", "Reason"],
+													["VerificationStatus", "Verification"],
 													["DateAdded", "Date Added"],
 												].map(([key, label]) => (
 													<th
@@ -499,8 +526,12 @@ export default function ShrinkageHistory({
 											</tr>
 										</thead>
 										<tbody className="bg-white divide-y divide-gray-200">
-											{paginatedShrinkages.map((record) => (
-												<tr key={record.ID} className="hover:bg-gray-50">
+											{paginatedShrinkages.map((record) => {
+												const isPending =
+													!record.VerificationStatus ||
+													record.VerificationStatus === "Pending";
+												return (
+													<tr key={record.ID} className="hover:bg-gray-50">
 													<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
 														{record.ID}
 													</td>
@@ -517,6 +548,9 @@ export default function ShrinkageHistory({
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
 														{record.Reason}
 													</td>
+													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+														{record.VerificationStatus || "Pending"}
+													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
 														{formatDateTime(record.DateAdded)}
 													</td>
@@ -529,10 +563,20 @@ export default function ShrinkageHistory({
 															>
 																View
 															</button>
+															{isPending && (
+																<button
+																	type="button"
+																	onClick={() => openVerifyModal(record)}
+																	disabled={!canVerifyShrinkage}
+																	className="rounded border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+																>
+																	Confirm Shrinkage
+																</button>
+															)}
 															<button
 																type="button"
 																onClick={() => openEditModal(record)}
-																disabled={!canUpdateShrinkage}
+																disabled={!canUpdateShrinkage || !isPending}
 																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
 															>
 																Edit
@@ -544,7 +588,7 @@ export default function ShrinkageHistory({
 																		? setShrinkageToDelete(record)
 																		: requirePermission("CanDeleteShrinkageRecord")
 																}
-																disabled={!canDeleteShrinkage}
+																disabled={!canDeleteShrinkage || !isPending}
 																className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
 															>
 																Delete
@@ -552,12 +596,13 @@ export default function ShrinkageHistory({
 														</div>
 													</td>
 												</tr>
-											))}
+												);
+											})}
 											{filteredShrinkages.length === 0 && (
 												<tr>
-													<td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
-														No shrinkage records found.
-													</td>
+												<td colSpan="8" className="px-6 py-4 text-center text-sm text-gray-500">
+													No shrinkage records found.
+												</td>
 												</tr>
 											)}
 										</tbody>
@@ -674,6 +719,12 @@ export default function ShrinkageHistory({
 							<div>
 								<span className="font-semibold text-gray-700">Reason:</span>{" "}
 								<span className="text-gray-900">{selectedShrinkage.Reason}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Verification:</span>{" "}
+								<span className="text-gray-900">
+									{selectedShrinkage.VerificationStatus || "Pending"}
+								</span>
 							</div>
 							<div>
 								<span className="font-semibold text-gray-700">Total Quantity:</span>{" "}
@@ -891,7 +942,7 @@ export default function ShrinkageHistory({
 							</div>
 
 							<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-								Edits are stock-safe. Quantities are validated against current stock plus the original quantity already recorded on this shrinkage entry.
+								Stock is deducted only after verification. Quantities are validated against current stock at the time of verification.
 							</div>
 						</div>
 					</div>
@@ -920,12 +971,69 @@ export default function ShrinkageHistory({
 				</form>
 			</Modal>
 
+			<Modal show={Boolean(verifyTarget)} onClose={closeVerifyModal} maxWidth="md">
+				{verifyTarget && (
+					<div className="p-6">
+						<h3 className="text-lg font-semibold text-gray-900">
+							Confirm Shrinkage #{verifyTarget.ID}
+						</h3>
+						<p className="mt-2 text-sm text-gray-600">
+							Verification will deduct stock quantities. Rejection keeps stock unchanged.
+						</p>
+						<div className="mt-4 space-y-2 text-sm text-gray-700">
+							<div>
+								<span className="font-semibold">Reason:</span>{" "}
+								{verifyTarget.Reason || "-"}
+							</div>
+							<div>
+								<span className="font-semibold">Total Quantity:</span>{" "}
+								{verifyTarget.Quantity}
+							</div>
+							<div>
+								<span className="font-semibold">Total Amount:</span>{" "}
+								{currency(verifyTarget.TotalAmount)}
+							</div>
+						</div>
+						{verifyForm.errors.status && (
+							<p className="mt-2 text-sm text-red-600">
+								{verifyForm.errors.status}
+							</p>
+						)}
+						<div className="mt-6 flex justify-end gap-2">
+							<button
+								type="button"
+								onClick={closeVerifyModal}
+								className="rounded-md border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={() => submitVerification("Rejected")}
+								disabled={verifyForm.processing}
+								className="rounded-md border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+							>
+								Reject
+							</button>
+							<button
+								type="button"
+								onClick={() => submitVerification("Verified")}
+								disabled={verifyForm.processing}
+								className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
+							>
+								Verify
+							</button>
+						</div>
+					</div>
+				)}
+			</Modal>
+
 			<ConfirmationModal
 				show={Boolean(shrinkageToDelete)}
 				onClose={() => setShrinkageToDelete(null)}
 				onConfirm={confirmDelete}
 				title="Delete Shrinkage Record"
-				message={`Delete shrinkage record #${shrinkageToDelete?.ID || ""}? This will restore the recorded quantities back to stock.`}
+				message={`Delete shrinkage record #${shrinkageToDelete?.ID || ""}? Stock is only adjusted after verification.`}
 				confirmText="Delete Record"
 				processing={form.processing}
 			/>

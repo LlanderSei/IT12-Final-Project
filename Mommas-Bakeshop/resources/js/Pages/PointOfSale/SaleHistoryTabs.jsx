@@ -134,11 +134,11 @@ export default function SaleHistoryTabs({
 
 		return rows.filter((sale) => {
 			if (query) {
-				const customOrderDetails =
-					sale.custom_order_details || sale.customOrderDetails || [];
-				const customOrderLines = customOrderDetails.flatMap(
-					(detail) => detail.custom_orders || detail.customOrders || [],
-				);
+				const customOrderLines =
+					sale.job_order?.custom_items ||
+					sale.jobOrder?.customItems ||
+					sale.jobOrder?.custom_items ||
+					[];
 				const text = [
 					sale.ID,
 					sale.customer?.CustomerName || "Walk-In",
@@ -293,17 +293,15 @@ export default function SaleHistoryTabs({
 			) || null,
 		[pendingRows, paymentForm.data.SalesID],
 	);
-	const selectedSaleCustomOrderDetails = useMemo(() => {
+	const selectedSaleCustomOrderLines = useMemo(() => {
 		if (!selectedSale) return [];
-		return selectedSale.custom_order_details || selectedSale.customOrderDetails || [];
+		return (
+			selectedSale.job_order?.custom_items ||
+			selectedSale.jobOrder?.customItems ||
+			selectedSale.jobOrder?.custom_items ||
+			[]
+		);
 	}, [selectedSale]);
-	const selectedSaleCustomOrderLines = useMemo(
-		() =>
-			selectedSaleCustomOrderDetails.flatMap(
-				(detail) => detail.custom_orders || detail.customOrders || [],
-			),
-		[selectedSaleCustomOrderDetails],
-	);
 
 	useEffect(() => {
 		if (paymentForm.data.paymentType === "full" && selectedPendingSale) {
@@ -354,8 +352,8 @@ export default function SaleHistoryTabs({
 	const openReceiptPreview = (sale, receiptPayment = null) => {
 		if (!requirePermission("CanViewPaymentReceipts")) return;
 		const receiptNumber = receiptPayment?.ReceiptNumber || sale?.payment?.ReceiptNumber;
-		if (sale?.SaleType !== "JobOrder" || !receiptNumber) {
-			return deny("Only job-order payments with an issued receipt can be previewed.");
+		if (!receiptNumber) {
+			return deny("Only sales with an issued receipt can be previewed.");
 		}
 		setDocumentPreview({
 			type: "receipt",
@@ -672,13 +670,11 @@ export default function SaleHistoryTabs({
 										Preview Invoice
 									</button>
 								)}
-								{canViewReceipts &&
-									selectedSale.SaleType === "JobOrder" &&
-									selectedSale.payment?.ReceiptNumber && (
-									<button
-										type="button"
-										onClick={() => openReceiptPreview(selectedSale)}
-										className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+								{canViewReceipts && selectedSale.payment?.ReceiptNumber && (
+										<button
+											type="button"
+											onClick={() => openReceiptPreview(selectedSale)}
+											className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 									>
 										Preview Receipt
 									</button>
