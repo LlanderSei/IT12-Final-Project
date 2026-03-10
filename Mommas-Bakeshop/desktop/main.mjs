@@ -15,6 +15,16 @@ if (!singleInstanceLock) {
 }
 
 const createWindow = async () => {
+	if (process.env.DESKTOP_ALLOW_SYSTEM_PHP === undefined) {
+		process.env.DESKTOP_ALLOW_SYSTEM_PHP = app.isPackaged ? "false" : "true";
+	}
+	if (process.env.DESKTOP_ALLOW_SYSTEM_MYSQL === undefined) {
+		process.env.DESKTOP_ALLOW_SYSTEM_MYSQL = app.isPackaged ? "false" : "true";
+	}
+	if (process.env.DESKTOP_MANAGED_MYSQL === undefined) {
+		process.env.DESKTOP_MANAGED_MYSQL = app.isPackaged ? "true" : "false";
+	}
+
 	await processManager.prepareRuntime();
 	const serverUrl = await processManager.startBackend();
 	const health = await processManager.waitForHealth();
@@ -36,7 +46,7 @@ const createWindow = async () => {
 			contextIsolation: true,
 			nodeIntegration: false,
 			sandbox: true,
-			preload: path.join(__dirname, "preload.mjs"),
+			preload: path.join(__dirname, "preload.cjs"),
 		},
 	});
 
@@ -64,11 +74,12 @@ app.whenReady().then(async () => {
 	try {
 		await createWindow();
 	} catch (error) {
+		const detail = error instanceof Error ? error.stack || error.message : String(error);
 		await dialog.showMessageBox({
 			type: "error",
 			title: "Desktop Startup Failed",
 			message: "Momma's Bakeshop desktop could not start.",
-			detail: error instanceof Error ? error.message : String(error),
+			detail,
 		});
 		await processManager.stopBackend();
 		await processManager.stopManagedMysql();
@@ -80,11 +91,12 @@ app.whenReady().then(async () => {
 			try {
 				await createWindow();
 			} catch (error) {
+				const detail = error instanceof Error ? error.stack || error.message : String(error);
 				await dialog.showMessageBox({
 					type: "error",
 					title: "Desktop Startup Failed",
 					message: "Momma's Bakeshop desktop could not reopen.",
-					detail: error instanceof Error ? error.message : String(error),
+					detail,
 				});
 			}
 		}
