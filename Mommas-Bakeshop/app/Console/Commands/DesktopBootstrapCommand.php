@@ -38,12 +38,37 @@ class DesktopBootstrapCommand extends Command {
 		$envPath = base_path('.env');
 		$examplePath = base_path('.env.example');
 
-		if (File::exists($envPath) || !File::exists($examplePath)) {
+		if (File::exists($envPath)) {
 			return;
 		}
 
-		File::copy($examplePath, $envPath);
-		$this->info('Created .env from .env.example');
+		if (File::exists($examplePath)) {
+			File::copy($examplePath, $envPath);
+			$this->info('Created .env from .env.example');
+			return;
+		}
+
+		$defaults = [
+			'APP_NAME' => 'Mommas Bakeshop',
+			'APP_ENV' => 'production',
+			'APP_KEY' => '',
+			'APP_DEBUG' => 'false',
+			'APP_URL' => sprintf('http://%s:%d', config('desktop.host'), config('desktop.port')),
+			'LOG_CHANNEL' => 'stack',
+			'LOG_LEVEL' => 'info',
+			'DB_CONNECTION' => 'mysql',
+			'SESSION_DRIVER' => 'database',
+			'QUEUE_CONNECTION' => 'database',
+			'CACHE_STORE' => 'database',
+		];
+
+		$lines = [];
+		foreach ($defaults as $key => $value) {
+			$lines[] = $key . '=' . $this->formatEnvValue((string) $value);
+		}
+
+		File::put($envPath, implode(PHP_EOL, $lines) . PHP_EOL);
+		$this->info('Created .env with minimal defaults');
 	}
 
 	private function ensureDesktopDirectories(): void {
@@ -223,8 +248,14 @@ class DesktopBootstrapCommand extends Command {
 		Config::set('database.connections.mysql.database', (string) ($managedMysql['database'] ?? 'mommas_bakeshop_desktop'));
 		Config::set('database.connections.mysql.username', (string) ($managedMysql['username'] ?? 'root'));
 		Config::set('database.connections.mysql.password', (string) ($managedMysql['password'] ?? ''));
+		Config::set('database.connections.mysql_control', Config::get('database.connections.mysql'));
+		Config::set('queue.connections.database.connection', 'mysql_control');
+		Config::set('queue.batching.database', 'mysql_control');
+		Config::set('queue.failed.database', 'mysql_control');
 
 		DB::purge('mysql');
 		DB::reconnect('mysql');
+		DB::purge('mysql_control');
+		DB::reconnect('mysql_control');
 	}
 }

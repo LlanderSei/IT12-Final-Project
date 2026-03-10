@@ -95,6 +95,7 @@ Implemented:
 - optional managed MySQL child-process scaffold
 - desktop bootstrap command `php artisan desktop:bootstrap --force`
 - Electron packaging scripts in `package.json`
+- Windows packaging wrapper with timestamped output folders
 
 Current assumptions:
 - development can fall back to `php` and `mysqld` on PATH
@@ -106,3 +107,4 @@ Next packaging tasks:
 2. Bundle Windows MySQL/MariaDB runtime under `desktop/runtime/mysql/`
 3. Add first-run desktop owner setup UI when `/desktop/health` reports `firstRunRequired=true`
 4. Run a real `electron-builder` packaging pass on a disposable machine and trim the distribution payload
+5. Add a repeatable runtime bundle script for PHP/MySQL binaries

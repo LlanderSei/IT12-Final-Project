@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import { access, mkdir } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, existsSync, readdirSync } from "node:fs";
+import path from "node:path";
 import net from "node:net";
-import { desktopConfig, healthUrl, serverUrl } from "./config.mjs";
+import { getDesktopConfig, getHealthUrl, getServerUrl } from "./config.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -14,6 +15,7 @@ export class DesktopProcessManager {
 	}
 
 	async prepareRuntime() {
+		const desktopConfig = getDesktopConfig();
 		if (desktopConfig.managedMysql.enabled) {
 			await this.startManagedMysql();
 		}
@@ -26,6 +28,7 @@ export class DesktopProcessManager {
 			return process.env.DESKTOP_APP_URL;
 		}
 
+		const desktopConfig = getDesktopConfig();
 		const phpBinary = await this.resolvePhpBinary();
 		const args = [
 			"artisan",
@@ -61,16 +64,17 @@ export class DesktopProcessManager {
 			this.backendProcess = null;
 		});
 
-		return serverUrl;
+		return getServerUrl();
 	}
 
 	async waitForHealth() {
+		const desktopConfig = getDesktopConfig();
 		const deadline = Date.now() + desktopConfig.healthTimeoutMs;
 		let lastError = null;
 
 		while (Date.now() < deadline) {
 			try {
-				const response = await fetch(process.env.DESKTOP_APP_URL ? `${process.env.DESKTOP_APP_URL}${desktopConfig.healthPath}` : healthUrl, {
+				const response = await fetch(process.env.DESKTOP_APP_URL ? `${process.env.DESKTOP_APP_URL}${desktopConfig.healthPath}` : getHealthUrl(), {
 					headers: {
 						Accept: "application/json",
 					},
@@ -138,15 +142,22 @@ export class DesktopProcessManager {
 	}
 
 	async resolvePhpBinary() {
+		const desktopConfig = getDesktopConfig();
 		try {
 			await access(desktopConfig.phpBinary, fsConstants.X_OK);
 			return desktopConfig.phpBinary;
 		} catch {
-			return "php";
+			if (desktopConfig.allowSystemPhp) {
+				return "php";
+			}
+			throw new Error(
+				`Bundled PHP runtime not found at ${desktopConfig.phpBinary}. Place PHP under desktop/runtime/php or set DESKTOP_PHP_BINARY (or DESKTOP_ALLOW_SYSTEM_PHP=true for dev).`,
+			);
 		}
 	}
 
 	async startManagedMysql() {
+		const desktopConfig = getDesktopConfig();
 		const mysqlConfig = desktopConfig.managedMysql;
 		if (!mysqlConfig.enabled) {
 			return;
@@ -160,11 +171,15 @@ export class DesktopProcessManager {
 		await mkdir(mysqlConfig.dataDir, { recursive: true });
 		await mkdir(mysqlConfig.logDir, { recursive: true });
 
+		await this.ensureMysqlInitialized(mysqlBinary, mysqlConfig);
+
 		const args = [
+			`--basedir=${this.resolveMysqlBaseDir(mysqlBinary)}`,
 			`--datadir=${mysqlConfig.dataDir}`,
 			`--port=${mysqlConfig.port}`,
 			`--bind-address=${mysqlConfig.host}`,
 			`--pid-file=${mysqlConfig.pidFile}`,
+			"--console",
 		];
 
 		this.mysqlProcess = spawn(mysqlBinary, args, {
@@ -195,16 +210,83 @@ export class DesktopProcessManager {
 		}
 	}
 
+	resolveMysqlBaseDir(mysqlBinary) {
+		return path.resolve(path.dirname(mysqlBinary), "..");
+	}
+
+	async ensureMysqlInitialized(mysqlBinary, mysqlConfig) {
+		const desktopConfig = getDesktopConfig();
+		const mysqlSystemDir = path.join(mysqlConfig.dataDir, "mysql");
+		if (existsSync(mysqlSystemDir)) {
+			return;
+		}
+
+		const contents = readdirSync(mysqlConfig.dataDir, { withFileTypes: true });
+		if (contents.length > 0 && !existsSync(mysqlSystemDir)) {
+			throw new Error(
+				`MySQL data directory is not initialized but contains files: ${mysqlConfig.dataDir}.`,
+			);
+		}
+
+		const initArgs = [
+			`--basedir=${this.resolveMysqlBaseDir(mysqlBinary)}`,
+			`--datadir=${mysqlConfig.dataDir}`,
+			"--initialize-insecure",
+			"--console",
+		];
+
+		await new Promise((resolve, reject) => {
+			const initProcess = spawn(mysqlBinary, initArgs, {
+				cwd: desktopConfig.projectRoot,
+				stdio: "pipe",
+				windowsHide: true,
+				env: process.env,
+			});
+
+			let stderr = "";
+			let stdout = "";
+
+			initProcess.stdout?.on("data", (chunk) => {
+				stdout += chunk.toString();
+				process.stdout.write(`[desktop-mysql-init] ${chunk}`);
+			});
+			initProcess.stderr?.on("data", (chunk) => {
+				stderr += chunk.toString();
+				process.stderr.write(`[desktop-mysql-init] ${chunk}`);
+			});
+			initProcess.once("error", reject);
+			initProcess.once("exit", (code) => {
+				if (code === 0) {
+					resolve();
+					return;
+				}
+
+				reject(
+					new Error(
+						`MySQL initialization failed with exit code ${code}.\n${stderr || stdout}`.trim(),
+					),
+				);
+			});
+		});
+	}
+
 	async resolveMysqlBinary() {
+		const desktopConfig = getDesktopConfig();
 		try {
 			await access(desktopConfig.managedMysql.mysqlBinary, fsConstants.X_OK);
 			return desktopConfig.managedMysql.mysqlBinary;
 		} catch {
-			return process.platform === "win32" ? "mysqld" : "mysqld";
+			if (desktopConfig.managedMysql.allowSystemMysql) {
+				return process.platform === "win32" ? "mysqld" : "mysqld";
+			}
+			throw new Error(
+				`Bundled MySQL runtime not found at ${desktopConfig.managedMysql.mysqlBinary}. Place MySQL under desktop/runtime/mysql or set DESKTOP_MYSQL_BINARY (or DESKTOP_ALLOW_SYSTEM_MYSQL=true for dev).`,
+			);
 		}
 	}
 
 	async runBootstrap() {
+		const desktopConfig = getDesktopConfig();
 		const phpBinary = await this.resolvePhpBinary();
 		const bootstrapArgs = ["artisan", "desktop:bootstrap", "--force"];
 
@@ -247,6 +329,7 @@ export class DesktopProcessManager {
 	}
 
 	async waitForPort(host, port) {
+		const desktopConfig = getDesktopConfig();
 		const deadline = Date.now() + desktopConfig.healthTimeoutMs;
 		while (Date.now() < deadline) {
 			if (await this.isPortOpen(host, port)) {

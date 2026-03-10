@@ -378,8 +378,6 @@ return new class extends Migration {
 		Schema::dropIfExists('job_order_custom_items');
 		Schema::dropIfExists('job_order_items');
 		Schema::dropIfExists('job_orders');
-		Schema::dropIfExists('custom_orders');
-		Schema::dropIfExists('custom_order_details');
 		Schema::dropIfExists('inventory');
 		Schema::dropIfExists('shrinked_products');
 		Schema::dropIfExists('shrinkages');

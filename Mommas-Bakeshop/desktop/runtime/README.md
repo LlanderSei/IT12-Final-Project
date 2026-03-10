@@ -9,6 +9,27 @@ Phase 4 currently scaffolds the Electron desktop environment and expects bundled
 - `desktop/runtime/mysql/bin/`
   - Windows example: `mysqld.exe`
 
+## Packaged layout
+
+Electron packaging copies this folder to:
+- `resources/runtime/`
+
+The desktop launcher will use:
+- `desktop/runtime` during development
+- `resources/runtime` when packaged
+
+## Bundling helper
+
+Use the helper script to copy local runtimes into this folder before packaging:
+
+```powershell
+.\desktop\scripts\bundle-runtime.ps1 -PhpRoot "C:\path\to\php" -MysqlRoot "C:\path\to\mysql"
+```
+
+Expected input roots:
+- `PhpRoot` should contain `php.exe`
+- `MysqlRoot` should contain `bin\mysqld.exe`
+
 ## Development fallback
 
 If these binaries are not present, the Electron scaffold falls back to executables available on `PATH`:
