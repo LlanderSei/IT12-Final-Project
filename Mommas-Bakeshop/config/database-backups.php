@@ -19,8 +19,6 @@ return [
         'payments',
         'partial_payments',
         'sold_products',
-        'custom_order_details',
-        'custom_orders',
         'shrinkages',
         'shrinked_products',
         'inventory',

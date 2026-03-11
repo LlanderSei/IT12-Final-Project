@@ -22,3 +22,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/dist-electron
+/desktop/desktop
+/desktop/runtime

@@ -35,7 +35,9 @@ export default function PendingPayments({
 					<th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort?.("Customer")}>
 						<div className="flex items-center">Customer {sortConfig?.key === "Customer" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
 					</th>
-					<th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sold Products</th>
+					<th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+						Receipt / Invoice ID
+					</th>
 					<th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort?.("TotalAmount")}>
 						<div className="flex items-center">Total Amount {sortConfig?.key === "TotalAmount" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
 					</th>
@@ -71,28 +73,11 @@ export default function PendingPayments({
 						</td>
 						<td className="px-4 py-4 text-sm text-gray-900">{sale.customer?.CustomerName || "Walk-In"}</td>
 						<td className="px-4 py-4 text-sm text-gray-900">
-							<div className="w-fit max-w-full overflow-x-auto">
-								<table className="min-w-[22rem] text-xs">
-									<thead className="bg-gray-50">
-										<tr>
-											<th className="px-2 py-1 text-left font-semibold text-gray-600">Product</th>
-											<th className="px-2 py-1 text-left font-semibold text-gray-600">Qty</th>
-											<th className="px-2 py-1 text-left font-semibold text-gray-600">Price</th>
-											<th className="px-2 py-1 text-left font-semibold text-gray-600">Subtotal</th>
-										</tr>
-									</thead>
-									<tbody className="divide-y divide-gray-100">
-										{(sale.sold_products || []).map((line) => (
-											<tr key={line.ID}>
-												<td className="px-2 py-1 text-gray-900">{line.product?.ProductName || "-"}</td>
-												<td className="px-2 py-1 text-gray-700">{line.Quantity}</td>
-												<td className="px-2 py-1 text-gray-700">{currency(line.PricePerUnit)}</td>
-												<td className="px-2 py-1 text-gray-700">{currency(line.SubAmount)}</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
+							{sale.SaleType === "JobOrder"
+								? sale.payment?.InvoiceNumber ||
+									sale.payment?.ReceiptNumber ||
+									"-"
+								: sale.payment?.ReceiptNumber || "-"}
 						</td>
 						<td className="px-4 py-4 text-sm font-semibold text-gray-900">{currency(sale.totalAmount)}</td>
 						<td className="px-4 py-4 text-sm text-gray-700">{sale.payment?.PaymentStatus || "-"}</td>

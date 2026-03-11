@@ -48,11 +48,13 @@ class DashboardController extends Controller {
       ->count();
 
     $todaySpoilages = (int) Shrinkage::query()
+      ->where('VerificationStatus', 'Verified')
       ->where('Reason', 'Spoiled')
       ->whereBetween('DateAdded', [$todayStart, $todayEnd])
       ->sum('Quantity');
 
     $yesterdaySpoilages = (int) Shrinkage::query()
+      ->where('VerificationStatus', 'Verified')
       ->where('Reason', 'Spoiled')
       ->whereBetween('DateAdded', [$yesterdayStart, $yesterdayEnd])
       ->sum('Quantity');

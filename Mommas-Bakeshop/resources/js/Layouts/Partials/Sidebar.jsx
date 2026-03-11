@@ -24,6 +24,7 @@ const Icon = ({ name, size = 20, style }) => {
 	const icons = {
 		dashboard: LayoutDashboard,
 		cashier: ShoppingCart,
+		jobOrders: FileText,
 		saleHistory: ChartSpline,
 		inventory: Package,
 		products: Boxes,
@@ -86,20 +87,28 @@ const NAV_STRUCTURE = [
 				requiredPermissions: ["CanViewCashier"],
 			},
 			{
+				id: "pos.job-orders",
+				activeRoutes: [
+					"pos.job-orders",
+					"pos.job-orders.pending",
+					"pos.job-orders.history",
+				],
+				label: "Job Orders",
+				icon: "jobOrders",
+				href: route("pos.job-orders"),
+				requiredPermissions: [
+					"CanViewJobOrders",
+					"CanViewPendingJobOrders",
+					"CanViewJobOrdersHistory",
+				],
+			},
+			{
 				id: "pos.sale-history",
 				activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
 				label: "Sale History",
 				icon: "saleHistory",
 				href: route("pos.sale-history"),
 				requiredPermissions: ["CanViewSalesHistory", "CanViewSalesHistorySales", "CanViewSalesHistoryPendingPayments"],
-			},
-			{
-				id: "pos.shrinkage-history",
-				activeRoutes: ["pos.shrinkage-history"],
-				label: "Shrinkage History",
-				icon: "audits",
-				href: route("pos.shrinkage-history"),
-				requiredPermissions: ["CanViewShrinkageHistory"],
 			},
 			{
 				id: "pos.customers",
@@ -127,6 +136,14 @@ const NAV_STRUCTURE = [
 				icon: "inventory",
 				href: route("inventory.index"),
 				requiredPermissions: ["CanViewInventoryLevels"],
+			},
+			{
+				id: "inventory.shrinkage-history",
+				activeRoutes: ["inventory.shrinkage-history"],
+				label: "Shrinkage History",
+				icon: "audits",
+				href: route("inventory.shrinkage-history"),
+				requiredPermissions: ["CanViewShrinkageHistory"],
 			},
 			{
 				id: "inventory.products",

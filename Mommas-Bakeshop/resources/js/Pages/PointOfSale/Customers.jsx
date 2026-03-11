@@ -657,9 +657,11 @@ export default function Customers({ customers = [] }) {
 									</thead>
 									<tbody className="divide-y divide-gray-200 bg-white">
 										{(selectedCustomer.sales || []).map((sale) => {
-											const customOrderLines = (sale.custom_order_details || []).flatMap(
-												(detail) => detail.custom_orders || [],
-											);
+											const customOrderLines =
+												sale.job_order?.custom_items ||
+												sale.jobOrder?.customItems ||
+												sale.jobOrder?.custom_items ||
+												[];
 											return (
 												<tr key={sale.ID} className="align-top">
 													<td className="px-3 py-2 text-gray-900">#{sale.ID}</td>

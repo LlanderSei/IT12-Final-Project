@@ -1,43 +1,18 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Head, useForm, usePage } from "@inertiajs/react";
-import { useEffect } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
-import SaleDocumentPreviewModal from "@/Components/SaleDocumentPreviewModal";
 import CashierTabs from "./CashierTabs";
 import usePermissions from "@/hooks/usePermissions";
-import { exportInvoicePdf, exportReceiptPdf } from "@/utils/saleDocuments";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
-const tomorrowISO = () => {
-	const date = new Date();
-	date.setDate(date.getDate() + 1);
-	return date.toISOString().split("T")[0];
-};
-
-const plusThirtyDaysISO = () => {
-	const date = new Date();
-	date.setDate(date.getDate() + 30);
-	return date.toISOString().split("T")[0];
-};
-
-export default function CashSale({
-	products = [],
-	categories = [],
-	customers = [],
-}) {
+export default function CashSale({ products = [], categories = [] }) {
 	const { can, requirePermission } = usePermissions();
-	const { auth, flash } = usePage().props;
+	const { auth } = usePage().props;
 	const canProcessWalkIn = can("CanProcessSalesWalkIn");
-	const canProcessJobOrders = can("CanProcessSalesJobOrders");
 	const canProcessShrinkage = can("CanProcessSalesShrinkage");
-	const canViewInvoices = can("CanViewJobOrderInvoices");
-	const canExportInvoices = can("CanExportJobOrderInvoices");
-	const canViewReceipts = can("CanViewPaymentReceipts");
-	const canExportReceipts = can("CanExportPaymentReceipts");
-	const canProcessAny =
-		canProcessWalkIn || canProcessJobOrders || canProcessShrinkage;
+	const canProcessAny = canProcessWalkIn || canProcessShrinkage;
 	const userRole = String(auth?.user?.role || "").toLowerCase();
 	const canUseAdvancedShrinkageReasons =
 		userRole === "owner" || userRole === "admin";
@@ -51,31 +26,9 @@ export default function CashSale({
 	const [editQtyValue, setEditQtyValue] = useState("");
 	const [editQtyError, setEditQtyError] = useState("");
 	const [walkInOpen, setWalkInOpen] = useState(false);
-	const [jobOrderOpen, setJobOrderOpen] = useState(false);
-	const [customOrderEditorOpen, setCustomOrderEditorOpen] = useState(false);
-	const [customOrderEditIndex, setCustomOrderEditIndex] = useState(null);
-	const [customOrderClearConfirmOpen, setCustomOrderClearConfirmOpen] =
-		useState(false);
-	const [jobOrderDocumentPromptOpen, setJobOrderDocumentPromptOpen] =
-		useState(false);
-	const [jobOrderDocumentSale, setJobOrderDocumentSale] = useState(null);
-	const [documentPreview, setDocumentPreview] = useState({
-		type: null,
-		sale: null,
-		receiptPayment: null,
-	});
-	const [customOrderDraft, setCustomOrderDraft] = useState({
-		description: "",
-		quantity: "1",
-		pricePerUnit: "",
-	});
-	const [customOrderDraftError, setCustomOrderDraftError] = useState("");
-	const [savedCustomOrderDraft, setSavedCustomOrderDraft] = useState(null);
 	const [shrinkageOpen, setShrinkageOpen] = useState(false);
 	const [walkInSubmitError, setWalkInSubmitError] = useState("");
-	const [jobOrderSubmitError, setJobOrderSubmitError] = useState("");
 	const [shrinkageSubmitError, setShrinkageSubmitError] = useState("");
-	const [customerSearch, setCustomerSearch] = useState("");
 
 	const walkInForm = useForm({
 		items: [],
@@ -84,38 +37,16 @@ export default function CashSale({
 		additionalDetails: "",
 	});
 
-	const jobOrderForm = useForm({
-		items: [],
-		customOrders: [],
-		customerMode: "existing",
-		CustomerID: "",
-		newCustomer: {
-			CustomerName: "",
-			CustomerType: "Retail",
-			ContactDetails: "",
-			Address: "",
-		},
-		paymentSelection: "pay_later",
-		paidAmount: "",
-		paymentMethod: "Cash",
-		additionalDetails: "",
-		dueDate: plusThirtyDaysISO(),
-	});
-
 	const shrinkageForm = useForm({
 		items: [],
 		reason: "Spoiled",
 	});
+
 	const transactionPermissionMap = {
 		"Walk-In": {
 			allowed: canProcessWalkIn,
 			permission: "CanProcessSalesWalkIn",
 			label: "walk-in sales",
-		},
-		"Job Orders": {
-			allowed: canProcessJobOrders,
-			permission: "CanProcessSalesJobOrders",
-			label: "job orders",
 		},
 		Shrinkage: {
 			allowed: canProcessShrinkage,
@@ -123,6 +54,7 @@ export default function CashSale({
 			label: "shrinkage",
 		},
 	};
+
 	const transactionOptions = Object.entries(transactionPermissionMap)
 		.filter(([, config]) => config.allowed)
 		.map(([label]) => label);
@@ -136,17 +68,6 @@ export default function CashSale({
 			setTransactionType(transactionOptions[0]);
 		}
 	}, [transactionOptions, transactionType]);
-
-	useEffect(() => {
-		const flashedSale = flash?.documentPayload?.sale;
-		if (
-			flash?.documentPayload?.source === "job-order" &&
-			flashedSale?.ID
-		) {
-			setJobOrderDocumentSale(flashedSale);
-			setJobOrderDocumentPromptOpen(true);
-		}
-	}, [flash?.documentPayload]);
 
 	const availableProducts = useMemo(() => {
 		return products
@@ -176,19 +97,7 @@ export default function CashSale({
 			ProductID: item.ID,
 			Quantity: item.quantity,
 		}));
-	const customOrdersTotal = useMemo(
-		() =>
-			(jobOrderForm.data.customOrders || []).reduce((sum, item) => {
-				return (
-					sum + Number(item?.quantity || 0) * Number(item?.pricePerUnit || 0)
-				);
-			}, 0),
-		[jobOrderForm.data.customOrders],
-	);
-	const jobOrderGrandTotal = useMemo(
-		() => Number(cartTotal) + Number(customOrdersTotal),
-		[cartTotal, customOrdersTotal],
-	);
+
 	const requireSelectedTransactionPermission = () => {
 		const selected = transactionPermissionMap[transactionType];
 		if (selected?.allowed) {
@@ -212,7 +121,10 @@ export default function CashSale({
 					item.ID === product.ID
 						? {
 								...item,
-								quantity: Math.min(item.quantity + 1, Number(product.Quantity)),
+								quantity: Math.min(
+									item.quantity + 1,
+									Number(product.Quantity),
+								),
 							}
 						: item,
 				);
@@ -300,12 +212,10 @@ export default function CashSale({
 		if (!requireSelectedTransactionPermission()) return;
 		setCartItems([]);
 	};
-	const firstErrorMessage = (errors, fallback) =>
-		(errors && Object.values(errors).find(Boolean)) || fallback;
 
 	const openCheckoutModal = () => {
 		if (!requireSelectedTransactionPermission()) return;
-		if (transactionType !== "Job Orders" && !cartItems.length) return;
+		if (!cartItems.length) return;
 		if (transactionType === "Walk-In") {
 			walkInForm.setData("items", cartToPayload());
 			walkInForm.setData("paidAmount", "");
@@ -316,14 +226,6 @@ export default function CashSale({
 			setWalkInOpen(true);
 			return;
 		}
-		if (transactionType === "Job Orders") {
-			jobOrderForm.setData("items", cartToPayload());
-			jobOrderForm.clearErrors();
-			setJobOrderSubmitError("");
-			setJobOrderOpen(true);
-			return;
-		}
-
 		shrinkageForm.setData("items", cartToPayload());
 		shrinkageForm.setData("reason", "Spoiled");
 		shrinkageForm.clearErrors();
@@ -336,33 +238,6 @@ export default function CashSale({
 		walkInPaidAmount === "" || Number(walkInPaidAmount) < cartTotal
 			? 0
 			: Number(walkInPaidAmount) - cartTotal;
-	const newCustomerFieldErrors = [
-		jobOrderForm.errors["newCustomer.CustomerName"],
-		jobOrderForm.errors["newCustomer.CustomerType"],
-		jobOrderForm.errors["newCustomer.ContactDetails"],
-		jobOrderForm.errors["newCustomer.Address"],
-	].filter(Boolean);
-	const customOrderFieldErrors = Object.entries(jobOrderForm.errors || {})
-		.filter(([key]) => key.startsWith("customOrders"))
-		.map(([, message]) => message)
-		.filter(Boolean);
-	const filteredCustomers = useMemo(() => {
-		const query = customerSearch.trim().toLowerCase();
-		if (!query) return customers;
-		return customers.filter((customer) => {
-			const name = String(customer.CustomerName || "").toLowerCase();
-			const type = String(customer.CustomerType || "").toLowerCase();
-			const contact = String(customer.ContactDetails || "").toLowerCase();
-			return (
-				name.includes(query) || type.includes(query) || contact.includes(query)
-			);
-		});
-	}, [customers, customerSearch]);
-	const selectedTransactionConfig =
-		transactionPermissionMap[transactionType] || null;
-	const canProcessSelectedTransaction = Boolean(
-		selectedTransactionConfig?.allowed,
-	);
 
 	const submitWalkIn = (e) => {
 		e.preventDefault();
@@ -391,70 +266,8 @@ export default function CashSale({
 					return;
 				}
 				setWalkInSubmitError(
-					firstErrorMessage(
-						errors,
+					Object.values(errors).find(Boolean) ||
 						"Failed to process walk-in sale. Please review your input.",
-					),
-				);
-			},
-		});
-	};
-
-	const submitJobOrder = (e) => {
-		e.preventDefault();
-		if (!canProcessJobOrders) {
-			return requirePermission(
-				"CanProcessSalesJobOrders",
-				"You do not have permission to process job orders.",
-			);
-		}
-		if (!cartItems.length && !(jobOrderForm.data.customOrders || []).length) {
-			setJobOrderSubmitError("Add at least one product or custom order item.");
-			return;
-		}
-		jobOrderForm.transform((data) => ({
-			...data,
-			items: cartToPayload(),
-			customOrders: (data.customOrders || []).map((item) => ({
-				description: String(item.description || "").trim(),
-				quantity: Number(item.quantity || 0),
-				pricePerUnit: Number(item.pricePerUnit || 0),
-			})),
-			paidAmount:
-				data.paymentSelection === "pay_now"
-					? data.paidAmount === ""
-						? null
-						: Number(data.paidAmount)
-					: null,
-		}));
-		jobOrderForm.post(route("pos.checkout.job-order"), {
-			preserveScroll: true,
-			onSuccess: () => {
-				setJobOrderOpen(false);
-				clearCart();
-				jobOrderForm.reset("items", "CustomerID");
-				jobOrderForm.setData("customOrders", []);
-				jobOrderForm.setData("customerMode", "existing");
-				jobOrderForm.setData("dueDate", plusThirtyDaysISO());
-				jobOrderForm.setData("paymentSelection", "pay_later");
-				jobOrderForm.setData("paidAmount", "");
-				jobOrderForm.setData("paymentMethod", "Cash");
-				jobOrderForm.setData("additionalDetails", "");
-				jobOrderForm.setData("newCustomer", {
-					CustomerName: "",
-					CustomerType: "Retail",
-					ContactDetails: "",
-					Address: "",
-				});
-				setCustomerSearch("");
-				setJobOrderSubmitError("");
-			},
-			onError: (errors) => {
-				setJobOrderSubmitError(
-					firstErrorMessage(
-						errors,
-						"Failed to process job order. Please review your input.",
-					),
 				);
 			},
 		});
@@ -483,109 +296,11 @@ export default function CashSale({
 			},
 			onError: (errors) => {
 				setShrinkageSubmitError(
-					firstErrorMessage(
-						errors,
+					Object.values(errors).find(Boolean) ||
 						"Failed to record shrinkage. Please review your input.",
-					),
 				);
 			},
 		});
-	};
-	const openCustomOrderEditor = (index = null) => {
-		const existing =
-			index === null ? null : (jobOrderForm.data.customOrders || [])[index];
-		setCustomOrderEditIndex(index);
-		setCustomOrderDraft({
-			description:
-				index === null
-					? savedCustomOrderDraft?.description || ""
-					: existing?.description || "",
-			quantity:
-				index === null
-					? String(savedCustomOrderDraft?.quantity || 1)
-					: String(existing?.quantity || 1),
-			pricePerUnit:
-				index === null
-					? savedCustomOrderDraft?.pricePerUnit
-						? String(savedCustomOrderDraft.pricePerUnit)
-						: ""
-					: existing?.pricePerUnit === 0 || existing?.pricePerUnit
-						? String(existing.pricePerUnit)
-						: "",
-		});
-		setCustomOrderDraftError("");
-		setCustomOrderEditorOpen(true);
-	};
-
-	const closeCustomOrderEditor = ({ preserveDraft = true } = {}) => {
-		if (preserveDraft && customOrderEditIndex === null) {
-			const description = String(customOrderDraft.description || "").trim();
-			const quantity = String(customOrderDraft.quantity || "").trim();
-			const pricePerUnit = String(customOrderDraft.pricePerUnit || "").trim();
-			if (description || (quantity && quantity !== "1") || pricePerUnit) {
-				setSavedCustomOrderDraft({
-					description,
-					quantity,
-					pricePerUnit,
-				});
-			}
-		}
-		setCustomOrderEditorOpen(false);
-		setCustomOrderEditIndex(null);
-		setCustomOrderDraft({
-			description: "",
-			quantity: "1",
-			pricePerUnit: "",
-		});
-		setCustomOrderDraftError("");
-	};
-
-	const saveCustomOrderDraft = (e) => {
-		e.preventDefault();
-		const description = String(customOrderDraft.description || "").trim();
-		const quantity = Number(customOrderDraft.quantity);
-		const pricePerUnit = Number(customOrderDraft.pricePerUnit);
-
-		if (!description) {
-			setCustomOrderDraftError("Description is required.");
-			return;
-		}
-		if (!Number.isInteger(quantity) || quantity < 1) {
-			setCustomOrderDraftError(
-				"Quantity must be a whole number greater than 0.",
-			);
-			return;
-		}
-		if (!Number.isFinite(pricePerUnit) || pricePerUnit <= 0) {
-			setCustomOrderDraftError("Price per unit must be greater than 0.");
-			return;
-		}
-
-		const normalized = {
-			description,
-			quantity,
-			pricePerUnit: Number(pricePerUnit.toFixed(2)),
-		};
-		const current = [...(jobOrderForm.data.customOrders || [])];
-		if (customOrderEditIndex === null) {
-			current.push(normalized);
-		} else {
-			current[customOrderEditIndex] = normalized;
-		}
-		jobOrderForm.setData("customOrders", current);
-		setSavedCustomOrderDraft(null);
-		closeCustomOrderEditor({ preserveDraft: false });
-	};
-
-	const removeCustomOrder = (index) => {
-		const current = [...(jobOrderForm.data.customOrders || [])];
-		current.splice(index, 1);
-		jobOrderForm.setData("customOrders", current);
-	};
-	const clearAllCustomOrders = () => {
-		jobOrderForm.setData("customOrders", []);
-		setSavedCustomOrderDraft(null);
-		setCustomOrderClearConfirmOpen(false);
 	};
 
 	return (
@@ -639,141 +354,47 @@ export default function CashSale({
 											key={product.ID}
 											type="button"
 											onClick={() => addToCart(product)}
-											disabled={!canProcessSelectedTransaction}
+											disabled={!canProcessAny}
 											className="text-left border border-gray-200 rounded-lg p-3 hover:border-primary hover:bg-primary-soft transition-colors"
 										>
-											{(() => {
-												const productImageSrc =
-													product.ProductImageUrl || product.ProductImage || null;
-												return (
-											<div className="h-28 bg-gray-100 rounded-md mb-2 overflow-hidden">
-												{productImageSrc ? (
+											<div className="h-24 w-full rounded-md bg-gray-100 overflow-hidden mb-2 flex items-center justify-center">
+												{product.ProductImageUrl ? (
 													<img
-														src={productImageSrc}
+														src={product.ProductImageUrl}
 														alt={product.ProductName}
-														className="w-full h-full object-cover"
-														onError={(e) => {
-															e.currentTarget.style.display = "none";
-															e.currentTarget.nextSibling.style.display =
-																"flex";
-														}}
+														className="h-full w-full object-cover"
 													/>
-												) : null}
-												<div
-													className="w-full h-full flex items-center justify-center text-xs text-gray-500"
-													style={{
-														display: productImageSrc ? "none" : "flex",
-													}}
-												>
-													No Image
-												</div>
+												) : (
+													<span className="text-xs text-gray-400">No image</span>
+												)}
 											</div>
-												);
-											})()}
-											<p className="font-semibold text-gray-900 text-sm truncate">
+											<div className="font-semibold text-gray-900">
 												{product.ProductName}
-											</p>
-											<p className="text-primary font-bold text-sm">
-												{currency(product.Price)}
-											</p>
-											<p className="text-xs text-gray-500">
-												Qty: {Number(product.Quantity)}
-											</p>
+											</div>
+											<div className="text-xs text-gray-500 mt-1 line-clamp-2">
+												{product.ProductDescription || "No description"}
+											</div>
+											<div className="mt-2 flex items-center justify-between text-sm">
+												<span className="text-gray-700">
+													{currency(product.Price)}
+												</span>
+												<span className="text-gray-500">
+													Qty {product.Quantity ?? 0}
+												</span>
+											</div>
 										</button>
 									))}
-									{availableProducts.length === 0 && (
-										<div className="col-span-full border border-dashed border-gray-300 rounded-lg p-6 text-sm text-gray-500 text-center">
-											No products found.
-										</div>
-									)}
 								</div>
 							</div>
 						</div>
 
-						<div className="w-full md:w-96 min-h-0 bg-white border border-gray-200 rounded-lg p-4 flex flex-col">
-							<h3 className="font-semibold text-gray-900 mb-3">Current Cart</h3>
-
-							<div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
-								{cartItems.map((item) => (
-									<div
-										key={item.ID}
-										className="border border-gray-200 rounded-md p-3"
-									>
-										<div className="flex justify-between gap-3">
-											<p className="font-semibold text-sm text-gray-900 truncate">
-												{item.ProductName}
-											</p>
-											<p className="font-semibold text-sm text-gray-900">
-												{currency(item.pricePerUnit * item.quantity)}
-											</p>
-										</div>
-										<div className="mt-1 text-xs text-gray-600">
-											Price: {currency(item.pricePerUnit)} | Quantity:{" "}
-											{item.quantity}
-										</div>
-										<div className="mt-2 flex gap-2">
-											<button
-												type="button"
-												onClick={() => removeItem(item.ID)}
-												disabled={!canProcessSelectedTransaction}
-												className="px-2 py-1 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-											>
-												Delete
-											</button>
-											<button
-												type="button"
-												onClick={() => decrementItem(item.ID)}
-												disabled={!canProcessSelectedTransaction}
-												className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
-											>
-												-
-											</button>
-											<button
-												type="button"
-												onClick={() => incrementItem(item.ID)}
-												disabled={!canProcessSelectedTransaction}
-												className="px-2 py-1 text-xs rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
-											>
-												+
-											</button>
-											<button
-												type="button"
-												onClick={() => openEditQtyModal(item)}
-												disabled={!canProcessSelectedTransaction}
-												className="px-2 py-1 text-xs rounded-md border border-primary text-primary hover:bg-primary-soft"
-											>
-												Edit Qty.
-											</button>
-										</div>
-									</div>
-								))}
-								{cartItems.length === 0 && (
-									<div className="border border-dashed border-gray-300 rounded-md p-5 text-sm text-gray-500 text-center">
-										No items in cart.
-									</div>
-								)}
-							</div>
-
-							<div className="pt-4 mt-4 border-t border-gray-200 space-y-3">
-								<button
-									type="button"
-									onClick={clearCart}
-									disabled={!canProcessSelectedTransaction || !cartItems.length}
-									className="w-full border border-red-200 text-red-600 rounded-md px-3 py-2 text-sm hover:bg-red-50 disabled:opacity-40"
-								>
-									Clear Cart
-								</button>
-								<div className="flex justify-between text-sm">
-									<span className="text-gray-600">Total Amount</span>
-									<span className="font-semibold text-gray-900">
-										{currency(cartTotal)}
-									</span>
-								</div>
+						<div className="w-full md:w-[360px] min-h-0 bg-white border border-gray-200 rounded-lg p-4 md:p-5 flex flex-col">
+							<div className="flex items-center justify-between mb-3">
+								<h3 className="text-base font-semibold text-gray-800">Current Cart</h3>
 								<select
 									value={transactionType}
 									onChange={(e) => setTransactionType(e.target.value)}
-									disabled={!canProcessAny}
-									className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+									className="border border-gray-300 rounded-md px-2 py-1 text-xs"
 								>
 									{transactionOptions.map((option) => (
 										<option key={option} value={option}>
@@ -781,21 +402,96 @@ export default function CashSale({
 										</option>
 									))}
 								</select>
-								<button
-									type="button"
-									onClick={openCheckoutModal}
-									disabled={
-										!canProcessSelectedTransaction ||
-										(transactionType !== "Job Orders" && !cartItems.length)
-									}
-									className="w-full bg-primary text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-primary-hover disabled:opacity-40"
-								>
-									{transactionType === "Shrinkage"
-										? "Record Shrinkage"
-										: transactionType === "Job Orders"
-											? "Create Job Order"
-											: "Proceed to Checkout"}
-								</button>
+							</div>
+
+							<div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2">
+								{cartItems.length === 0 && (
+									<p className="text-sm text-gray-500">No items added.</p>
+								)}
+								{cartItems.map((item) => (
+									<div
+										key={`cart-${item.ID}`}
+										className="rounded-md border border-gray-200 p-3"
+									>
+										<div className="flex items-start justify-between">
+											<div>
+												<div className="text-sm font-semibold text-gray-900">
+													{item.ProductName}
+												</div>
+												<div className="text-xs text-gray-500 mt-1">
+													{currency(item.pricePerUnit)}
+												</div>
+											</div>
+											<button
+												type="button"
+												onClick={() => removeItem(item.ID)}
+												className="text-xs text-red-600 hover:underline"
+											>
+												Remove
+											</button>
+										</div>
+										<div className="mt-2 flex items-center justify-between text-xs">
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={() => decrementItem(item.ID)}
+													className="h-6 w-6 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50"
+												>
+													-
+												</button>
+												<span className="text-sm font-semibold">
+													{item.quantity}
+												</span>
+												<button
+													type="button"
+													onClick={() => incrementItem(item.ID)}
+													className="h-6 w-6 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50"
+												>
+													+
+												</button>
+											</div>
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={() => openEditQtyModal(item)}
+													className="text-primary hover:underline"
+												>
+													Edit
+												</button>
+												<span className="text-gray-500">
+													{currency(item.pricePerUnit * item.quantity)}
+												</span>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+
+							<div className="border-t pt-3 mt-3">
+								<div className="flex items-center justify-between text-sm">
+									<span className="text-gray-600">Total</span>
+									<span className="font-semibold text-gray-900">
+										{currency(cartTotal)}
+									</span>
+								</div>
+								<div className="mt-3 flex gap-2">
+									<button
+										type="button"
+										onClick={clearCart}
+										disabled={!cartItems.length}
+										className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+									>
+										Clear
+									</button>
+									<button
+										type="button"
+										onClick={openCheckoutModal}
+										disabled={!cartItems.length}
+										className="flex-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+									>
+										Proceed
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -804,15 +500,7 @@ export default function CashSale({
 
 			<Modal show={editQtyOpen} onClose={closeEditQtyModal} maxWidth="md">
 				<form onSubmit={submitEditQty} className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900 mb-4">
-						Edit Quantity
-					</h3>
-					<p className="text-sm text-gray-700">
-						{editQtyItem?.ProductName || "Selected item"}
-					</p>
-					<p className="text-xs text-gray-500 mt-1 mb-4">
-						Available stock: {editQtyItem?.maxQuantity ?? 0}
-					</p>
+					<h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Quantity</h3>
 					<label className="block text-sm font-medium text-gray-700 mb-1">
 						Quantity
 					</label>
@@ -820,10 +508,9 @@ export default function CashSale({
 						type="number"
 						step="1"
 						min="1"
-						max={editQtyItem?.maxQuantity || 1}
 						value={editQtyValue}
 						onChange={(e) => setEditQtyValue(e.target.value)}
-						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+						className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary"
 					/>
 					{editQtyError && (
 						<p className="mt-2 text-sm text-red-600">{editQtyError}</p>
@@ -832,35 +519,28 @@ export default function CashSale({
 						<button
 							type="button"
 							onClick={closeEditQtyModal}
-							className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
+							className="rounded-md border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft"
 						>
 							Cancel
 						</button>
 						<button
 							type="submit"
-							className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary-hover"
+							className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover"
 						>
-							Save Quantity
+							Save
 						</button>
 					</div>
 				</form>
 			</Modal>
 
-			<Modal
-				show={walkInOpen}
-				onClose={() => setWalkInOpen(false)}
-				maxWidth="lg"
-			>
+			<Modal show={walkInOpen} onClose={() => setWalkInOpen(false)} maxWidth="lg">
 				<form onSubmit={submitWalkIn} className="p-6">
 					<h3 className="text-lg font-semibold text-gray-900 mb-4">
-						Walk-In Sale
+						Walk-In Checkout
 					</h3>
 					<div className="max-h-52 overflow-y-auto border border-gray-200 rounded-md p-3 mb-4 space-y-2">
 						{cartItems.map((item) => (
-							<div
-								key={`walk-${item.ID}`}
-								className="flex justify-between text-sm"
-							>
+							<div key={`walkin-${item.ID}`} className="flex justify-between text-sm">
 								<span>
 									{item.ProductName} x{item.quantity}
 								</span>
@@ -868,28 +548,36 @@ export default function CashSale({
 							</div>
 						))}
 					</div>
-					<label className="block text-sm font-medium text-gray-700 mb-1">
-						Amount
-					</label>
-					<input
-						type="number"
-						step="0.01"
-						min="0"
-						value={walkInForm.data.paidAmount}
-						onChange={(e) => walkInForm.setData("paidAmount", e.target.value)}
-						className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-						placeholder="Cash Amount"
-					/>
-					<div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+					<p className="text-sm flex justify-between">
+						<span className="text-gray-600">Total Amount</span>
+						<span className="font-semibold">{currency(cartTotal)}</span>
+					</p>
+					<div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">
+								Amount Paid
+							</label>
+							<input
+								type="number"
+								step="0.01"
+								min="0"
+								value={walkInForm.data.paidAmount}
+								onChange={(e) => walkInForm.setData("paidAmount", e.target.value)}
+								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+							/>
+							{walkInForm.errors.paidAmount && (
+								<p className="mt-1 text-sm text-red-600">
+									{walkInForm.errors.paidAmount}
+								</p>
+							)}
+						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
 								Payment Method
 							</label>
 							<select
 								value={walkInForm.data.paymentMethod}
-								onChange={(e) =>
-									walkInForm.setData("paymentMethod", e.target.value)
-								}
+								onChange={(e) => walkInForm.setData("paymentMethod", e.target.value)}
 								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 							>
 								<option value="Cash">Cash</option>
@@ -898,53 +586,24 @@ export default function CashSale({
 								<option value="Card">Card</option>
 							</select>
 						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">
-								Additional Details
-							</label>
-							<input
-								type="text"
-								value={walkInForm.data.additionalDetails}
-								onChange={(e) =>
-									walkInForm.setData("additionalDetails", e.target.value)
-								}
-								placeholder="Reference no., notes, etc. (optional)"
-								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-							/>
-						</div>
 					</div>
-					{walkInForm.errors.paidAmount && (
-						<p className="mt-1 text-sm text-red-600">
-							{walkInForm.errors.paidAmount}
-						</p>
-					)}
-					{walkInForm.errors.paymentMethod && (
-						<p className="mt-1 text-sm text-red-600">
-							{walkInForm.errors.paymentMethod}
-						</p>
-					)}
-					{walkInForm.errors.additionalDetails && (
-						<p className="mt-1 text-sm text-red-600">
-							{walkInForm.errors.additionalDetails}
-						</p>
-					)}
-					{!walkInForm.errors.paidAmount && walkInSubmitError && (
-						<p className="mt-1 text-sm text-red-600">{walkInSubmitError}</p>
-					)}
-					<div className="mt-4 text-sm space-y-1">
-						<p className="flex justify-between">
-							<span className="text-gray-600">Total Amount</span>
-							<span className="font-semibold">{currency(cartTotal)}</span>
-						</p>
-						<p className="flex justify-between">
-							<span className="text-gray-600">Change</span>
-							<span className="font-semibold">{currency(walkInChange)}</span>
-						</p>
+					<div className="mt-4">
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Additional Details
+						</label>
+						<input
+							type="text"
+							value={walkInForm.data.additionalDetails}
+							onChange={(e) => walkInForm.setData("additionalDetails", e.target.value)}
+							placeholder="Reference no., notes, etc. (optional)"
+							className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+						/>
 					</div>
-					{walkInForm.errors.items && (
-						<p className="mt-2 text-sm text-red-600">
-							{walkInForm.errors.items}
-						</p>
+					<p className="mt-3 text-sm text-gray-600">
+						Change: {currency(walkInChange)}
+					</p>
+					{walkInSubmitError && (
+						<p className="mt-2 text-sm text-red-600">{walkInSubmitError}</p>
 					)}
 					<div className="mt-6 flex justify-end gap-2">
 						<button
@@ -965,720 +624,14 @@ export default function CashSale({
 				</form>
 			</Modal>
 
-			<Modal
-				show={jobOrderDocumentPromptOpen && Boolean(jobOrderDocumentSale)}
-				onClose={() => setJobOrderDocumentPromptOpen(false)}
-				maxWidth="lg"
-			>
-				{jobOrderDocumentSale && (
-					<div className="p-6">
-						<h3 className="text-lg font-semibold text-gray-900">
-							Job Order Documents Ready
-						</h3>
-						<p className="mt-2 text-sm text-gray-600">
-							Sale #{jobOrderDocumentSale.ID} has been recorded as a job order.
-						</p>
-						<div className="mt-4 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
-							<div>
-								<span className="font-semibold text-gray-700">Invoice:</span>{" "}
-								{jobOrderDocumentSale.payment?.InvoiceNumber || "Pending"}
-							</div>
-							<div>
-								<span className="font-semibold text-gray-700">Receipt:</span>{" "}
-								{jobOrderDocumentSale.payment?.ReceiptNumber || "Not issued"}
-							</div>
-							<div>
-								<span className="font-semibold text-gray-700">Customer:</span>{" "}
-								{jobOrderDocumentSale.customer?.CustomerName || "Walk-In"}
-							</div>
-						</div>
-						<div className="mt-5 flex flex-wrap gap-2">
-							{canViewInvoices && jobOrderDocumentSale.payment?.InvoiceNumber && (
-								<>
-									<button
-										type="button"
-										onClick={() =>
-											setDocumentPreview({
-												type: "invoice",
-												sale: jobOrderDocumentSale,
-												receiptPayment: null,
-											})
-										}
-										className="rounded-md border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
-									>
-										Preview Invoice
-									</button>
-									{canExportInvoices && (
-										<button
-											type="button"
-											onClick={() => exportInvoicePdf(jobOrderDocumentSale)}
-											className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-										>
-											Download Invoice PDF
-										</button>
-									)}
-								</>
-							)}
-							{canViewReceipts && jobOrderDocumentSale.payment?.ReceiptNumber && (
-								<>
-									<button
-										type="button"
-										onClick={() =>
-											setDocumentPreview({
-												type: "receipt",
-												sale: jobOrderDocumentSale,
-												receiptPayment: null,
-											})
-										}
-										className="rounded-md border border-primary bg-white px-3 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
-									>
-										Preview Receipt
-									</button>
-									{canExportReceipts && (
-										<button
-											type="button"
-											onClick={() => exportReceiptPdf(jobOrderDocumentSale)}
-											className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-										>
-											Download Receipt PDF
-										</button>
-									)}
-								</>
-							)}
-						</div>
-						<div className="mt-6 flex justify-end">
-							<button
-								type="button"
-								onClick={() => setJobOrderDocumentPromptOpen(false)}
-								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
-							>
-								Close
-							</button>
-						</div>
-					</div>
-				)}
-			</Modal>
-
-			<SaleDocumentPreviewModal
-				show={Boolean(documentPreview.type && documentPreview.sale)}
-				onClose={() =>
-					setDocumentPreview({
-						type: null,
-						sale: null,
-						receiptPayment: null,
-					})
-				}
-				sale={documentPreview.sale}
-				type={documentPreview.type || "invoice"}
-				receiptPayment={documentPreview.receiptPayment}
-				canExport={
-					documentPreview.type === "invoice"
-						? canExportInvoices
-						: canExportReceipts
-				}
-			/>
-
-			{jobOrderOpen && (
-				<div className="fixed inset-0 z-50 overflow-y-auto">
-					<div className="flex min-h-screen items-center justify-center p-4">
-						<div
-							className="fixed inset-0 bg-gray-500/75"
-							onClick={() => setJobOrderOpen(false)}
-						/>
-						<form
-							onSubmit={submitJobOrder}
-							className="relative w-full max-w-7xl rounded-lg bg-white shadow-xl max-h-[88vh] flex flex-col"
-						>
-							<div className="border-b px-6 py-4">
-								<h3 className="text-lg font-semibold text-gray-900">
-									Job Order
-								</h3>
-							</div>
-
-							<div className="flex-1 min-h-0 grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_420px] overflow-hidden">
-								<div className="rounded-lg border border-gray-200 p-4 flex flex-col min-h-0">
-									<p className="text-sm font-semibold text-gray-700 mb-2">
-										1. Items Summary
-									</p>
-									<div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
-										{cartItems.map((item) => (
-											<div
-												key={`job-order-${item.ID}`}
-												className="flex justify-between text-sm"
-											>
-												<span>
-													{item.ProductName} x{item.quantity}
-												</span>
-												<span>
-													{currency(item.pricePerUnit * item.quantity)}
-												</span>
-											</div>
-										))}
-									</div>
-								</div>
-
-								<div className="rounded-lg border border-gray-200 p-4 flex flex-col min-h-0">
-									<div className="mb-3">
-										<p className="text-sm font-semibold text-gray-700">
-											2. Custom Orders
-										</p>
-									</div>
-									<div className="flex-1 min-h-0 overflow-y-auto rounded-md border border-gray-200 p-3">
-										{(jobOrderForm.data.customOrders || []).length === 0 ? (
-											<p className="text-sm text-gray-500">
-												No custom orders added.
-											</p>
-										) : (
-											<div className="space-y-2">
-												{(jobOrderForm.data.customOrders || []).map(
-													(item, index) => (
-														<div
-															key={`custom-order-item-${index}`}
-															className="rounded-md border border-gray-200 p-2 text-sm"
-														>
-															<p className="font-medium text-gray-900 whitespace-pre-wrap break-words">
-																{item.description}
-															</p>
-															<div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-gray-600">
-																<span>Qty: {item.quantity}</span>
-																<span>
-																	Price: {currency(item.pricePerUnit)}
-																</span>
-																<span>
-																	Subtotal:{" "}
-																	{currency(
-																		Number(item.quantity) *
-																			Number(item.pricePerUnit),
-																	)}
-																</span>
-															</div>
-															<div className="mt-2 flex justify-end gap-2">
-																<button
-																	type="button"
-																	onClick={() => openCustomOrderEditor(index)}
-																	className="rounded border border-primary px-2 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
-																>
-																	Edit
-																</button>
-																<button
-																	type="button"
-																	onClick={() => removeCustomOrder(index)}
-																	className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-																>
-																	Delete
-																</button>
-															</div>
-														</div>
-													),
-												)}
-											</div>
-										)}
-									</div>
-									<div className="mt-3 flex items-stretch justify-center gap-2">
-										<button
-											type="button"
-											onClick={() => openCustomOrderEditor(null)}
-											className="flex-1 min-h-[2.5rem] rounded-md border border-primary px-3 py-2 text-xs font-medium text-primary hover:bg-primary-soft"
-										>
-											Add Custom Order
-										</button>
-										<button
-											type="button"
-											onClick={() => setCustomOrderClearConfirmOpen(true)}
-											disabled={
-												(jobOrderForm.data.customOrders || []).length === 0
-											}
-											className="flex-1 min-h-[2.5rem] rounded-md border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-										>
-											Clear All Custom Orders
-										</button>
-									</div>
-									<p className="mt-2 flex items-center justify-between text-sm">
-										<span className="text-gray-600">Custom Orders Total</span>
-										<span className="font-semibold text-gray-900">
-											{currency(customOrdersTotal)}
-										</span>
-									</p>
-								</div>
-
-								<div className="space-y-4 min-h-0 overflow-y-auto pr-1">
-									<div className="rounded-lg border border-gray-200 p-4">
-										<p className="text-sm font-semibold text-gray-700 mb-2">
-											3. Customer Selection
-										</p>
-										<select
-											value={jobOrderForm.data.customerMode}
-											onChange={(e) => {
-												const mode = e.target.value;
-												jobOrderForm.setData("customerMode", mode);
-												if (mode === "new") {
-													jobOrderForm.setData("CustomerID", "");
-												}
-											}}
-											className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-										>
-											<option value="existing">Existing Customer</option>
-											<option value="new">New Customer</option>
-										</select>
-
-										{jobOrderForm.data.customerMode === "existing" ? (
-											<div className="mt-3 space-y-2">
-												<input
-													type="text"
-													value={customerSearch}
-													onChange={(e) => setCustomerSearch(e.target.value)}
-													placeholder="Search existing customer..."
-													className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-												/>
-												<select
-													value={jobOrderForm.data.CustomerID}
-													onChange={(e) =>
-														jobOrderForm.setData("CustomerID", e.target.value)
-													}
-													className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-												>
-													<option value="">Select customer</option>
-													{filteredCustomers.map((customer) => (
-														<option key={customer.ID} value={customer.ID}>
-															{customer.CustomerName} ({customer.CustomerType})
-														</option>
-													))}
-												</select>
-												{jobOrderForm.errors.CustomerID && (
-													<p className="text-sm text-red-600">
-														{jobOrderForm.errors.CustomerID}
-													</p>
-												)}
-											</div>
-										) : (
-											<div className="mt-3">
-												<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-													<input
-														type="text"
-														placeholder="Customer Name"
-														value={jobOrderForm.data.newCustomer.CustomerName}
-														onChange={(e) =>
-															jobOrderForm.setData("newCustomer", {
-																...jobOrderForm.data.newCustomer,
-																CustomerName: e.target.value,
-															})
-														}
-														className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-													/>
-													<select
-														value={jobOrderForm.data.newCustomer.CustomerType}
-														onChange={(e) =>
-															jobOrderForm.setData("newCustomer", {
-																...jobOrderForm.data.newCustomer,
-																CustomerType: e.target.value,
-															})
-														}
-														className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-													>
-														<option value="Retail">Retail</option>
-														<option value="Business">Business</option>
-													</select>
-													<input
-														type="text"
-														placeholder="Contact Details"
-														value={jobOrderForm.data.newCustomer.ContactDetails}
-														onChange={(e) =>
-															jobOrderForm.setData("newCustomer", {
-																...jobOrderForm.data.newCustomer,
-																ContactDetails: e.target.value,
-															})
-														}
-														className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-													/>
-													<input
-														type="text"
-														placeholder="Address"
-														value={jobOrderForm.data.newCustomer.Address}
-														onChange={(e) =>
-															jobOrderForm.setData("newCustomer", {
-																...jobOrderForm.data.newCustomer,
-																Address: e.target.value,
-															})
-														}
-														className="border border-gray-300 rounded-md px-3 py-2 text-sm"
-													/>
-												</div>
-												{newCustomerFieldErrors.length > 0 && (
-													<div className="mt-2 space-y-1">
-														{newCustomerFieldErrors.map((message, index) => (
-															<p
-																key={`new-customer-error-${index}`}
-																className="text-sm text-red-600"
-															>
-																{message}
-															</p>
-														))}
-													</div>
-												)}
-											</div>
-										)}
-									</div>
-
-									<div className="rounded-lg border border-gray-200 p-4">
-										<p className="text-sm font-semibold text-gray-700 mb-2">
-											4. Payment Selection
-										</p>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-											<div>
-												<label className="block text-sm font-medium text-gray-700 mb-1">
-													Payment Type
-												</label>
-												<select
-													value={jobOrderForm.data.paymentSelection}
-													onChange={(e) =>
-														jobOrderForm.setData(
-															"paymentSelection",
-															e.target.value,
-														)
-													}
-													className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-												>
-													<option value="pay_later">Pay Later</option>
-													<option value="pay_now">Pay Now</option>
-												</select>
-											</div>
-											<div>
-												<label className="block text-sm font-medium text-gray-700 mb-1">
-													Total Amount
-												</label>
-												<div className="border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50">
-													{currency(jobOrderGrandTotal)}
-												</div>
-											</div>
-										</div>
-
-										{jobOrderForm.data.paymentSelection === "pay_now" ? (
-											<div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-1">
-														Amount Paid
-													</label>
-													<input
-														type="number"
-														step="0.01"
-														min="0"
-														value={jobOrderForm.data.paidAmount}
-														onChange={(e) =>
-															jobOrderForm.setData("paidAmount", e.target.value)
-														}
-														className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-														placeholder="Enter amount paid"
-													/>
-												</div>
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-1">
-														Payment Method
-													</label>
-													<select
-														value={jobOrderForm.data.paymentMethod}
-														onChange={(e) =>
-															jobOrderForm.setData(
-																"paymentMethod",
-																e.target.value,
-															)
-														}
-														className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-													>
-														<option value="Cash">Cash</option>
-														<option value="GCash">GCash</option>
-														<option value="Bank Transfer">Bank Transfer</option>
-														<option value="Card">Card</option>
-													</select>
-												</div>
-												<div className="md:col-span-2">
-													<label className="block text-sm font-medium text-gray-700 mb-1">
-														Additional Details
-													</label>
-													<input
-														type="text"
-														value={jobOrderForm.data.additionalDetails}
-														onChange={(e) =>
-															jobOrderForm.setData(
-																"additionalDetails",
-																e.target.value,
-															)
-														}
-														placeholder="Reference no., notes, etc. (optional)"
-														className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-													/>
-												</div>
-											</div>
-										) : (
-											<div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-1">
-														Due Date
-													</label>
-													<input
-														type="date"
-														min={tomorrowISO()}
-														value={jobOrderForm.data.dueDate}
-														onChange={(e) =>
-															jobOrderForm.setData("dueDate", e.target.value)
-														}
-														className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-													/>
-													<p className="mt-1 text-xs text-gray-500">
-														Default is 30 days from today.
-													</p>
-												</div>
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-1">
-														Payment Method
-													</label>
-													<select
-														value={jobOrderForm.data.paymentMethod}
-														onChange={(e) =>
-															jobOrderForm.setData(
-																"paymentMethod",
-																e.target.value,
-															)
-														}
-														className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-													>
-														<option value="Cash">Cash</option>
-														<option value="GCash">GCash</option>
-														<option value="Bank Transfer">Bank Transfer</option>
-														<option value="Card">Card</option>
-													</select>
-												</div>
-												<div className="md:col-span-2">
-													<label className="block text-sm font-medium text-gray-700 mb-1">
-														Additional Details
-													</label>
-													<input
-														type="text"
-														value={jobOrderForm.data.additionalDetails}
-														onChange={(e) =>
-															jobOrderForm.setData(
-																"additionalDetails",
-																e.target.value,
-															)
-														}
-														placeholder="Reference no., notes, etc. (optional)"
-														className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-													/>
-												</div>
-											</div>
-										)}
-									</div>
-								</div>
-
-								<div className="space-y-1 lg:col-span-2">
-									{savedCustomOrderDraft && (
-										<p className="text-xs text-amber-700">
-											Saved draft is available for Custom Order. Click Add
-											Custom Order to resume.
-										</p>
-									)}
-									{jobOrderForm.errors.paymentSelection && (
-										<p className="text-sm text-red-600">
-											{jobOrderForm.errors.paymentSelection}
-										</p>
-									)}
-									{jobOrderForm.errors.paidAmount && (
-										<p className="text-sm text-red-600">
-											{jobOrderForm.errors.paidAmount}
-										</p>
-									)}
-									{jobOrderForm.errors.paymentMethod && (
-										<p className="text-sm text-red-600">
-											{jobOrderForm.errors.paymentMethod}
-										</p>
-									)}
-									{jobOrderForm.errors.additionalDetails && (
-										<p className="text-sm text-red-600">
-											{jobOrderForm.errors.additionalDetails}
-										</p>
-									)}
-									{jobOrderForm.errors.dueDate && (
-										<p className="text-sm text-red-600">
-											{jobOrderForm.errors.dueDate}
-										</p>
-									)}
-									{jobOrderForm.errors.items && (
-										<p className="text-sm text-red-600">
-											{jobOrderForm.errors.items}
-										</p>
-									)}
-									{customOrderFieldErrors.map((message, index) => (
-										<p
-											key={`job-order-custom-error-${index}`}
-											className="text-sm text-red-600"
-										>
-											{message}
-										</p>
-									))}
-									{jobOrderSubmitError && (
-										<p className="text-sm text-red-600">
-											{jobOrderSubmitError}
-										</p>
-									)}
-								</div>
-							</div>
-
-							<div className="border-t px-6 py-4 flex justify-end gap-2">
-								<button
-									type="button"
-									onClick={() => setJobOrderOpen(false)}
-									className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
-								>
-									Cancel
-								</button>
-								<button
-									type="submit"
-									disabled={jobOrderForm.processing}
-									className="px-4 py-2 text-sm rounded-md bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
-								>
-									Confirm Job Order
-								</button>
-							</div>
-						</form>
-					</div>
-				</div>
-			)}
-
-			<Modal
-				show={customOrderEditorOpen}
-				onClose={() => closeCustomOrderEditor({ preserveDraft: true })}
-				maxWidth="md"
-			>
-				<form onSubmit={saveCustomOrderDraft} className="p-6">
-					<h3 className="mb-4 text-lg font-semibold text-gray-900">
-						{customOrderEditIndex === null
-							? "Add Custom Order"
-							: "Edit Custom Order"}
-					</h3>
-					<div className="space-y-3">
-						<div>
-							<label className="mb-1 block text-sm font-medium text-gray-700">
-								Description
-							</label>
-							<textarea
-								rows={3}
-								value={customOrderDraft.description}
-								onChange={(e) =>
-									setCustomOrderDraft((prev) => ({
-										...prev,
-										description: e.target.value,
-									}))
-								}
-								placeholder="Custom order description"
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary"
-							/>
-						</div>
-						<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-							<div>
-								<label className="mb-1 block text-sm font-medium text-gray-700">
-									Quantity
-								</label>
-								<input
-									type="number"
-									step="1"
-									min="1"
-									value={customOrderDraft.quantity}
-									onChange={(e) =>
-										setCustomOrderDraft((prev) => ({
-											...prev,
-											quantity: e.target.value,
-										}))
-									}
-									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary"
-								/>
-							</div>
-							<div>
-								<label className="mb-1 block text-sm font-medium text-gray-700">
-									Price Per Unit
-								</label>
-								<input
-									type="number"
-									step="0.01"
-									min="0.01"
-									value={customOrderDraft.pricePerUnit}
-									onChange={(e) =>
-										setCustomOrderDraft((prev) => ({
-											...prev,
-											pricePerUnit: e.target.value,
-										}))
-									}
-									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary"
-								/>
-							</div>
-						</div>
-					</div>
-					{customOrderDraftError && (
-						<p className="mt-3 text-sm text-red-600">{customOrderDraftError}</p>
-					)}
-					<div className="mt-6 flex justify-end gap-2">
-						<button
-							type="button"
-							onClick={() => closeCustomOrderEditor({ preserveDraft: true })}
-							className="rounded-md border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft"
-						>
-							Cancel
-						</button>
-						<button
-							type="submit"
-							className="rounded-md bg-primary px-4 py-2 text-sm text-white hover:bg-primary-hover"
-						>
-							Save Custom Order
-						</button>
-					</div>
-				</form>
-			</Modal>
-
-			<Modal
-				show={customOrderClearConfirmOpen}
-				onClose={() => setCustomOrderClearConfirmOpen(false)}
-				maxWidth="md"
-			>
-				<div className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900">
-						Clear All Custom Orders
-					</h3>
-					<p className="mt-2 text-sm text-gray-600">
-						This will remove all custom order entries from this job order draft.
-						This action cannot be undone.
-					</p>
-					<div className="mt-6 flex justify-end gap-2">
-						<button
-							type="button"
-							onClick={() => setCustomOrderClearConfirmOpen(false)}
-							className="rounded-md border border-primary bg-white px-4 py-2 text-sm text-primary hover:bg-primary-soft"
-						>
-							Cancel
-						</button>
-						<button
-							type="button"
-							onClick={clearAllCustomOrders}
-							className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
-						>
-							Yes, Clear All
-						</button>
-					</div>
-				</div>
-			</Modal>
-
-			<Modal
-				show={shrinkageOpen}
-				onClose={() => setShrinkageOpen(false)}
-				maxWidth="lg"
-			>
+			<Modal show={shrinkageOpen} onClose={() => setShrinkageOpen(false)} maxWidth="lg">
 				<form onSubmit={submitShrinkage} className="p-6">
 					<h3 className="text-lg font-semibold text-gray-900 mb-4">
 						Record Shrinkage
 					</h3>
 					<div className="max-h-52 overflow-y-auto border border-gray-200 rounded-md p-3 mb-4 space-y-2">
 						{cartItems.map((item) => (
-							<div
-								key={`shrinkage-${item.ID}`}
-								className="flex justify-between text-sm"
-							>
+							<div key={`shrinkage-${item.ID}`} className="flex justify-between text-sm">
 								<span>
 									{item.ProductName} x{item.quantity}
 								</span>
@@ -1709,14 +662,10 @@ export default function CashSale({
 						</select>
 					</div>
 					{shrinkageForm.errors.reason && (
-						<p className="mt-2 text-sm text-red-600">
-							{shrinkageForm.errors.reason}
-						</p>
+						<p className="mt-2 text-sm text-red-600">{shrinkageForm.errors.reason}</p>
 					)}
 					{shrinkageForm.errors.items && (
-						<p className="mt-2 text-sm text-red-600">
-							{shrinkageForm.errors.items}
-						</p>
+						<p className="mt-2 text-sm text-red-600">{shrinkageForm.errors.items}</p>
 					)}
 					{shrinkageSubmitError && (
 						<p className="mt-2 text-sm text-red-600">{shrinkageSubmitError}</p>

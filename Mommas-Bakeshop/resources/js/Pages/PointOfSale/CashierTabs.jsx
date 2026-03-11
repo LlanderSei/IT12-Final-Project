@@ -11,7 +11,6 @@ export default function CashierTabs() {
 	const canViewPendingTab =
 		canViewSalesHistoryBase && can("CanViewSalesHistoryPendingPayments");
 	const canViewSaleHistory = canViewSalesTab || canViewPendingTab;
-	const canViewShrinkageHistory = can("CanViewShrinkageHistory");
 	const canViewCustomers = can("CanViewCustomers");
 	const isSaleHistoryRoute =
 		route().current("pos.sale-history") ||
@@ -47,12 +46,6 @@ export default function CashierTabs() {
 							}
 						: null,
 				]),
-		canViewShrinkageHistory
-			? {
-					label: "Shrinkage History",
-					routeName: "pos.shrinkage-history",
-				}
-			: null,
 		canViewCustomers
 			? {
 					label: "Customers",

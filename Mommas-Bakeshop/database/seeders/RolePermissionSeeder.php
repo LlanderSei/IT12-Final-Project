@@ -31,6 +31,12 @@ class RolePermissionSeeder extends Seeder {
 
 			// Broad operational + administrative access except cashier checkout actions.
 			'Admin' => [
+				'CanViewJobOrders',
+				'CanCreateJobOrders',
+				'CanViewPendingJobOrders',
+				'CanViewJobOrdersHistory',
+				'CanCancelJobOrders',
+				'CanPrintJobOrders',
 				'CanViewSalesHistory',
 				'CanViewSalesHistorySales',
 				'CanViewSalesHistoryPendingPayments',
@@ -39,8 +45,10 @@ class RolePermissionSeeder extends Seeder {
 				'CanViewPaymentReceipts',
 				'CanExportPaymentReceipts',
 				'CanViewShrinkageHistory',
+				'CanCreateShrinkageRecord',
 				'CanUpdateShrinkageRecord',
 				'CanDeleteShrinkageRecord',
+				'CanVerifyShrinkageRecord',
 				'CanRecordSalePayment',
 				'CanViewCustomers',
 				'CanCreateCustomer',
@@ -116,6 +124,12 @@ class RolePermissionSeeder extends Seeder {
 			// POS-focused access.
 			'Cashier' => [
 				'CanViewCashier',
+				'CanViewJobOrders',
+				'CanCreateJobOrders',
+				'CanViewPendingJobOrders',
+				'CanViewJobOrdersHistory',
+				'CanCancelJobOrders',
+				'CanPrintJobOrders',
 				'CanProcessSalesWalkIn',
 				'CanProcessSalesJobOrders',
 				'CanProcessSalesShrinkage',
@@ -126,10 +140,6 @@ class RolePermissionSeeder extends Seeder {
 				'CanExportJobOrderInvoices',
 				'CanViewPaymentReceipts',
 				'CanExportPaymentReceipts',
-				'CanViewShrinkageHistory',
-				'CanCreateShrinkageRecord',
-				'CanUpdateShrinkageRecord',
-				'CanDeleteShrinkageRecord',
 				'CanRecordSalePayment',
 				'CanViewCustomers',
 				'CanCreateCustomer',
@@ -139,6 +149,11 @@ class RolePermissionSeeder extends Seeder {
 
 			// Inventory/product operations without admin management access.
 			'Clerk' => [
+				'CanViewShrinkageHistory',
+				'CanCreateShrinkageRecord',
+				'CanUpdateShrinkageRecord',
+				'CanDeleteShrinkageRecord',
+				'CanVerifyShrinkageRecord',
 				'CanViewInventoryLevels',
 				'CanCreateInventoryItem',
 				'CanUpdateInventoryItem',

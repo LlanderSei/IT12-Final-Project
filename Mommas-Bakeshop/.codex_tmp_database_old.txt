@@ -1,0 +1,1814 @@
+import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Head, router } from "@inertiajs/react";
+import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import Modal from "@/Components/Modal";
+import { formatCountLabel } from "@/utils/countLabel";
+import usePermissions from "@/hooks/usePermissions";
+
+const formatDateTime = (value) => {
+	if (!value) return "-";
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) return "-";
+	return parsed.toLocaleString();
+};
+
+const formatFileSize = (value) => {
+	const bytes = Number(value || 0);
+	if (!bytes) return "-";
+	const units = ["B", "KB", "MB", "GB"];
+	let size = bytes;
+	let unit = 0;
+	while (size >= 1024 && unit < units.length - 1) {
+		size /= 1024;
+		unit += 1;
+	}
+	return `${size.toFixed(size >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+};
+
+const changeRangeLabel = (backup) =>
+	backup.BackupType === "Snapshot"
+		? `0 -> ${backup.ToChangeLogID || 0}`
+		: `${backup.FromChangeLogID || 0} -> ${backup.ToChangeLogID || 0}`;
+
+export default function Database({
+	backups = [],
+	stats = {},
+	settings = {},
+	connectionStatus = {},
+	ongoingOperation = null,
+	maintenanceOperation = null,
+	maintenanceOperations = [],
+}) {
+	const { can, requirePermission } = usePermissions();
+	const canCreateSnapshot = can("CanCreateDatabaseSnapshot");
+	const canCreateIncremental = can("CanCreateDatabaseIncremental");
+	const canVerify = can("CanVerifyDatabaseBackup");
+	const canRestore = can("CanRestoreDatabaseBackup");
+	const canManageConnections = can("CanManageDatabaseConnections");
+	const canTestConnections = can("CanTestDatabaseConnections");
+	const canInitializeRemote = can("CanInitializeRemoteDatabase");
+	const canRunSchemaReport = can("CanRunDatabaseSchemaReport");
+	const canTransferToRemote = can("CanTransferDatabaseToRemote");
+	const canManageSettings = can("CanManageDatabaseBackupSettings");
+	const canCleanup = can("CanCleanupDatabaseBackups");
+	const canDownload = can("CanDownloadDatabaseBackup");
+
+	const [searchQuery, setSearchQuery] = useState("");
+	const [typeFilter, setTypeFilter] = useState("all");
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [modalType, setModalType] = useState(null);
+	const [selectedBackup, setSelectedBackup] = useState(null);
+	const [notes, setNotes] = useState("");
+	const [confirmationPhrase, setConfirmationPhrase] = useState("");
+	const [errors, setErrors] = useState({});
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [settingsForm, setSettingsForm] = useState({
+		SnapshotRetentionCount: String(settings.SnapshotRetentionCount ?? 10),
+		IncrementalRetentionCount: String(settings.IncrementalRetentionCount ?? 30),
+		DeleteFailedBackups: Boolean(settings.DeleteFailedBackups ?? false),
+	});
+	const [settingsErrors, setSettingsErrors] = useState({});
+	const [isSavingSettings, setIsSavingSettings] = useState(false);
+	const [connectionForm, setConnectionForm] = useState({
+		host: connectionStatus.remoteFormDefaults?.host || "",
+		port: connectionStatus.remoteFormDefaults?.port || "3306",
+		database: connectionStatus.remoteFormDefaults?.database || "",
+		username: connectionStatus.remoteFormDefaults?.username || "",
+		password: "",
+	});
+	const [connectionErrors, setConnectionErrors] = useState({});
+	const [isSavingConnection, setIsSavingConnection] = useState(false);
+	const [isTestingConnection, setIsTestingConnection] = useState(false);
+	const [isInitializingRemote, setIsInitializingRemote] = useState(false);
+	const [isRunningSchemaReport, setIsRunningSchemaReport] = useState(false);
+	const [isSwitchingConnection, setIsSwitchingConnection] = useState(false);
+	const [isTransferringToRemote, setIsTransferringToRemote] = useState(false);
+	const [activeManagementTab, setActiveManagementTab] = useState("connections");
+	const canCreateIncrementalRun =
+		canCreateIncremental && Number(stats.completedBackups || 0) > 0;
+	const hasOngoingOperation = Boolean(ongoingOperation || maintenanceOperation);
+
+	const filteredBackups = useMemo(() => {
+		const query = searchQuery.trim().toLowerCase();
+		return [...(backups || [])]
+			.filter((backup) => {
+				if (typeFilter !== "all" && backup.BackupType !== typeFilter)
+					return false;
+				if (statusFilter !== "all" && backup.BackupStatus !== statusFilter)
+					return false;
+				if (!query) return true;
+				return [
+					backup.id,
+					backup.BackupType,
+					backup.BackupStatus,
+					backup.FileName,
+					backup.CreatedBy,
+					backup.Notes,
+					backup.ChecksumSha256,
+				]
+					.join(" ")
+					.toLowerCase()
+					.includes(query);
+			})
+			.sort(
+				(a, b) =>
+					new Date(b.DateAdded || 0).getTime() -
+					new Date(a.DateAdded || 0).getTime(),
+			);
+	}, [backups, searchQuery, statusFilter, typeFilter]);
+
+	const countLabel = formatCountLabel(filteredBackups.length, "backup");
+
+	useEffect(() => {
+		setErrors({});
+	}, [modalType]);
+
+	useEffect(() => {
+		setConnectionForm({
+			host: connectionStatus.remoteFormDefaults?.host || "",
+			port: connectionStatus.remoteFormDefaults?.port || "3306",
+			database: connectionStatus.remoteFormDefaults?.database || "",
+			username: connectionStatus.remoteFormDefaults?.username || "",
+			password: "",
+		});
+	}, [
+		connectionStatus.remoteFormDefaults?.host,
+		connectionStatus.remoteFormDefaults?.port,
+		connectionStatus.remoteFormDefaults?.database,
+		connectionStatus.remoteFormDefaults?.username,
+	]);
+
+	useEffect(() => {
+		if (!hasOngoingOperation) return undefined;
+
+		const interval = window.setInterval(() => {
+			router.reload({
+				only: [
+					"backups",
+					"stats",
+					"settings",
+					"ongoingOperation",
+					"maintenanceOperation",
+					"maintenanceOperations",
+					"connectionStatus",
+				],
+				preserveScroll: true,
+				preserveState: true,
+			});
+		}, 5000);
+
+		return () => window.clearInterval(interval);
+	}, [hasOngoingOperation]);
+
+	const closeModal = () => {
+		setModalType(null);
+		setSelectedBackup(null);
+		setNotes("");
+		setConfirmationPhrase("");
+		setErrors({});
+		setIsSubmitting(false);
+	};
+
+	const openCreateModal = (type) => {
+		if (hasOngoingOperation) return;
+		if (type === "Snapshot" && !canCreateSnapshot) {
+			return requirePermission("CanCreateDatabaseSnapshot");
+		}
+		if (type === "Incremental" && !canCreateIncrementalRun) {
+			return requirePermission("CanCreateDatabaseIncremental");
+		}
+		setSelectedBackup(null);
+		setNotes("");
+		setModalType(type);
+	};
+
+	const openRestoreModal = (backup) => {
+		if (hasOngoingOperation) return;
+		if (!canRestore) return requirePermission("CanRestoreDatabaseBackup");
+		if (backup.RestorePreviewError) return;
+		setSelectedBackup(backup);
+		setNotes("");
+		setModalType("Restore");
+	};
+
+	const openCleanupModal = () => {
+		if (hasOngoingOperation) return;
+		if (!canCleanup) return requirePermission("CanCleanupDatabaseBackups");
+		setSelectedBackup(null);
+		setNotes("");
+		setModalType("Cleanup");
+	};
+
+	const openTransferModal = () => {
+		if (hasOngoingOperation) return;
+		if (!canTransferToRemote)
+			return requirePermission("CanTransferDatabaseToRemote");
+		setSelectedBackup(null);
+		setNotes("");
+		setConfirmationPhrase("");
+		setModalType("Transfer");
+	};
+
+	const submitAction = (e) => {
+		e.preventDefault();
+		if (hasOngoingOperation) return;
+		setIsSubmitting(true);
+		if (modalType === "Transfer") {
+			setIsTransferringToRemote(true);
+		}
+		setErrors({});
+
+		let destination = null;
+		if (modalType === "Snapshot")
+			destination = route("admin.database.snapshots.store");
+		if (modalType === "Incremental")
+			destination = route("admin.database.incrementals.store");
+		if (modalType === "Restore" && selectedBackup)
+			destination = route("admin.database.restore", selectedBackup.id);
+		if (modalType === "Cleanup") destination = route("admin.database.cleanup");
+		if (modalType === "Transfer")
+			destination = route("admin.database.transfers.local-to-remote");
+		if (!destination) {
+			setIsSubmitting(false);
+			return;
+		}
+
+		router.post(
+			destination,
+			{
+				Notes: notes,
+				ConfirmationPhrase:
+					modalType === "Transfer" ? confirmationPhrase : undefined,
+			},
+			{
+				preserveScroll: true,
+				onError: (formErrors) => setErrors(formErrors || {}),
+				onSuccess: () => closeModal(),
+				onFinish: () => {
+					setIsSubmitting(false);
+					setIsTransferringToRemote(false);
+				},
+			},
+		);
+	};
+
+	const saveSettings = (e) => {
+		e.preventDefault();
+		if (hasOngoingOperation) return;
+		if (!canManageSettings)
+			return requirePermission("CanManageDatabaseBackupSettings");
+		setIsSavingSettings(true);
+		setSettingsErrors({});
+		router.put(
+			route("admin.database.settings.update"),
+			{
+				SnapshotRetentionCount: Number(
+					settingsForm.SnapshotRetentionCount || 0,
+				),
+				IncrementalRetentionCount: Number(
+					settingsForm.IncrementalRetentionCount || 0,
+				),
+				DeleteFailedBackups: settingsForm.DeleteFailedBackups,
+			},
+			{
+				preserveScroll: true,
+				onError: (formErrors) => setSettingsErrors(formErrors || {}),
+				onFinish: () => setIsSavingSettings(false),
+			},
+		);
+	};
+
+	const downloadBackup = (backup) => {
+		if (hasOngoingOperation) return;
+		if (!canDownload) return requirePermission("CanDownloadDatabaseBackup");
+		window.location.href = route("admin.database.download", backup.id);
+	};
+
+	const verifyBackup = (backup) => {
+		if (hasOngoingOperation) return;
+		if (!canVerify) return requirePermission("CanVerifyDatabaseBackup");
+		router.post(
+			route("admin.database.verify", backup.id),
+			{},
+			{
+				preserveScroll: true,
+			},
+		);
+	};
+
+	const saveRemoteConnection = (e) => {
+		e.preventDefault();
+		if (hasOngoingOperation) return;
+		if (!canManageConnections) return requirePermission("CanManageDatabaseConnections");
+
+		setIsSavingConnection(true);
+		setConnectionErrors({});
+
+		router.put(
+			route("admin.database.connections.remote.update"),
+			connectionForm,
+			{
+				preserveScroll: true,
+				onError: (formErrors) => setConnectionErrors(formErrors || {}),
+				onFinish: () => setIsSavingConnection(false),
+			},
+		);
+	};
+
+	const testRemoteConnection = () => {
+		if (hasOngoingOperation) return;
+		if (!canTestConnections) return requirePermission("CanTestDatabaseConnections");
+
+		setIsTestingConnection(true);
+		router.post(
+			route("admin.database.connections.test"),
+			{},
+			{
+				preserveScroll: true,
+				onFinish: () => setIsTestingConnection(false),
+			},
+		);
+	};
+
+	const runSchemaReport = () => {
+		if (hasOngoingOperation) return;
+		if (!canRunSchemaReport)
+			return requirePermission("CanRunDatabaseSchemaReport");
+
+		setIsRunningSchemaReport(true);
+		router.post(
+			route("admin.database.connections.schema-report"),
+			{},
+			{
+				preserveScroll: true,
+				onFinish: () => setIsRunningSchemaReport(false),
+			},
+		);
+	};
+
+	const switchConnectionTarget = (target) => {
+		if (hasOngoingOperation) return;
+		if (!canManageConnections) return requirePermission("CanManageDatabaseConnections");
+
+		setIsSwitchingConnection(true);
+		router.post(
+			route("admin.database.connections.switch"),
+			{ target },
+			{
+				preserveScroll: true,
+				onFinish: () => setIsSwitchingConnection(false),
+			},
+		);
+	};
+
+	const initializeRemoteDatabase = () => {
+		if (hasOngoingOperation) return;
+		if (!canInitializeRemote)
+			return requirePermission("CanInitializeRemoteDatabase");
+
+		setIsInitializingRemote(true);
+		router.post(
+			route("admin.database.connections.initialize"),
+			{},
+			{
+				preserveScroll: true,
+				onFinish: () => setIsInitializingRemote(false),
+			},
+		);
+	};
+
+	const schemaReport = connectionStatus.remote?.schemaReport || null;
+	const lastTransfer = connectionStatus.remote?.lastTransfer || null;
+	const remoteReadiness = connectionStatus.remote?.readiness || null;
+	const canSwitchToRemote =
+		canManageConnections &&
+		!hasOngoingOperation &&
+		!isSwitchingConnection &&
+		Boolean(schemaReport?.compatible);
+	const managementTabLabels = {
+		connections: "Connection Management",
+		schema: "Schema Report",
+		transfer: "Data Transfer",
+		retention: "Retention & Cleanup",
+		packaging: "Phase 4 Packaging",
+	};
+
+	return (
+		<AuthenticatedLayout
+			header={
+				<div className="flex items-center justify-between gap-4">
+					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
+						Database
+					</h2>
+					<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+						{countLabel}
+					</div>
+				</div>
+			}
+			disableScroll={true}
+		>
+			<Head title="Database" />
+
+			<div className="flex flex-1 flex-col overflow-hidden min-h-0">
+				<div className="mx-auto flex w-full flex-1 flex-col overflow-hidden min-h-0 p-6 gap-6">
+					{ongoingOperation && (
+						<div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+							<div className="font-medium">
+								Backup job in progress: {ongoingOperation.BackupType} #
+								{ongoingOperation.id}
+							</div>
+							<div className="mt-1 text-xs text-amber-800">
+								Started {formatDateTime(ongoingOperation.StartedAt)}
+								{ongoingOperation.CreatedBy
+									? ` by ${ongoingOperation.CreatedBy}`
+									: ""}
+								. Backup actions are disabled until this job completes.
+							</div>
+							{ongoingOperation.Notes && (
+								<div className="mt-1 break-words text-xs text-amber-800">
+									Notes: {ongoingOperation.Notes}
+								</div>
+							)}
+						</div>
+					)}
+					{maintenanceOperation && (
+						<div
+							className={`rounded-lg border px-4 py-3 text-sm ${
+								maintenanceOperation.LockWrites
+									? "border-red-200 bg-red-50 text-red-900"
+									: "border-sky-200 bg-sky-50 text-sky-900"
+							}`}
+						>
+							<div className="font-medium">
+								Maintenance job in progress: {maintenanceOperation.Title} #
+								{maintenanceOperation.id}
+							</div>
+							<div
+								className={`mt-1 text-xs ${
+									maintenanceOperation.LockWrites
+										? "text-red-800"
+										: "text-sky-800"
+								}`}
+							>
+								Status: {maintenanceOperation.Status}.
+								{maintenanceOperation.CreatedBy
+									? ` Started by ${maintenanceOperation.CreatedBy}.`
+									: ""}
+								{maintenanceOperation.LockWrites
+									? " Write actions across the system are locked until this job completes."
+									: " This job does not lock transactional writes."}
+							</div>
+							{maintenanceOperation.Notes && (
+								<div
+									className={`mt-1 break-words text-xs ${
+										maintenanceOperation.LockWrites
+											? "text-red-800"
+											: "text-sky-800"
+									}`}
+								>
+									Notes: {maintenanceOperation.Notes}
+								</div>
+							)}
+						</div>
+					)}
+
+					<div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+						<div className="rounded-lg border border-gray-200 bg-white p-4">
+							<p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+								Tracked Tables
+							</p>
+							<p className="mt-2 text-2xl font-semibold text-gray-900">
+								{Number(stats.trackedTables || 0)}
+							</p>
+						</div>
+						<div className="rounded-lg border border-gray-200 bg-white p-4">
+							<p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+								Change Log Position
+							</p>
+							<p className="mt-2 text-2xl font-semibold text-gray-900">
+								{Number(stats.latestChangeLogId || 0)}
+							</p>
+						</div>
+						<div className="rounded-lg border border-gray-200 bg-white p-4">
+							<p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+								Completed Backups
+							</p>
+							<p className="mt-2 text-2xl font-semibold text-gray-900">
+								{Number(stats.completedBackups || 0)}
+							</p>
+						</div>
+						<div className="rounded-lg border border-gray-200 bg-white p-4">
+							<p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+								Last Completed Backup
+							</p>
+							<p className="mt-2 text-sm font-medium text-gray-900">
+								{stats.lastCompletedBackup
+									? `${stats.lastCompletedBackup.BackupType} #${stats.lastCompletedBackup.id}`
+									: "None yet"}
+							</p>
+							<p className="mt-1 text-xs text-gray-500">
+								{stats.lastCompletedBackup
+									? formatDateTime(stats.lastCompletedBackup.CompletedAt)
+									: "Create a snapshot first to enable incrementals."}
+							</p>
+						</div>
+					</div>
+
+					<div className="grid min-h-0 flex-1 grid-cols-1 gap-6 xl:grid-cols-[1.6fr_0.9fr]">
+						<div className="flex min-h-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm">
+							<div className="flex flex-1 flex-col overflow-hidden min-h-0">
+								<div className="mb-6 flex items-start gap-3">
+									<div className="relative w-full max-w-xl shrink-0">
+										<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+											<svg
+												className="h-5 w-5 text-gray-400"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+												/>
+											</svg>
+										</div>
+										<input
+											type="text"
+											className="block w-full rounded-md border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm leading-5 placeholder-gray-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+											placeholder="Search by type, status, file name, creator, or checksum..."
+											value={searchQuery}
+											onChange={(e) => setSearchQuery(e.target.value)}
+										/>
+									</div>
+									<div className="flex flex-1 min-w-0 items-center gap-2">
+										<select
+											value={typeFilter}
+											onChange={(e) => setTypeFilter(e.target.value)}
+											className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+										>
+											<option value="all">All Types</option>
+											<option value="Snapshot">Snapshot</option>
+											<option value="Incremental">Incremental</option>
+										</select>
+										<select
+											value={statusFilter}
+											onChange={(e) => setStatusFilter(e.target.value)}
+											className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+										>
+											<option value="all">All Status</option>
+											<option value="Completed">Completed</option>
+											<option value="Pending">Pending</option>
+											<option value="Failed">Failed</option>
+										</select>
+										<button
+											type="button"
+											onClick={() => {
+												setSearchQuery("");
+												setTypeFilter("all");
+												setStatusFilter("all");
+											}}
+											className="shrink-0 rounded-md border border-primary bg-white px-3 py-2 text-xs font-medium text-primary shadow-sm hover:bg-primary-soft"
+										>
+											Reset Filters
+										</button>
+									</div>
+								</div>
+
+								<div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-200">
+									<table className="min-w-full divide-y divide-gray-200">
+										<thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+											<tr>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Type
+												</th>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Status
+												</th>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													File
+												</th>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Size
+												</th>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Change Range
+												</th>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Created By
+												</th>
+												<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Completed
+												</th>
+												<th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+													Actions
+												</th>
+											</tr>
+										</thead>
+										<tbody className="divide-y divide-gray-200 bg-white">
+											{filteredBackups.map((backup) => (
+												<tr
+													key={backup.id}
+													className="align-top hover:bg-gray-50"
+												>
+													<td className="px-6 py-4 text-sm font-medium text-gray-900">
+														{backup.BackupType}
+													</td>
+													<td className="px-6 py-4 text-sm">
+														<span
+															className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${backup.BackupStatus === "Completed" ? "bg-emerald-100 text-emerald-700" : backup.BackupStatus === "Failed" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}
+														>
+															{backup.BackupStatus}
+														</span>
+													</td>
+													<td className="px-6 py-4 text-sm text-gray-700">
+														<div className="max-w-sm break-words">
+															<p className="font-medium text-gray-900">
+																{backup.FileName || "-"}
+															</p>
+															{backup.Notes && (
+																<p className="mt-1 text-xs text-gray-500">
+																	{backup.Notes}
+																</p>
+															)}
+															{backup.FailureMessage && (
+																<p className="mt-1 text-xs text-red-600">
+																	{backup.FailureMessage}
+																</p>
+															)}
+															{backup.RestorePreviewError && (
+																<p className="mt-1 text-xs text-red-600">
+																	Integrity check failed:{" "}
+																	{backup.RestorePreviewError}
+																</p>
+															)}
+														</div>
+													</td>
+													<td className="px-6 py-4 text-sm text-gray-700">
+														{formatFileSize(backup.FileSizeBytes)}
+													</td>
+													<td className="px-6 py-4 text-sm text-gray-700">
+														{changeRangeLabel(backup)}
+													</td>
+													<td className="px-6 py-4 text-sm text-gray-700">
+														{backup.CreatedBy || "System"}
+													</td>
+													<td className="px-6 py-4 text-sm text-gray-700">
+														{formatDateTime(backup.CompletedAt)}
+													</td>
+													<td className="px-6 py-4 text-right text-sm font-medium">
+														<div className="inline-flex items-center gap-2">
+															<button
+																type="button"
+																onClick={() => downloadBackup(backup)}
+																disabled={
+																	hasOngoingOperation ||
+																	!canDownload ||
+																	backup.BackupStatus !== "Completed"
+																}
+																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+															>
+																Download
+															</button>
+															<button
+																type="button"
+																onClick={() => verifyBackup(backup)}
+																disabled={
+																	hasOngoingOperation ||
+																	!canVerify ||
+																	backup.BackupStatus !== "Completed" ||
+																	Boolean(backup.RestorePreviewError)
+																}
+																className="rounded border border-emerald-300 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+															>
+																Verify
+															</button>
+															<button
+																type="button"
+																onClick={() => openRestoreModal(backup)}
+																disabled={
+																	hasOngoingOperation ||
+																	!canRestore ||
+																	backup.BackupStatus !== "Completed" ||
+																	Boolean(backup.RestorePreviewError)
+																}
+																className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+															>
+																Restore
+															</button>
+														</div>
+													</td>
+												</tr>
+											))}
+											{filteredBackups.length === 0 && (
+												<tr>
+													<td
+														colSpan="8"
+														className="px-6 py-10 text-center text-sm text-gray-500"
+													>
+														No backups found.
+													</td>
+												</tr>
+											)}
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+
+						<div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+							<div className="border-b border-gray-200 px-5 pt-5">
+								<div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+									<div className="flex items-start justify-between gap-3">
+										<div>
+											<h4 className="text-sm font-semibold text-gray-900">
+												Maintenance Jobs
+											</h4>
+											<p className="mt-1 text-xs text-gray-500">
+												Queued and running database maintenance actions are tracked here.
+											</p>
+										</div>
+										<div className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700">
+											{formatCountLabel(
+												(maintenanceOperations || []).length,
+												"job",
+											)}
+										</div>
+									</div>
+									<div className="mt-4 max-h-44 space-y-2 overflow-y-auto">
+										{(maintenanceOperations || []).length > 0 ? (
+											maintenanceOperations.map((operation) => (
+												<div
+													key={operation.id}
+													className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700"
+												>
+													<div className="flex items-center justify-between gap-3">
+														<div className="font-medium text-gray-900">
+															{operation.Title}
+														</div>
+														<span
+															className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+																operation.Status === "Completed"
+																	? "bg-emerald-100 text-emerald-700"
+																	: operation.Status === "Failed"
+																		? "bg-red-100 text-red-700"
+																		: "bg-amber-100 text-amber-700"
+															}`}
+														>
+															{operation.Status}
+														</span>
+													</div>
+													<div className="mt-1 text-[11px] text-gray-500">
+														{operation.OperationType} #{operation.id}
+														{operation.CreatedBy ? ` • ${operation.CreatedBy}` : ""}
+														{operation.StartedAt
+															? ` • ${formatDateTime(operation.StartedAt)}`
+															: operation.DateAdded
+																? ` • ${formatDateTime(operation.DateAdded)}`
+																: ""}
+													</div>
+													{operation.FailureMessage && (
+														<div className="mt-2 break-words text-[11px] text-red-600">
+															{operation.FailureMessage}
+														</div>
+													)}
+													{operation.Result?.message && (
+														<div className="mt-2 break-words text-[11px] text-emerald-700">
+															{operation.Result.message}
+														</div>
+													)}
+												</div>
+											))
+										) : (
+											<div className="rounded-md border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500">
+												No maintenance jobs recorded yet.
+											</div>
+										)}
+									</div>
+								</div>
+								<div className="flex items-center justify-between gap-3">
+									<div>
+										<h3 className="text-sm font-semibold text-gray-900">
+											Database Controls
+										</h3>
+										<p className="mt-1 text-xs text-gray-500">
+											Switch database targets and manage local retention without leaving this page.
+										</p>
+									</div>
+									<div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+										{managementTabLabels[activeManagementTab]}
+									</div>
+								</div>
+								<div className="mt-4 flex gap-2 border-b border-gray-200">
+									{[
+										{ key: "connections", label: "Connection Management" },
+										{ key: "schema", label: "Schema Report" },
+										{ key: "transfer", label: "Data Transfer" },
+										{ key: "retention", label: "Retention & Cleanup" },
+										{ key: "packaging", label: "Phase 4 Packaging" },
+									].map((tab) => (
+										<button
+											key={tab.key}
+											type="button"
+											onClick={() => setActiveManagementTab(tab.key)}
+											className={`rounded-t-md border border-b-0 px-4 py-2 text-sm font-medium ${
+												activeManagementTab === tab.key
+													? "border-primary bg-primary-soft text-primary"
+													: "border-transparent bg-transparent text-gray-500 hover:text-gray-700"
+											}`}
+										>
+											{tab.label}
+										</button>
+									))}
+								</div>
+							</div>
+
+							<div className="min-h-0 flex-1 overflow-y-auto p-5">
+								{activeManagementTab === "connections" ? (
+									<form onSubmit={saveRemoteConnection} className="space-y-5">
+										<div className="flex items-start justify-between gap-3">
+											<div>
+												<h4 className="text-sm font-semibold text-gray-900">
+													Connection Management
+												</h4>
+												<p className="mt-1 text-xs text-gray-500">
+													Switch between the local MySQL database and a configured remote MySQL server.
+												</p>
+											</div>
+											<div
+												className={`rounded-full px-3 py-1 text-xs font-medium ${
+													connectionStatus.appliedTarget === "remote"
+														? "bg-emerald-100 text-emerald-700"
+														: "bg-blue-100 text-blue-700"
+												}`}
+											>
+												{connectionStatus.appliedTarget === "remote"
+													? "Remote Active"
+													: "Local Active"}
+											</div>
+										</div>
+
+										<div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+											<div>
+												Current source:{" "}
+												<span className="font-medium">
+													{connectionStatus.appliedTarget || "local"}
+												</span>
+											</div>
+											<div className="mt-1">
+												Requested target:{" "}
+												<span className="font-medium">
+													{connectionStatus.requestedTarget || "local"}
+												</span>
+											</div>
+											<div className="mt-1 break-words">
+												Local profile: {connectionStatus.local?.host || "-"}:
+												{connectionStatus.local?.port || "-"} /{" "}
+												{connectionStatus.local?.database || "-"}
+											</div>
+											{connectionStatus.lastSwitchedAt && (
+												<div className="mt-1">
+													Last switched:{" "}
+													{formatDateTime(connectionStatus.lastSwitchedAt)} (
+													{connectionStatus.lastSwitchedTarget})
+												</div>
+											)}
+											{connectionStatus.runtimeIssue && (
+												<div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-2 text-amber-800">
+													{connectionStatus.runtimeIssue}
+												</div>
+											)}
+										</div>
+
+										<div
+											className={`rounded border px-3 py-2 text-xs ${
+												remoteReadiness
+													? remoteReadiness.state === "ready"
+														? "border-emerald-200 bg-emerald-50 text-emerald-700"
+														: remoteReadiness.state === "database_missing"
+															? "border-amber-200 bg-amber-50 text-amber-800"
+															: "border-red-200 bg-red-50 text-red-700"
+													: "border-gray-200 bg-gray-50 text-gray-600"
+											}`}
+										>
+											<div className="font-medium">
+												{remoteReadiness
+													? remoteReadiness.state === "ready"
+														? "Remote database is ready"
+														: remoteReadiness.state === "database_missing"
+															? "Remote database does not exist yet"
+															: "Remote schema is incomplete"
+													: "Remote readiness not checked yet"}
+											</div>
+											<div className="mt-1 break-words">
+												{remoteReadiness?.message ||
+													"Test the remote connection to inspect server reachability and schema readiness."}
+											</div>
+											{remoteReadiness?.missingTables?.length > 0 && (
+												<div className="mt-1 break-words">
+													Missing required tables:{" "}
+													{remoteReadiness.missingTables.join(", ")}
+												</div>
+											)}
+											{connectionStatus.remote?.lastInitializedAt && (
+												<div className="mt-1">
+													Last initialized{" "}
+													{formatDateTime(connectionStatus.remote.lastInitializedAt)}
+												</div>
+											)}
+										</div>
+
+										<div className="grid grid-cols-1 gap-4">
+											<div>
+												<label className="block text-sm font-medium text-gray-700">
+													Remote Host
+												</label>
+												<input
+													type="text"
+													value={connectionForm.host}
+													onChange={(e) =>
+														setConnectionForm((prev) => ({
+															...prev,
+															host: e.target.value,
+														}))
+													}
+													disabled={hasOngoingOperation}
+													className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+												/>
+												{connectionErrors.host && (
+													<p className="mt-1 text-sm text-red-600">
+														{connectionErrors.host}
+													</p>
+												)}
+											</div>
+											<div className="grid grid-cols-2 gap-3">
+												<div>
+													<label className="block text-sm font-medium text-gray-700">
+														Port
+													</label>
+													<input
+														type="number"
+														min="1"
+														max="65535"
+														value={connectionForm.port}
+														onChange={(e) =>
+															setConnectionForm((prev) => ({
+																...prev,
+																port: e.target.value,
+															}))
+														}
+														disabled={hasOngoingOperation}
+														className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+													/>
+													{connectionErrors.port && (
+														<p className="mt-1 text-sm text-red-600">
+															{connectionErrors.port}
+														</p>
+													)}
+												</div>
+												<div>
+													<label className="block text-sm font-medium text-gray-700">
+														Database
+													</label>
+													<input
+														type="text"
+														value={connectionForm.database}
+														onChange={(e) =>
+															setConnectionForm((prev) => ({
+																...prev,
+																database: e.target.value,
+															}))
+														}
+														disabled={hasOngoingOperation}
+														className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+													/>
+													{connectionErrors.database && (
+														<p className="mt-1 text-sm text-red-600">
+															{connectionErrors.database}
+														</p>
+													)}
+												</div>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700">
+													Username
+												</label>
+												<input
+													type="text"
+													value={connectionForm.username}
+													onChange={(e) =>
+														setConnectionForm((prev) => ({
+															...prev,
+															username: e.target.value,
+														}))
+													}
+													disabled={hasOngoingOperation}
+													className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+												/>
+												{connectionErrors.username && (
+													<p className="mt-1 text-sm text-red-600">
+														{connectionErrors.username}
+													</p>
+												)}
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700">
+													Password
+												</label>
+												<input
+													type="password"
+													value={connectionForm.password}
+													onChange={(e) =>
+														setConnectionForm((prev) => ({
+															...prev,
+															password: e.target.value,
+														}))
+													}
+													disabled={hasOngoingOperation}
+													placeholder={
+														connectionStatus.remote?.hasSavedPassword
+															? "Leave blank to keep saved password"
+															: ""
+													}
+													className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+												/>
+												{connectionStatus.remote?.hasSavedPassword && (
+													<p className="mt-1 text-xs text-gray-500">
+														A password is already saved for the remote connection.
+													</p>
+												)}
+												{connectionErrors.password && (
+													<p className="mt-1 text-sm text-red-600">
+														{connectionErrors.password}
+													</p>
+												)}
+											</div>
+										</div>
+
+										{connectionStatus.remote?.lastTestMessage && (
+											<div
+												className={`rounded border px-3 py-2 text-xs ${
+													connectionStatus.remote?.lastTestSucceeded
+														? "border-emerald-200 bg-emerald-50 text-emerald-700"
+														: "border-red-200 bg-red-50 text-red-700"
+												}`}
+											>
+												<div className="font-medium">
+													{connectionStatus.remote.lastTestSucceeded
+														? "Last remote test succeeded"
+														: "Last remote test failed"}
+												</div>
+												<div className="mt-1 break-words">
+													{connectionStatus.remote.lastTestMessage}
+												</div>
+												{connectionStatus.remote.lastTestedAt && (
+													<div className="mt-1">
+														Tested at{" "}
+														{formatDateTime(
+															connectionStatus.remote.lastTestedAt,
+														)}
+													</div>
+												)}
+											</div>
+										)}
+
+										<div
+											className={`rounded border px-3 py-2 text-xs ${
+												schemaReport
+													? schemaReport.compatible
+														? "border-emerald-200 bg-emerald-50 text-emerald-700"
+														: "border-red-200 bg-red-50 text-red-700"
+													: "border-gray-200 bg-gray-50 text-gray-600"
+											}`}
+										>
+											<div className="font-medium">
+												{schemaReport
+													? schemaReport.compatible
+														? "Schema report passed"
+														: "Schema report found compatibility issues"
+													: "Schema report not run yet"}
+											</div>
+											<div className="mt-1 break-words">
+												{schemaReport?.summary ||
+													"Run a schema report before switching this app to remote MySQL."}
+											</div>
+											{schemaReport?.checkedAt && (
+												<div className="mt-1">
+													Last checked {formatDateTime(schemaReport.checkedAt)}
+												</div>
+											)}
+										</div>
+
+										<div className="flex flex-wrap gap-2">
+											<button
+												type="submit"
+												disabled={
+													hasOngoingOperation ||
+													!canManageConnections ||
+													isSavingConnection
+												}
+												className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Save Remote Settings
+											</button>
+											<button
+												type="button"
+												onClick={testRemoteConnection}
+												disabled={
+													hasOngoingOperation ||
+													!canTestConnections ||
+													isTestingConnection
+												}
+												className="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Test Remote
+											</button>
+											<button
+												type="button"
+												onClick={runSchemaReport}
+												disabled={
+													hasOngoingOperation ||
+													!canRunSchemaReport ||
+													isRunningSchemaReport
+												}
+												className="rounded-md border border-violet-300 bg-white px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Run Schema Report
+											</button>
+											<button
+												type="button"
+												onClick={initializeRemoteDatabase}
+												disabled={
+													hasOngoingOperation ||
+													!canInitializeRemote ||
+													isInitializingRemote
+												}
+												className="rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Initialize / Rebuild Remote DB
+											</button>
+											<button
+												type="button"
+												onClick={() => switchConnectionTarget("local")}
+												disabled={
+													hasOngoingOperation ||
+													!canManageConnections ||
+													isSwitchingConnection ||
+													connectionStatus.requestedTarget === "local"
+												}
+												className="rounded-md border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Switch To Local
+											</button>
+											<button
+												type="button"
+												onClick={() => switchConnectionTarget("remote")}
+												disabled={!canSwitchToRemote}
+												className="rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Switch To Remote
+											</button>
+										</div>
+									</form>
+								) : activeManagementTab === "schema" ? (
+									<div className="space-y-5">
+										<div className="flex items-start justify-between gap-3">
+											<div>
+												<h4 className="text-sm font-semibold text-gray-900">
+													Schema Compatibility Report
+												</h4>
+												<p className="mt-1 text-xs text-gray-500">
+													Compare the local application schema against the configured remote MySQL schema before switching.
+												</p>
+											</div>
+											<button
+												type="button"
+												onClick={runSchemaReport}
+												disabled={
+													hasOngoingOperation ||
+													!canRunSchemaReport ||
+													isRunningSchemaReport
+												}
+												className="rounded-md border border-violet-300 bg-white px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Run Report
+											</button>
+										</div>
+
+										<div
+											className={`rounded-lg border p-4 text-sm ${
+												schemaReport
+													? schemaReport.compatible
+														? "border-emerald-200 bg-emerald-50 text-emerald-800"
+														: "border-red-200 bg-red-50 text-red-800"
+													: "border-gray-200 bg-gray-50 text-gray-700"
+											}`}
+										>
+											<div className="font-medium">
+												{schemaReport
+													? schemaReport.compatible
+														? "Remote schema is compatible"
+														: "Remote schema is not compatible"
+													: "No report available yet"}
+											</div>
+											<div className="mt-1 break-words">
+												{schemaReport?.summary ||
+													"Save remote settings, test the connection, then run the schema report."}
+											</div>
+											{schemaReport?.checkedAt && (
+												<div className="mt-2 text-xs">
+													Checked {formatDateTime(schemaReport.checkedAt)}
+												</div>
+											)}
+										</div>
+
+										{!schemaReport?.remoteDatabaseExists && (
+											<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+												<div className="font-medium">
+													Remote database has not been created yet.
+												</div>
+												<div className="mt-2 text-xs text-amber-800">
+													Use Initialize / Rebuild Remote DB to create the configured database, or to replace a partial initialization with a clean migrated and seeded schema before running this report again.
+												</div>
+												<div className="mt-4">
+													<button
+														type="button"
+														onClick={initializeRemoteDatabase}
+														disabled={
+															hasOngoingOperation ||
+															!canInitializeRemote ||
+															isInitializingRemote
+														}
+														className="rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+													>
+														Initialize / Rebuild Remote DB
+													</button>
+												</div>
+											</div>
+										)}
+
+										{schemaReport && (
+											<>
+												<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+													<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+														<div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+															Local Database
+														</div>
+														<div className="mt-2 font-medium text-gray-900">
+															{schemaReport.localDatabase}
+														</div>
+														<div className="mt-1 text-xs text-gray-500">
+															{schemaReport.localTableCount} tables compared
+														</div>
+													</div>
+													<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+														<div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+															Remote Database
+														</div>
+														<div className="mt-2 font-medium text-gray-900">
+															{schemaReport.remoteDatabase}
+														</div>
+														<div className="mt-1 text-xs text-gray-500">
+															{schemaReport.remoteTableCount} tables compared
+														</div>
+													</div>
+												</div>
+
+												<div className="space-y-4">
+													<div className="rounded-lg border border-gray-200 p-4">
+														<h5 className="text-sm font-semibold text-gray-900">
+															Missing Tables On Remote
+														</h5>
+														{schemaReport.missingTablesOnRemote?.length ? (
+															<ul className="mt-3 space-y-1 text-sm text-red-700">
+																{schemaReport.missingTablesOnRemote.map((table) => (
+																	<li key={table} className="break-words">
+																		{table}
+																	</li>
+																))}
+															</ul>
+														) : (
+															<p className="mt-2 text-sm text-gray-500">
+																No missing tables detected.
+															</p>
+														)}
+													</div>
+
+													<div className="rounded-lg border border-gray-200 p-4">
+														<h5 className="text-sm font-semibold text-gray-900">
+															Extra Tables On Remote
+														</h5>
+														{schemaReport.extraTablesOnRemote?.length ? (
+															<ul className="mt-3 space-y-1 text-sm text-amber-700">
+																{schemaReport.extraTablesOnRemote.map((table) => (
+																	<li key={table} className="break-words">
+																		{table}
+																	</li>
+																))}
+															</ul>
+														) : (
+															<p className="mt-2 text-sm text-gray-500">
+																No extra tables detected.
+															</p>
+														)}
+													</div>
+
+													<div className="rounded-lg border border-gray-200 p-4">
+														<h5 className="text-sm font-semibold text-gray-900">
+															Column Differences
+														</h5>
+														{schemaReport.tableDiffs?.length ? (
+															<div className="mt-3 space-y-4">
+																{schemaReport.tableDiffs.map((tableDiff) => (
+																	<div
+																		key={tableDiff.table}
+																		className="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700"
+																	>
+																		<div className="font-medium text-gray-900">
+																			{tableDiff.table}
+																		</div>
+																		{tableDiff.missingColumns?.length > 0 && (
+																			<div className="mt-2">
+																				<div className="text-xs font-semibold uppercase tracking-wide text-red-600">
+																					Missing Columns On Remote
+																				</div>
+																				<div className="mt-1 break-words text-sm text-red-700">
+																					{tableDiff.missingColumns.join(", ")}
+																				</div>
+																			</div>
+																		)}
+																		{tableDiff.extraColumns?.length > 0 && (
+																			<div className="mt-2">
+																				<div className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+																					Extra Columns On Remote
+																				</div>
+																				<div className="mt-1 break-words text-sm text-amber-700">
+																					{tableDiff.extraColumns.join(", ")}
+																				</div>
+																			</div>
+																		)}
+																		{tableDiff.changedColumns?.length > 0 && (
+																			<div className="mt-2 space-y-2">
+																				<div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+																					Changed Column Definitions
+																				</div>
+																				{tableDiff.changedColumns.map((column) => (
+																					<div
+																						key={`${tableDiff.table}-${column.column}`}
+																						className="rounded border border-gray-200 bg-white p-2 text-xs text-gray-700"
+																					>
+																						<div className="font-medium text-gray-900">
+																							{column.column}
+																						</div>
+																						<div className="mt-1 break-words">
+																							Local: {JSON.stringify(column.local)}
+																						</div>
+																						<div className="mt-1 break-words">
+																							Remote: {JSON.stringify(column.remote)}
+																						</div>
+																					</div>
+																				))}
+																			</div>
+																		)}
+																	</div>
+																))}
+															</div>
+														) : (
+															<p className="mt-2 text-sm text-gray-500">
+																No column-level differences detected.
+															</p>
+														)}
+													</div>
+												</div>
+											</>
+										)}
+									</div>
+								) : activeManagementTab === "transfer" ? (
+									<div className="space-y-5">
+										<div className="flex items-start justify-between gap-3">
+											<div>
+												<h4 className="text-sm font-semibold text-gray-900">
+													Local To Remote Data Transfer
+												</h4>
+												<p className="mt-1 text-xs text-gray-500">
+													Overwrite the configured remote MySQL data with the current local application data after dropping and restoring remote triggers during the transfer.
+												</p>
+											</div>
+											<button
+												type="button"
+												onClick={openTransferModal}
+												disabled={
+													hasOngoingOperation ||
+													!canTransferToRemote ||
+													isTransferringToRemote ||
+													!schemaReport?.compatible
+												}
+												className="rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Transfer Local To Remote
+											</button>
+										</div>
+
+										<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+											<div className="font-medium">
+												This operation overwrites remote application tables.
+											</div>
+											<div className="mt-2 text-xs text-amber-800">
+												Remote triggers are dropped, remote data tables are truncated, then local rows are inserted and the original remote triggers are recreated. Run a schema report first and do not use this as a substitute for backups.
+											</div>
+										</div>
+
+										<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+											<div className="font-medium text-gray-900">
+												Transfer readiness
+											</div>
+											<div className="mt-2 text-xs">
+												Remote connection test:{" "}
+												<span className="font-medium">
+													{connectionStatus.remote?.lastTestSucceeded
+														? "Passed"
+														: "Not verified"}
+												</span>
+											</div>
+											<div className="mt-1 text-xs">
+												Schema report:{" "}
+												<span className="font-medium">
+													{schemaReport?.compatible
+														? "Compatible"
+														: schemaReport
+															? "Blocked"
+															: "Not run"}
+												</span>
+											</div>
+											<div className="mt-1 text-xs">
+												Remote target:{" "}
+												<span className="font-medium">
+													{connectionStatus.remote?.host || "-"}:
+													{connectionStatus.remote?.port || "-"} /{" "}
+													{connectionStatus.remote?.database || "-"}
+												</span>
+											</div>
+										</div>
+
+										{lastTransfer ? (
+											<div className="rounded-lg border border-gray-200 p-4">
+												<h5 className="text-sm font-semibold text-gray-900">
+													Last Transfer
+												</h5>
+												<p className="mt-2 text-sm text-gray-700">
+													{lastTransfer.message}
+												</p>
+												<p className="mt-1 text-xs text-gray-500">
+													Completed {formatDateTime(lastTransfer.transferredAt)} into{" "}
+													{lastTransfer.remoteDatabase}.
+												</p>
+												<div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+													{Object.entries(lastTransfer.tables || {}).map(
+														([table, rowCount]) => (
+															<div
+																key={table}
+																className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700"
+															>
+																<span className="font-medium text-gray-900">
+																	{table}
+																</span>
+																<div className="mt-1">
+																	{formatCountLabel(rowCount, "row")}
+																</div>
+															</div>
+														),
+													)}
+												</div>
+											</div>
+										) : (
+											<div className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
+												No local-to-remote transfer has been recorded yet.
+											</div>
+										)}
+									</div>
+								) : (
+									activeManagementTab === "retention" ? (
+									<form onSubmit={saveSettings} className="space-y-5">
+										<div className="flex items-center justify-between gap-3">
+											<div>
+												<h4 className="text-sm font-semibold text-gray-900">
+													Retention & Cleanup
+												</h4>
+												<p className="mt-1 text-xs text-gray-500">
+													Configure local backup retention and cleanup behavior.
+												</p>
+											</div>
+											<button
+												type="button"
+												onClick={openCleanupModal}
+												disabled={hasOngoingOperation || !canCleanup}
+												className="rounded border border-red-300 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Run Cleanup
+											</button>
+										</div>
+										<div className="space-y-4">
+											<div>
+												<label className="block text-sm font-medium text-gray-700">
+													Snapshot Retention Count
+												</label>
+												<input
+													type="number"
+													min="1"
+													value={settingsForm.SnapshotRetentionCount}
+													onChange={(e) =>
+														setSettingsForm((prev) => ({
+															...prev,
+															SnapshotRetentionCount: e.target.value,
+														}))
+													}
+													disabled={hasOngoingOperation}
+													className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+												/>
+												{settingsErrors.SnapshotRetentionCount && (
+													<p className="mt-1 text-sm text-red-600">
+														{settingsErrors.SnapshotRetentionCount}
+													</p>
+												)}
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700">
+													Incremental Retention Count
+												</label>
+												<input
+													type="number"
+													min="1"
+													value={settingsForm.IncrementalRetentionCount}
+													onChange={(e) =>
+														setSettingsForm((prev) => ({
+															...prev,
+															IncrementalRetentionCount: e.target.value,
+														}))
+													}
+													disabled={hasOngoingOperation}
+													className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-primary focus:ring-primary"
+												/>
+												{settingsErrors.IncrementalRetentionCount && (
+													<p className="mt-1 text-sm text-red-600">
+														{settingsErrors.IncrementalRetentionCount}
+													</p>
+												)}
+											</div>
+											<label className="inline-flex items-center gap-2 text-sm text-gray-700">
+												<input
+													type="checkbox"
+													checked={settingsForm.DeleteFailedBackups}
+													onChange={(e) =>
+														setSettingsForm((prev) => ({
+															...prev,
+															DeleteFailedBackups: e.target.checked,
+														}))
+													}
+													disabled={hasOngoingOperation}
+													className="rounded border-gray-300 text-primary focus:ring-primary"
+												/>
+												Delete failed backups during cleanup
+											</label>
+										</div>
+										<div className="flex justify-end">
+											<button
+												type="submit"
+												disabled={
+													hasOngoingOperation ||
+													!canManageSettings ||
+													isSavingSettings
+												}
+												className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												Save Settings
+											</button>
+										</div>
+									</form>
+									) : (
+									<div className="space-y-5">
+										<div>
+											<h4 className="text-sm font-semibold text-gray-900">
+												Phase 4 Packaging Design
+											</h4>
+											<p className="mt-1 text-xs text-gray-500">
+												Electron packaging is still deferred, but the packaging path is now defined around local MySQL, backups, and first-run bootstrap.
+											</p>
+										</div>
+										<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+											<div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+												Planned Desktop Stack
+											</div>
+											<ul className="mt-3 space-y-2 text-sm">
+												<li>Electron shell launching the compiled Laravel frontend on localhost.</li>
+												<li>Bundled PHP runtime and Laravel application files with `vendor` already installed.</li>
+												<li>Bundled local MySQL or MariaDB service for the store workstation.</li>
+												<li>First-run bootstrap for `.env`, app key, migrations, seeders, storage link, and owner account setup.</li>
+											</ul>
+										</div>
+										<div className="grid grid-cols-1 gap-4">
+											<div className="rounded-lg border border-gray-200 p-4">
+												<h5 className="text-sm font-semibold text-gray-900">
+													Readiness Completed
+												</h5>
+												<ul className="mt-3 space-y-2 text-sm text-gray-700">
+													<li>Local snapshot, incremental, verify, and restore flow exists.</li>
+													<li>Remote MySQL settings, tests, schema comparison, and guarded switching exist.</li>
+													<li>Local-to-remote transfer exists as a controlled administrative action.</li>
+												</ul>
+											</div>
+											<div className="rounded-lg border border-gray-200 p-4">
+												<h5 className="text-sm font-semibold text-gray-900">
+													Phase 4 Next Implementation Items
+												</h5>
+												<ul className="mt-3 space-y-2 text-sm text-gray-700">
+													<li>Create an Electron workspace with production launcher scripts.</li>
+													<li>Bundle PHP and MySQL runtime binaries per target platform.</li>
+													<li>Add desktop first-run wizard and health checks for DB/process startup.</li>
+													<li>Define auto-update, backup-directory, and crash-recovery behavior.</li>
+												</ul>
+											</div>
+										</div>
+										<div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">
+											<div className="font-medium text-gray-900">
+												Reference
+											</div>
+											<p className="mt-2 text-sm">
+												Detailed packaging notes are tracked in <span className="font-mono text-xs">docs/phase-4-electron-packaging-plan.md</span>.
+											</p>
+										</div>
+									</div>
+									)
+								)}
+
+								<div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+								<h4 className="text-sm font-semibold text-gray-900">
+									Phase Status
+								</h4>
+								<p className="mt-2 text-sm text-gray-600">
+									Phase 1, Phase 3 follow-ups, and the Phase 4 packaging design are now tracked here.
+								</p>
+								<p className="mt-3 text-xs text-gray-500">
+									Electron packaging remains deferred, but the packaging plan now assumes the backup and switching flow implemented on this page.
+								</p>
+							</div>
+						</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div className="sticky bottom-0 z-10 w-full border-t border-gray-200 bg-white p-4">
+				<div className="mx-auto flex max-w-7xl gap-3 px-4 sm:px-6 lg:px-8">
+					<button
+						type="button"
+						onClick={() => openCreateModal("Snapshot")}
+						disabled={hasOngoingOperation || !canCreateSnapshot}
+						className="inline-flex w-full justify-center rounded-md border border-transparent bg-primary px-6 py-3 text-sm font-medium text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						Create Snapshot
+					</button>
+					<button
+						type="button"
+						onClick={() => openCreateModal("Incremental")}
+						disabled={hasOngoingOperation || !canCreateIncrementalRun}
+						className="inline-flex w-full justify-center rounded-md border border-primary bg-white px-6 py-3 text-sm font-medium text-primary shadow-sm hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-60"
+					>
+						Create Incremental
+					</button>
+				</div>
+			</div>
+
+			<Modal
+				show={Boolean(modalType)}
+				onClose={closeModal}
+				maxWidth={modalType === "Restore" ? "2xl" : "lg"}
+			>
+				{modalType && (
+					<form onSubmit={submitAction} className="p-6">
+						<h3 className="text-lg font-semibold text-gray-900">
+							{modalType === "Restore"
+								? `Restore Backup #${selectedBackup?.id || ""}`
+								: modalType === "Cleanup"
+									? "Run Cleanup"
+									: `Create ${modalType} Backup`}
+						</h3>
+						<p className="mt-2 text-sm text-gray-600">
+							{modalType === "Snapshot" &&
+								"A snapshot stores the full contents of all tracked application tables."}
+							{modalType === "Incremental" &&
+								"An incremental stores row-level changes recorded after the latest completed backup."}
+							{modalType === "Cleanup" &&
+								"This deletes old local backup records and files according to the configured retention rules."}
+							{modalType === "Restore" &&
+								"This replaces the current tracked tables with the selected backup chain, then generates a fresh baseline snapshot."}
+							{modalType === "Transfer" &&
+								"This overwrites the configured remote MySQL application tables with the current local data after dropping and restoring the remote triggers."}
+						</p>
+
+						{modalType === "Restore" && selectedBackup?.RestorePreview && (
+							<div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+								<p className="font-medium">Restore chain</p>
+								<ul className="mt-3 space-y-2">
+									{selectedBackup.RestorePreview.chain.map((item) => (
+										<li
+											key={item.id}
+											className="flex items-center justify-between gap-3 rounded border border-amber-200 bg-white px-3 py-2"
+										>
+											<span>
+												{item.type} #{item.id}
+											</span>
+											<span className="text-xs text-gray-500">
+												{formatDateTime(item.completedAt)}
+											</span>
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
+
+						{modalType === "Restore" && selectedBackup?.RestorePreviewError && (
+							<div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+								This backup failed integrity validation and cannot be restored.
+								<div className="mt-2 break-words text-xs text-red-600">
+									{selectedBackup.RestorePreviewError}
+								</div>
+							</div>
+						)}
+
+						<div className="mt-5">
+							<label
+								className="block text-sm font-medium text-gray-700"
+								htmlFor="database-action-notes"
+							>
+								Notes
+							</label>
+							<textarea
+								id="database-action-notes"
+								rows={4}
+								value={notes}
+								onChange={(e) => setNotes(e.target.value)}
+								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+								placeholder="Optional notes"
+							/>
+							{errors.Notes && (
+								<p className="mt-2 text-sm text-red-600">{errors.Notes}</p>
+							)}
+						</div>
+						{modalType === "Transfer" && (
+							<div className="mt-5">
+								<label
+									className="block text-sm font-medium text-gray-700"
+									htmlFor="database-transfer-confirmation"
+								>
+									Type <span className="font-semibold">TRANSFER TO REMOTE</span> to confirm
+								</label>
+								<input
+									id="database-transfer-confirmation"
+									type="text"
+									value={confirmationPhrase}
+									onChange={(e) => setConfirmationPhrase(e.target.value)}
+									className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+									placeholder="TRANSFER TO REMOTE"
+								/>
+								{errors.ConfirmationPhrase && (
+									<p className="mt-2 text-sm text-red-600">
+										{errors.ConfirmationPhrase}
+									</p>
+								)}
+							</div>
+						)}
+						<div className="mt-6 flex justify-end gap-2">
+							<button
+								type="button"
+								onClick={closeModal}
+								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+							>
+								Cancel
+							</button>
+							<button
+								type="submit"
+								disabled={
+									hasOngoingOperation ||
+									isSubmitting ||
+									(modalType === "Restore" &&
+										Boolean(selectedBackup?.RestorePreviewError))
+								}
+								className={`rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${modalType === "Cleanup" ? "bg-red-600 hover:bg-red-700" : modalType === "Restore" ? "bg-amber-600 hover:bg-amber-700" : "bg-primary hover:bg-primary-hover"}`}
+							>
+								{modalType === "Restore"
+									? "Confirm Restore"
+									: modalType === "Cleanup"
+										? "Run Cleanup"
+										: modalType === "Transfer"
+											? "Transfer To Remote"
+											: "Create Backup"}
+							</button>
+						</div>
+					</form>
+				)}
+			</Modal>
+		</AuthenticatedLayout>
+	);
+}

@@ -11,7 +11,7 @@ return new class extends Migration {
 	public function up(): void {
 		Schema::create('roles', function (Blueprint $table) {
 			$table->id('ID');
-			$table->string('RoleName');
+			$table->text('RoleName');
 			$table->text('RoleDescription');
 			$table->string('RoleColor', 7)->default('#6B7280');
 			$table->unsignedBigInteger('RoleRank');
