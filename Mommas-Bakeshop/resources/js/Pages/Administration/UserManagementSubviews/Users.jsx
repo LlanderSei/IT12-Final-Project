@@ -65,6 +65,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 		FullName: "",
 		email: "",
 		RoleID: "",
+		IsActive: true,
 		password: "",
 		password_confirmation: "",
 	});
@@ -162,6 +163,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 			FullName: "",
 			email: "",
 			RoleID: defaultRoleId,
+			IsActive: true,
 			password: "",
 			password_confirmation: "",
 		});
@@ -182,6 +184,10 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 			FullName: user.FullName || "",
 			email: user.email || "",
 			RoleID: String(user.RoleID || defaultRoleId),
+			IsActive:
+				typeof user.IsActive === "boolean"
+					? user.IsActive
+					: Boolean(user.IsActive ?? true),
 			password: "",
 			password_confirmation: "",
 		});
@@ -197,6 +203,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 
 	const isEditingOwnAccount =
 		editingUser && Number(editingUser.id) === Number(currentUser?.id);
+	const isOwnerSelfEdit = isEditingOwnAccount && currentRoleRank === 1;
 
 	const submitUser = (e) => {
 		e.preventDefault();
@@ -407,6 +414,12 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 											</th>
 											<th
 												scope="col"
+												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+											>
+												Active
+											</th>
+											<th
+												scope="col"
 												className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
 												onClick={() => requestSort("Records")}
 											>
@@ -440,6 +453,15 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
 														{user.Roles || "N/A"}
+													</td>
+													<td
+														className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+															user.IsActive
+																? "text-emerald-600"
+																: "text-rose-600"
+														}`}
+													>
+														{user.IsActive ? "Active" : "Inactive"}
 													</td>
 													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
 														{user.RelationCount || 0}
@@ -475,7 +497,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 										})}
 										{filteredUsers.length === 0 && (
 											<tr>
-												<td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+												<td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
 													No users found.
 												</td>
 											</tr>
@@ -578,6 +600,31 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 														</p>
 													)}
 													{form.errors.RoleID && <p className="mt-2 text-sm text-red-600">{form.errors.RoleID}</p>}
+												</div>
+
+												<div>
+													<label className="block text-sm font-medium text-gray-700" htmlFor="IsActive">
+														Active
+													</label>
+													<div className="mt-2 flex items-center gap-2">
+														<input
+															id="IsActive"
+															type="checkbox"
+															checked={Boolean(form.data.IsActive)}
+															onChange={(e) => form.setData("IsActive", e.target.checked)}
+															disabled={isOwnerSelfEdit}
+															className="rounded border-gray-300 text-primary shadow-sm focus:ring-primary"
+														/>
+														<span className="text-sm text-gray-700">Account active</span>
+													</div>
+													{!form.data.IsActive && (
+														<p className="mt-2 text-xs text-rose-600">User Account Deactivated.</p>
+													)}
+													{isOwnerSelfEdit && (
+														<p className="mt-2 text-xs text-gray-500">
+															Owner accounts cannot be deactivated.
+														</p>
+													)}
 												</div>
 
 												<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

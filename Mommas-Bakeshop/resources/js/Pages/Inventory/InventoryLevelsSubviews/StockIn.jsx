@@ -1,6 +1,5 @@
-﻿import React, { useMemo, useState } from "react";
-
-import { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
 
 function toComparableDate(value) {
@@ -9,6 +8,22 @@ function toComparableDate(value) {
 	if (Number.isNaN(d.getTime())) return null;
 	return d;
 }
+
+const formatCurrency = (value) => `PHP ${Number(value || 0).toFixed(2)}`;
+
+const formatDate = (value) => {
+	if (!value) return "n/a";
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) return "n/a";
+	return parsed.toLocaleDateString();
+};
+
+const formatDateTime = (value) => {
+	if (!value) return "n/a";
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) return "n/a";
+	return parsed.toLocaleString();
+};
 
 export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit = false }) {
 	const [searchQuery, setSearchQuery] = useState("");
@@ -26,6 +41,7 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit 
 	});
 	const [currentPage, setCurrentPage] = useState(1);
 	const [itemsPerPage, setItemsPerPage] = useState(25);
+	const [selectedRecord, setSelectedRecord] = useState(null);
 
 	const records = stockIns || [];
 
@@ -63,10 +79,6 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit 
 		switch (key) {
 			case "AddedBy":
 				return String(record.user?.FullName || "").toLowerCase();
-			case "ItemsPurchased":
-				return String(
-					(record.ItemsPurchased || []).map((item) => item.ItemName || "").join(" "),
-				).toLowerCase();
 			case "Supplier":
 				return String(record.Supplier || "").toLowerCase();
 			case "PurchaseDate":
@@ -278,19 +290,6 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit 
 								</div>
 							</th>
 							<th
-								className="w-[30rem] px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-								onClick={() => requestSort("ItemsPurchased")}
-							>
-								<div className="flex items-center">
-									Items Purchased
-									{sortConfig.key === "ItemsPurchased" && (
-										<span className="ml-1 text-[10px] text-gray-400">
-											{sortConfig.direction}
-										</span>
-									)}
-								</div>
-							</th>
-							<th
 								className="w-36 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
 								onClick={() => requestSort("Supplier")}
 							>
@@ -376,63 +375,43 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit 
 						{paginatedStockIns.map((record) => (
 							<tr key={record.ID} className="hover:bg-gray-50 align-top">
 								<td className="px-4 py-4 text-sm text-gray-900 break-words">{record.user?.FullName || "Unknown"}</td>
-								<td className="px-4 py-4 text-sm text-gray-900 break-words">
-									<div className="w-fit max-w-full overflow-x-auto rounded border border-gray-200">
-										<table className="min-w-[24rem] text-xs">
-											<thead className="bg-gray-50">
-												<tr>
-													<th className="px-2 py-1 text-left font-semibold text-gray-600">Item Name</th>
-													<th className="px-2 py-1 text-left font-semibold text-gray-600">Qty</th>
-													<th className="px-2 py-1 text-left font-semibold text-gray-600">Unit Cost</th>
-													<th className="px-2 py-1 text-left font-semibold text-gray-600">Subtotal</th>
-												</tr>
-											</thead>
-											<tbody className="divide-y divide-gray-100">
-												{(record.ItemsPurchased || []).map((item, idx) => (
-													<tr key={`${record.ID}-${idx}`}>
-														<td className="px-2 py-1 text-gray-900">{item.ItemName || "-"}</td>
-														<td className="px-2 py-1 text-gray-700">{item.QuantityAdded ?? 0}</td>
-														<td className="px-2 py-1 text-gray-700">PHP {Number(item.UnitCost || 0).toFixed(2)}</td>
-														<td className="px-2 py-1 text-gray-700">PHP {Number(item.SubAmount || 0).toFixed(2)}</td>
-													</tr>
-												))}
-												{(record.ItemsPurchased || []).length === 0 && (
-													<tr>
-														<td colSpan="4" className="px-2 py-1 text-gray-500">No items</td>
-													</tr>
-												)}
-											</tbody>
-										</table>
-									</div>
-								</td>
 								<td className="px-4 py-4 text-sm text-gray-500 break-words">{record.Supplier || "-"}</td>
-								<td className="px-4 py-4 text-sm text-gray-900 break-words">{record.PurchaseDate ? new Date(record.PurchaseDate).toLocaleDateString() : "n/a"}</td>
+								<td className="px-4 py-4 text-sm text-gray-900 break-words">{formatDate(record.PurchaseDate)}</td>
 								<td className="px-4 py-4 text-sm text-gray-900 break-words">
 									<div>Receipt: {record.ReceiptNumber || "n/a"}</div>
 									<div>Invoice: {record.InvoiceNumber || "n/a"}</div>
 								</td>
 								<td className="px-4 py-4 text-sm text-gray-900">{record.TotalQuantity}</td>
-								<td className="px-4 py-4 text-sm font-semibold text-gray-900">PHP {Number(record.TotalAmount).toFixed(2)}</td>
+								<td className="px-4 py-4 text-sm font-semibold text-gray-900">{formatCurrency(record.TotalAmount)}</td>
 								<td className="px-4 py-4 text-sm text-gray-500 break-words">{record.AdditionalDetails || "-"}</td>
-								<td className="px-4 py-4 text-sm text-gray-500 break-words">{new Date(record.DateAdded).toLocaleString()}</td>
+								<td className="px-4 py-4 text-sm text-gray-500 break-words">{formatDateTime(record.DateAdded)}</td>
 								<td className="px-4 py-4 text-sm">
-									{canEdit ? (
+									<div className="flex items-center gap-2">
 										<button
 											type="button"
-											onClick={() => onEdit?.(record)}
+											onClick={() => setSelectedRecord(record)}
 											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
 										>
-											Edit
+											View
 										</button>
-									) : (
-										<span className="text-xs text-gray-400">No access</span>
-									)}
+										{canEdit ? (
+											<button
+												type="button"
+												onClick={() => onEdit?.(record)}
+												className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+											>
+												Edit
+											</button>
+										) : (
+											<span className="text-xs text-gray-400">No access</span>
+										)}
+									</div>
 								</td>
 							</tr>
 						))}
 						{filteredStockIns.length === 0 && (
 							<tr>
-								<td colSpan="10" className="px-6 py-4 text-center text-sm text-gray-500">
+								<td colSpan="9" className="px-6 py-4 text-center text-sm text-gray-500">
 									No stock-in records found.
 								</td>
 							</tr>
@@ -508,8 +487,106 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit 
 					</div>
 				</div>
 			</div>
+			<Modal show={Boolean(selectedRecord)} onClose={() => setSelectedRecord(null)} maxWidth="4xl">
+				{selectedRecord && (
+					<div className="p-6 max-h-[80vh] overflow-y-auto">
+						<h3 className="text-lg font-semibold text-gray-900 mb-4">Stock-In Details</h3>
+						<div className="grid grid-cols-1 gap-3 md:grid-cols-2 text-sm">
+							<div>
+								<span className="font-semibold text-gray-700">Added By:</span>{" "}
+								<span className="text-gray-900">{selectedRecord.user?.FullName || "Unknown"}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Supplier:</span>{" "}
+								<span className="text-gray-900">{selectedRecord.Supplier || "-"}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Purchase Date:</span>{" "}
+								<span className="text-gray-900">{formatDate(selectedRecord.PurchaseDate)}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Receipt #:</span>{" "}
+								<span className="text-gray-900">{selectedRecord.ReceiptNumber || "n/a"}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Invoice #:</span>{" "}
+								<span className="text-gray-900">{selectedRecord.InvoiceNumber || "n/a"}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Total Quantity:</span>{" "}
+								<span className="text-gray-900">{selectedRecord.TotalQuantity}</span>
+							</div>
+							<div>
+								<span className="font-semibold text-gray-700">Total Amount:</span>{" "}
+								<span className="text-gray-900">{formatCurrency(selectedRecord.TotalAmount)}</span>
+							</div>
+							<div className="md:col-span-2">
+								<span className="font-semibold text-gray-700">Additional Details:</span>{" "}
+								<span className="text-gray-900">{selectedRecord.AdditionalDetails || "-"}</span>
+							</div>
+							<div className="md:col-span-2">
+								<span className="font-semibold text-gray-700">Date Created:</span>{" "}
+								<span className="text-gray-900">{formatDateTime(selectedRecord.DateAdded)}</span>
+							</div>
+						</div>
+
+						<div className="mt-6">
+							<h4 className="text-sm font-semibold text-gray-700 mb-2">Items Purchased</h4>
+							<div className="max-h-80 overflow-y-auto rounded border border-gray-200">
+								<table className="min-w-full text-sm">
+									<thead className="bg-gray-50 sticky top-0 z-10">
+										<tr>
+											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Item Name
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Type
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Qty
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Unit Cost
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+												Subtotal
+											</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-gray-200 bg-white">
+										{(selectedRecord.ItemsPurchased || []).map((item, idx) => (
+											<tr key={`${selectedRecord.ID}-${idx}`}>
+												<td className="px-3 py-2 text-gray-900">{item.ItemName || "-"}</td>
+												<td className="px-3 py-2 text-gray-700">{item.ItemType || "-"}</td>
+												<td className="px-3 py-2 text-gray-700">{item.QuantityAdded ?? 0}</td>
+												<td className="px-3 py-2 text-gray-700">{formatCurrency(item.UnitCost)}</td>
+												<td className="px-3 py-2 text-gray-900 font-medium">{formatCurrency(item.SubAmount)}</td>
+											</tr>
+										))}
+										{(selectedRecord.ItemsPurchased || []).length === 0 && (
+											<tr>
+												<td colSpan="5" className="px-3 py-4 text-center text-gray-500">
+													No items found.
+												</td>
+											</tr>
+										)}
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<div className="mt-6 flex justify-end">
+							<button
+								type="button"
+								onClick={() => setSelectedRecord(null)}
+								className="px-4 py-2 text-sm rounded-md border border-primary bg-white text-primary hover:bg-primary-soft"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				)}
+			</Modal>
 		</div>
 	);
 }
-
-

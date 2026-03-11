@@ -59,6 +59,8 @@ export default function ShrinkageHistory({
 	const [selectedProductId, setSelectedProductId] = useState("");
 	const [selectedQuantity, setSelectedQuantity] = useState("1");
 	const [formError, setFormError] = useState("");
+	const [bypassVerification, setBypassVerification] = useState(false);
+	const [showBypassConfirm, setShowBypassConfirm] = useState(false);
 
 	const form = useForm({
 		reason: allowedReasons[0] || "Spoiled",
@@ -188,6 +190,8 @@ export default function ShrinkageHistory({
 		setSelectedProductId("");
 		setSelectedQuantity("1");
 		setFormError("");
+		setBypassVerification(false);
+		setShowBypassConfirm(false);
 		form.clearErrors();
 	};
 
@@ -304,8 +308,7 @@ export default function ShrinkageHistory({
 		setFormError("");
 	};
 
-	const submitForm = (e) => {
-		e.preventDefault();
+	const validateFormBeforeSubmit = () => {
 		setFormError("");
 		if (
 			editingShrinkage &&
@@ -313,12 +316,17 @@ export default function ShrinkageHistory({
 			editingShrinkage.VerificationStatus !== "Pending"
 		) {
 			setFormError("Only pending shrinkage records can be updated.");
-			return;
+			return false;
 		}
 		if ((form.data.items || []).length === 0) {
 			setFormError("Add at least one shrinkage item.");
-			return;
+			return false;
 		}
+		return true;
+	};
+
+	const submitFormPayload = (skipValidation = false) => {
+		if (!skipValidation && !validateFormBeforeSubmit()) return;
 
 		form.transform((data) => ({
 			...data,
@@ -326,6 +334,9 @@ export default function ShrinkageHistory({
 				ProductID: Number(item.ProductID),
 				Quantity: Number(item.Quantity),
 			})),
+			...(!editingShrinkage && canVerifyShrinkage && bypassVerification
+				? { bypassVerification: true }
+				: {}),
 		}));
 
 		const options = {
@@ -347,6 +358,21 @@ export default function ShrinkageHistory({
 
 		if (!canCreateShrinkage) return requirePermission("CanCreateShrinkageRecord");
 		form.post(route("inventory.shrinkage-history.store"), options);
+	};
+
+	const submitForm = (e) => {
+		e.preventDefault();
+		if (!validateFormBeforeSubmit()) return;
+		if (!editingShrinkage && canVerifyShrinkage && bypassVerification) {
+			setShowBypassConfirm(true);
+			return;
+		}
+		submitFormPayload(true);
+	};
+
+	const confirmBypassSubmission = () => {
+		setShowBypassConfirm(false);
+		submitFormPayload(true);
 	};
 
 	const confirmDelete = () => {
@@ -928,6 +954,21 @@ export default function ShrinkageHistory({
 								{form.errors.reason && (
 									<p className="mt-2 text-sm text-red-600">{form.errors.reason}</p>
 								)}
+								{!editingShrinkage && canVerifyShrinkage && (
+									<label className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+										<input
+											type="checkbox"
+											className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-400"
+											checked={bypassVerification}
+											onChange={(e) => setBypassVerification(e.target.checked)}
+										/>
+										<span>
+											<span className="font-semibold">Bypass Shrinkage Confirmation</span>
+											<br />
+											Instantly verify this shrinkage record and deduct stock once saved.
+										</span>
+									</label>
+								)}
 							</div>
 
 							<div className="rounded-lg border border-gray-200 p-4 space-y-2 text-sm">
@@ -942,7 +983,9 @@ export default function ShrinkageHistory({
 							</div>
 
 							<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-								Stock is deducted only after verification. Quantities are validated against current stock at the time of verification.
+								{!editingShrinkage && canVerifyShrinkage && bypassVerification
+									? "Bypass enabled: stock will be deducted immediately upon save."
+									: "Stock is deducted only after verification. Quantities are validated against current stock at the time of verification."}
 							</div>
 						</div>
 					</div>
@@ -1035,6 +1078,16 @@ export default function ShrinkageHistory({
 				title="Delete Shrinkage Record"
 				message={`Delete shrinkage record #${shrinkageToDelete?.ID || ""}? Stock is only adjusted after verification.`}
 				confirmText="Delete Record"
+				processing={form.processing}
+			/>
+
+			<ConfirmationModal
+				show={showBypassConfirm}
+				onClose={() => setShowBypassConfirm(false)}
+				onConfirm={confirmBypassSubmission}
+				title="Bypass Shrinkage Confirmation"
+				message="This will instantly confirm the shrinkage record and deduct stock right away. Continue?"
+				confirmText="Confirm & Save"
 				processing={form.processing}
 			/>
 		</AuthenticatedLayout>
