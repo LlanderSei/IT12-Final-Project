@@ -272,14 +272,31 @@ class PosController extends Controller {
 
   public function storeShrinkageHistory(Request $request) {
     try {
+      $bypassVerification = $request->boolean('bypassVerification');
+      $canBypass = ($request->user()?->hasPermission('CanVerifyShrinkageRecord') ?? false);
+      if ($bypassVerification && !$canBypass) {
+        throw ValidationException::withMessages([
+          'bypassVerification' => 'You do not have permission to bypass shrinkage confirmation.',
+        ]);
+      }
+
       $payload = $this->validateShrinkagePayload(
         $request,
         $this->allowedShrinkageReasons($request->user())
       );
 
-      $this->persistShrinkageRecord($payload, (int) $request->user()->id);
+      $this->persistShrinkageRecord(
+        $payload,
+        (int) $request->user()->id,
+        $bypassVerification ? 'Verified' : 'Pending',
+        $bypassVerification
+      );
 
-      return redirect()->route('inventory.shrinkage-history')->with('success', 'Shrinkage recorded successfully.');
+      $message = $bypassVerification
+        ? 'Shrinkage recorded and verified successfully.'
+        : 'Shrinkage recorded successfully.';
+
+      return redirect()->route('inventory.shrinkage-history')->with('success', $message);
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
@@ -996,11 +1013,17 @@ class PosController extends Controller {
       'items.*.ProductID' => 'required|integer|exists:products,ID',
       'items.*.Quantity' => 'required|integer|min:1',
       'reason' => ['required', Rule::in($allowedReasons)],
+      'bypassVerification' => 'nullable|boolean',
     ]);
   }
 
-  private function persistShrinkageRecord(array $payload, int $userId): Shrinkage {
-    return DB::transaction(function () use ($payload, $userId) {
+  private function persistShrinkageRecord(
+    array $payload,
+    int $userId,
+    string $verificationStatus = 'Pending',
+    bool $deductStock = false
+  ): Shrinkage {
+    return DB::transaction(function () use ($payload, $userId, $verificationStatus, $deductStock) {
       [$lines, $totalQuantity, $totalAmount] = $this->calculateCartTotals($payload['items']);
 
       $shrinkage = Shrinkage::create([
@@ -1008,7 +1031,7 @@ class PosController extends Controller {
         'Quantity' => $totalQuantity,
         'TotalAmount' => $totalAmount,
         'Reason' => $payload['reason'],
-        'VerificationStatus' => 'Pending',
+        'VerificationStatus' => $verificationStatus,
         'DateAdded' => now(),
       ]);
 
@@ -1020,9 +1043,11 @@ class PosController extends Controller {
           'SubAmount' => $line['subAmount'],
         ]);
 
-        $line['product']->update([
-          'DateModified' => now(),
-        ]);
+        $updates = ['DateModified' => now()];
+        if ($deductStock) {
+          $updates['Quantity'] = (int) $line['product']->Quantity - (int) $line['quantity'];
+        }
+        $line['product']->update($updates);
       }
 
       return $shrinkage;

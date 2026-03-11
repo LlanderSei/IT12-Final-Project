@@ -60,7 +60,7 @@ class UserManagementController extends Controller {
       ->get();
 
     $users = User::query()
-      ->select(['id', 'FullName', 'email', 'RoleID', 'created_at'])
+      ->select(['id', 'FullName', 'email', 'RoleID', 'IsActive', 'created_at'])
       ->with(['role:ID,RoleName,RoleColor,RoleRank'])
       ->with(['permissionsSet.permission:ID,PermissionName'])
       ->withCount([
@@ -306,6 +306,7 @@ class UserManagementController extends Controller {
       'FullName' => ['required', 'string', 'max:255'],
       'email' => ['required', 'email', 'max:255', 'unique:users,email'],
       'RoleID' => ['required', 'integer', 'exists:roles,ID'],
+      'IsActive' => ['nullable', 'boolean'],
       'password' => ['required', 'string', 'min:8', 'confirmed'],
     ]);
 
@@ -320,6 +321,7 @@ class UserManagementController extends Controller {
       'FullName' => $data['FullName'],
       'email' => strtolower($data['email']),
       'RoleID' => $data['RoleID'],
+      'IsActive' => $this->normalizeBoolean($data['IsActive'] ?? true),
       'password' => Hash::make($data['password']),
     ]);
     $this->syncUserPermissionsFromRole($user);
@@ -336,6 +338,7 @@ class UserManagementController extends Controller {
       'FullName' => ['required', 'string', 'max:255'],
       'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
       'RoleID' => ['required', 'integer', 'exists:roles,ID'],
+      'IsActive' => ['nullable', 'boolean'],
       'password' => ['nullable', 'string', 'min:8', 'confirmed'],
     ]);
 
@@ -354,6 +357,15 @@ class UserManagementController extends Controller {
       return redirect()->back()->with('error', 'You cannot change your own role rank.');
     }
 
+    $isSelfUpdate = $actor && (int) $actor->id === (int) $user->id;
+    $isOwnerSelfUpdate = $isSelfUpdate && $actor?->role && $this->isSystemOwnerRole($actor->role);
+    if ($isOwnerSelfUpdate && array_key_exists('IsActive', $data)) {
+      $requestedActive = $this->normalizeBoolean($data['IsActive']);
+      if ($requestedActive === false) {
+        return redirect()->back()->with('error', 'Owner accounts cannot be deactivated.');
+      }
+    }
+
     $targetRole = Role::query()->find($data['RoleID']);
     if (!$this->canAssignByRole($actor?->role?->RoleRank, $targetRole?->RoleRank)) {
       return redirect()->back()->with('error', 'You cannot assign a role higher than your own.');
@@ -363,6 +375,7 @@ class UserManagementController extends Controller {
       'FullName' => $data['FullName'],
       'email' => strtolower($data['email']),
       'RoleID' => $data['RoleID'],
+      'IsActive' => $this->normalizeBoolean($data['IsActive'] ?? $user->IsActive),
     ];
 
     if (!empty($data['password'])) {

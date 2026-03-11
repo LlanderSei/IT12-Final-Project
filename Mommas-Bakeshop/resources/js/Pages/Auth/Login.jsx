@@ -1,5 +1,5 @@
 import { Head, useForm } from "@inertiajs/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export default function Login({ status }) {
 	const { data, setData, post, processing, errors, reset } = useForm({
@@ -7,6 +7,7 @@ export default function Login({ status }) {
 		password: "",
 		remember: false,
 	});
+	const lastToastMessage = useRef(null);
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
@@ -15,6 +16,23 @@ export default function Login({ status }) {
 		root.classList.remove("theme-dark", "theme-light");
 		root.classList.add(savedTheme === "dark" ? "theme-dark" : "theme-light");
 	}, []);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		if (!errors.email) return;
+		if (errors.email === lastToastMessage.current) return;
+		if (errors.email === "Your account is deactivated.") {
+			window.dispatchEvent(
+				new CustomEvent("app-toast", {
+					detail: {
+						type: "error",
+						message: errors.email,
+					},
+				}),
+			);
+			lastToastMessage.current = errors.email;
+		}
+	}, [errors.email]);
 
 	const submit = (e) => {
 		e.preventDefault();
