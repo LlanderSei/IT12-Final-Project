@@ -10,10 +10,10 @@ return new class extends Migration {
 	public function up(): void {
 		Schema::create('customers', function (Blueprint $table) {
 			$table->id('ID');
-			$table->text('CustomerName');
-			$table->text('CustomerType');
-			$table->text('ContactDetails');
-			$table->text('Address');
+			$table->string('CustomerName');
+			$table->string('CustomerType');
+			$table->string('ContactDetails');
+			$table->string('Address');
 			$table->timestamp('DateAdded');
 			$table->timestamp('DateModified');
 		});
@@ -69,7 +69,7 @@ return new class extends Migration {
 
 		Schema::create('categories', function (Blueprint $table) {
 			$table->id('ID');
-			$table->text('CategoryName');
+			$table->string('CategoryName');
 			$table->text('CategoryDescription');
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
@@ -77,7 +77,7 @@ return new class extends Migration {
 
 		Schema::create('products', function (Blueprint $table) {
 			$table->id('ID');
-			$table->text('ProductName');
+			$table->string('ProductName');
 			$table->text('ProductDescription');
 			$table->foreignId('CategoryID')->constrained('categories', 'ID')->onDelete('cascade');
 			$table->text('ProductImage')->nullable();
@@ -207,10 +207,10 @@ return new class extends Migration {
 
 		Schema::create('inventory', function (Blueprint $table) {
 			$table->id('ID');
-			$table->text('ItemName');
+			$table->string('ItemName');
 			$table->text('ItemDescription');
-			$table->text('ItemType');
-			$table->text('Measurement');
+			$table->string('ItemType');
+			$table->string('Measurement');
 			$table->unsignedBigInteger('Quantity');
 			$table->unsignedBigInteger('LowCountThreshold');
 			$table->timestamp('DateAdded')->useCurrent();
