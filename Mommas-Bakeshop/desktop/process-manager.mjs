@@ -43,10 +43,9 @@ export class DesktopProcessManager {
 			cwd: desktopConfig.projectRoot,
 			stdio: "pipe",
 			windowsHide: true,
-			env: {
-				...process.env,
+			env: this.buildPhpEnv(phpBinary, {
 				APP_ENV: process.env.APP_ENV || "production",
-			},
+			}),
 		});
 
 		this.backendProcess.stdout?.on("data", (chunk) => {
@@ -295,10 +294,9 @@ export class DesktopProcessManager {
 				cwd: desktopConfig.projectRoot,
 				stdio: "pipe",
 				windowsHide: true,
-				env: {
-					...process.env,
+				env: this.buildPhpEnv(phpBinary, {
 					APP_ENV: process.env.APP_ENV || "production",
-				},
+				}),
 			});
 
 			let stderr = "";
@@ -352,5 +350,22 @@ export class DesktopProcessManager {
 				resolve(false);
 			});
 		});
+	}
+
+	buildPhpEnv(phpBinary, extraEnv = {}) {
+		const env = {
+			...process.env,
+			...extraEnv,
+		};
+		const phpDir = path.dirname(phpBinary);
+		if (phpBinary !== "php" && existsSync(path.join(phpDir, "php.ini"))) {
+			env.PHPRC = phpDir;
+			env.PHP_INI_SCAN_DIR = phpDir;
+			if (process.platform === "win32") {
+				env.PATH = `${phpDir};${env.PATH || ""}`;
+			}
+		}
+
+		return env;
 	}
 }
