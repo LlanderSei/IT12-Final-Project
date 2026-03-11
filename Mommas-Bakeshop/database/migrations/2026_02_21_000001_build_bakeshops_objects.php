@@ -14,8 +14,8 @@ return new class extends Migration {
 			$table->text('CustomerType');
 			$table->text('ContactDetails');
 			$table->text('Address');
-			$table->timestamp('DateAdded');
-			$table->timestamp('DateModified');
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
 		});
 
 		Schema::create('permission_groups', function (Blueprint $table) {
