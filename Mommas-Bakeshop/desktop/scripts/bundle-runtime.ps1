@@ -28,6 +28,18 @@ New-Item -ItemType Directory -Force -Path $mysqlDest | Out-Null
 Write-Host "Copying PHP runtime from $PhpRoot to $phpDest"
 Copy-Item -Path (Join-Path $PhpRoot "*") -Destination $phpDest -Recurse -Force
 
+Write-Host "Normalizing PHP extension_dir to relative path"
+$phpIni = Join-Path $phpDest "php.ini"
+$phpIniDev = Join-Path $phpDest "php.ini-development"
+if (-not (Test-Path $phpIni) -and (Test-Path $phpIniDev)) {
+	Copy-Item -Path $phpIniDev -Destination $phpIni -Force
+}
+if (Test-Path $phpIni) {
+	(Get-Content -Path $phpIni) `
+		-replace '^\s*extension_dir\s*=.*$', 'extension_dir = "ext"' |
+		Set-Content -Path $phpIni -Encoding ASCII
+}
+
 Write-Host "Copying MySQL runtime from $MysqlRoot to $mysqlDest"
 Copy-Item -Path (Join-Path $MysqlRoot "*") -Destination $mysqlDest -Recurse -Force
 
