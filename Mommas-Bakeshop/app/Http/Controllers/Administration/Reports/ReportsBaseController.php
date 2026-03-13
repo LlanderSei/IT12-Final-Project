@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Administration\Reports;
 
+use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\ProductionBatchDetail;
 use App\Models\Shrinkage;
@@ -13,9 +14,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
-class ReportsController extends Controller {
-  public function index(Request $request) {
-    $requestedTab = $request->route('tab');
+class ReportsBaseController extends Controller {
+  protected function renderReports(Request $request, ?string $forcedTab = null) {
+    $requestedTab = $forcedTab ?? $request->route('tab');
     $initialTab = in_array($requestedTab, ['Overview', 'Full Breakdown'], true)
       ? $requestedTab
       : 'Overview';
@@ -166,7 +167,7 @@ class ReportsController extends Controller {
     ]);
   }
 
-  private function resolveSelectionRange(
+  protected function resolveSelectionRange(
     string $preset,
     ?string $singleDate = null,
     ?string $from = null,
@@ -186,7 +187,7 @@ class ReportsController extends Controller {
     return $this->resolveRange($preset);
   }
 
-  private function resolveRange(string $preset, ?string $from = null, ?string $to = null): array {
+  protected function resolveRange(string $preset, ?string $from = null, ?string $to = null): array {
     $now = Carbon::now();
 
     switch ($preset) {
@@ -229,18 +230,18 @@ class ReportsController extends Controller {
     return [$start, $end, $this->formatRangeLabel($start, $end)];
   }
 
-  private function formatRangeLabel(Carbon $start, Carbon $end): string {
+  protected function formatRangeLabel(Carbon $start, Carbon $end): string {
     if ($start->isSameDay($end)) {
       return $start->format('M j, Y');
     }
     return $start->format('M j, Y') . ' - ' . $end->format('M j, Y');
   }
 
-  private function granularityForPreset(string $preset): string {
+  protected function granularityForPreset(string $preset): string {
     return $preset === 'this_year' ? 'monthly' : 'daily';
   }
 
-  private function resolveBaseDailyRange(): array {
+  protected function resolveBaseDailyRange(): array {
     $minDates = [
       DB::table('sales')->min('DateAdded'),
       DB::table('stock_in_details')->min('DateAdded'),
@@ -256,7 +257,7 @@ class ReportsController extends Controller {
     return [$start, $end];
   }
 
-  private function computeCards(Carbon $start, Carbon $end): array {
+  protected function computeCards(Carbon $start, Carbon $end): array {
     $revenue = (float) Payment::query()
       ->where('PaymentStatus', 'Paid')
       ->whereHas('sale', function ($query) use ($start, $end) {
@@ -303,7 +304,7 @@ class ReportsController extends Controller {
     ];
   }
 
-  private function computeTables(Carbon $start, Carbon $end): array {
+  protected function computeTables(Carbon $start, Carbon $end): array {
     $soldRows = DB::table('sold_products as sp')
       ->join('sales as s', 's.ID', '=', 'sp.SalesID')
       ->leftJoin('products as p', 'p.ID', '=', 'sp.ProductID')
@@ -404,7 +405,7 @@ class ReportsController extends Controller {
     ];
   }
 
-  private function computePaymentsSummary(Carbon $start, Carbon $end): array {
+  protected function computePaymentsSummary(Carbon $start, Carbon $end): array {
     $base = DB::table('payments as p')
       ->join('sales as s', 's.ID', '=', 'p.SalesID')
       ->whereBetween('s.DateAdded', [$start, $end]);
@@ -440,7 +441,7 @@ class ReportsController extends Controller {
     ];
   }
 
-  private function computeFullBreakdownTables(Carbon $start, Carbon $end): array {
+  protected function computeFullBreakdownTables(Carbon $start, Carbon $end): array {
     $soldProducts = DB::table('sold_products as sp')
       ->join('sales as s', 's.ID', '=', 'sp.SalesID')
       ->leftJoin('products as p', 'p.ID', '=', 'sp.ProductID')
@@ -512,7 +513,7 @@ class ReportsController extends Controller {
     ];
   }
 
-  private function buildChartSeriesPayload(Carbon $start, Carbon $end, string $granularity): array {
+  protected function buildChartSeriesPayload(Carbon $start, Carbon $end, string $granularity): array {
     [$bucketKeys, $labels] = $this->buildBuckets($start, $end, $granularity);
 
     $revenue = $this->fetchMetricByBucket(
@@ -607,7 +608,7 @@ class ReportsController extends Controller {
     ];
   }
 
-  private function buildBuckets(Carbon $start, Carbon $end, string $granularity): array {
+  protected function buildBuckets(Carbon $start, Carbon $end, string $granularity): array {
     $keys = [];
     $labels = [];
     $cursor = $start->copy();
@@ -632,7 +633,7 @@ class ReportsController extends Controller {
     return [$keys, $labels];
   }
 
-  private function fetchMetricByBucket(
+  protected function fetchMetricByBucket(
     string $table,
     string $joinTable,
     string $foreignKey,
@@ -657,7 +658,7 @@ class ReportsController extends Controller {
       ->all();
   }
 
-  private function fetchSimpleMetricByBucket(
+  protected function fetchSimpleMetricByBucket(
     string $table,
     string $dateColumn,
     string $metricSelect,
@@ -685,7 +686,7 @@ class ReportsController extends Controller {
       ->all();
   }
 
-  private function mapSeries(array $bucketKeys, array $rows): array {
+  protected function mapSeries(array $bucketKeys, array $rows): array {
     return collect($bucketKeys)
       ->map(function ($key) use ($rows) {
         return round((float) ($rows[$key] ?? 0), 2);

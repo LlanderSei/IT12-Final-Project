@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Inventory\ProductsAndBatches;
 
+use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,7 @@ class CategoryController extends Controller {
       'CategoryDescription' => 'nullable|string',
     ]);
 
-    $category = Category::create([
+    Category::create([
       'CategoryName' => $data['CategoryName'],
       'CategoryDescription' => $data['CategoryDescription'] ?? '',
       'DateAdded' => now(),
@@ -42,7 +43,6 @@ class CategoryController extends Controller {
   public function destroy($id) {
     $category = Category::findOrFail($id);
 
-    // Check if category has products
     if ($category->products()->count() > 0) {
       return redirect()->back()->with('error', 'Cannot delete category that has products.');
     }
