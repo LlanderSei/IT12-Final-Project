@@ -188,6 +188,40 @@ return new class extends Migration {
 		');
 
 		DB::unprepared('
+			CREATE TRIGGER UpdateProductQuantitiesOnShrinkage
+			AFTER INSERT ON shrinked_products
+			FOR EACH ROW
+			BEGIN
+				DECLARE old_product_quantity BIGINT;
+				DECLARE shrinkage_user_id BIGINT;
+
+				SELECT Quantity INTO old_product_quantity
+				FROM products
+				WHERE ID = NEW.ProductID;
+
+				SELECT UserID INTO shrinkage_user_id
+				FROM shrinkages
+				WHERE ID = NEW.ShrinkageID;
+
+				UPDATE products
+				SET Quantity = Quantity - NEW.Quantity
+				WHERE ID = NEW.ProductID;
+
+				INSERT INTO audits (UserID, TableEdited, PreviousChanges, SavedChanges, ReadableChanges, Action, Source, DateAdded)
+				VALUES (
+					shrinkage_user_id,
+					"products",
+					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity, "}"),
+					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity - NEW.Quantity, "}"),
+					CONCAT("Trigger UpdateProductQuantitiesOnShrinkage deducted ", NEW.Quantity, " from products.ID=", NEW.ProductID),
+					"Update Quantity",
+					"Trigger",
+					NOW()
+				);
+			END
+		');
+
+		DB::unprepared('
 			CREATE TRIGGER TriggerUpdateStockQuantitiesOnStockIn
 			AFTER INSERT ON stock_ins
 			FOR EACH ROW

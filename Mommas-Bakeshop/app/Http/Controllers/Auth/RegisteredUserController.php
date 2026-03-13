@@ -36,10 +36,13 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        $clerkRole = \App\Models\Role::where('RoleName', 'Clerk')->first();
+
         $user = User::create([
-            'name' => $request->name,
+            'FullName' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'RoleID' => $clerkRole ? $clerkRole->ID : 4, // Default to 4 if seeder didn't run
         ]);
 
         event(new Registered($user));

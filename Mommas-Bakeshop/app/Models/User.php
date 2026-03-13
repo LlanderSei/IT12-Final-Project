@@ -113,5 +113,12 @@ class User extends Authenticatable {
       ->filter()
       ->values();
   }
+  public function getNameAttribute(): string {
+    return $this->FullName ?? '';
+  }
+
+  public function setNameAttribute(string $value): void {
+    $this->attributes['FullName'] = $value;
+  }
 }
 

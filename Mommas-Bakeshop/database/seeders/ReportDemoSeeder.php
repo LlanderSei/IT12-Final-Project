@@ -48,13 +48,14 @@ class ReportDemoSeeder extends Seeder {
                 if ($product->Quantity <= 0) continue;
                 $qty = min($product->Quantity, random_int(1, 10));
 
-                $subAmount = $qty * $product->Price;
+                $price = (float) ($product->Price ?? 0);
+                $subAmount = round($qty * $price, 2);
                 $totalAmount += $subAmount;
 
                 DB::table('sold_products')->insert([
                     'SalesID' => $saleId,
                     'ProductID' => $product->ID,
-                    'PricePerUnit' => $product->Price,
+                    'PricePerUnit' => $price,
                     'Quantity' => $qty,
                     'SubAmount' => $subAmount
                 ]);
@@ -107,7 +108,8 @@ class ReportDemoSeeder extends Seeder {
                 if ($product->Quantity <= 0) continue;
                 $qty = min($product->Quantity, random_int(1, 5));
                 
-                $subAmount = $qty * $product->Price;
+                $price = (float) ($product->Price ?? 0);
+                $subAmount = round($qty * $price, 2);
                 
                 $totalQuantity += $qty;
                 $totalAmount += $subAmount;
@@ -152,7 +154,8 @@ class ReportDemoSeeder extends Seeder {
                 if ($product->Quantity <= 0) continue;
                 $qty = min($product->Quantity, random_int(5, 20));
 
-                $subAmount = $qty * $product->Price;
+                $price = (float) ($product->Price ?? 0);
+                $subAmount = round($qty * $price, 2);
                 $totalQuantity += $qty;
 
                 DB::table('stock_outs')->insert([
