@@ -1,13 +1,12 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Administration;
 
+use App\Http\Controllers\Controller;
 use App\Models\Audit;
-use App\Models\Inventory;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 
-class AuditController extends Controller {
+class AuditsController extends Controller {
   public function index() {
     $audits = Audit::with('user')->orderBy('DateAdded', 'desc')->get();
 
