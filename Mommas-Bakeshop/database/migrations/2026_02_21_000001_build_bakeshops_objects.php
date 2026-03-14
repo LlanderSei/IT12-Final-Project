@@ -14,8 +14,8 @@ return new class extends Migration {
 			$table->text('CustomerType');
 			$table->text('ContactDetails');
 			$table->text('Address');
-			$table->timestamp('DateAdded');
-			$table->timestamp('DateModified');
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
 		});
 
 		Schema::create('permission_groups', function (Blueprint $table) {
@@ -176,7 +176,7 @@ return new class extends Migration {
 			$table->foreignId('CustomerID')->constrained('customers', 'ID')->onDelete('cascade');
 			$table->foreignId('SalesID')->nullable()->constrained('sales', 'ID')->nullOnDelete();
 			$table->enum('Status', ['Pending', 'Delivered', 'Cancelled'])->default('Pending')->index();
-			$table->timestamp('DeliveryAt');
+			$table->timestamp('DeliveryAt')->nullable();
 			$table->text('Notes')->nullable();
 			$table->decimal('TotalAmount', 10, 2);
 			$table->timestamp('DateAdded')->useCurrent();
