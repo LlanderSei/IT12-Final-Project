@@ -43,6 +43,8 @@ export default function Products({
 	const [imageInputKey, setImageInputKey] = useState(0);
 	const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 	const [existingImageUrl, setExistingImageUrl] = useState(null);
+	const [clientImageError, setClientImageError] = useState("");
+	const maxImageBytes = 2 * 1024 * 1024;
 
 	const categoryOptions = useMemo(
 		() => [...new Set((products || []).map((p) => p.category?.CategoryName).filter(Boolean))],
@@ -59,11 +61,11 @@ export default function Products({
 		data,
 		setData,
 		post,
-		put,
 		delete: destroy,
 		processing,
 		errors,
 		reset,
+		transform,
 	} = useForm({
 		ProductName: "",
 		ProductDescription: "",
@@ -102,6 +104,7 @@ export default function Products({
 		setData("RemoveProductImage", false);
 		setSelectedImagePreview(null);
 		setExistingImageUrl(null);
+		setClientImageError("");
 		setImageInputKey((prev) => prev + 1);
 		setIsModalOpen(true);
 	};
@@ -120,6 +123,7 @@ export default function Products({
 		});
 		setSelectedImagePreview(null);
 		setExistingImageUrl(product.ProductImageUrl || null);
+		setClientImageError("");
 		setImageInputKey((prev) => prev + 1);
 		setIsModalOpen(true);
 	};
@@ -129,6 +133,7 @@ export default function Products({
 		reset();
 		setSelectedImagePreview(null);
 		setExistingImageUrl(null);
+		setClientImageError("");
 		setImageInputKey((prev) => prev + 1);
 	};
 
@@ -146,6 +151,7 @@ export default function Products({
 	const removeSelectedImage = () => {
 		setData("ProductImage", null);
 		setSelectedImagePreview(null);
+		setClientImageError("");
 		if (existingImageUrl) {
 			setData("RemoveProductImage", true);
 			setExistingImageUrl(null);
@@ -155,8 +161,17 @@ export default function Products({
 
 	const handleImageSelection = (event) => {
 		const file = event.target.files?.[0] || null;
+		if (file && file.size > maxImageBytes) {
+			setClientImageError("Image must be 2MB or smaller.");
+			setData("ProductImage", null);
+			setData("RemoveProductImage", false);
+			setSelectedImagePreview(null);
+			setImageInputKey((prev) => prev + 1);
+			return;
+		}
 		setData("ProductImage", file);
 		setData("RemoveProductImage", false);
+		setClientImageError("");
 		if (file) {
 			setExistingImageUrl(null);
 		}
@@ -167,9 +182,11 @@ export default function Products({
 		if (editingProduct && !canUpdateProduct) return;
 		if (!editingProduct && !canCreateProduct) return;
 		if (editingProduct) {
-			put(route("inventory.products.update", editingProduct.ID), {
+			transform((currentData) => ({ ...currentData, _method: "put" }));
+			post(route("inventory.products.update", editingProduct.ID), {
 				forceFormData: true,
 				onSuccess: () => closeModal(),
+				onFinish: () => transform((currentData) => currentData),
 			});
 		} else {
 			post(route("inventory.products.store"), {
@@ -1003,6 +1020,11 @@ export default function Products({
 													{errors.ProductImage && (
 														<p className="mt-2 text-sm text-red-600">
 															{errors.ProductImage}
+														</p>
+													)}
+													{!errors.ProductImage && clientImageError && (
+														<p className="mt-2 text-sm text-red-600">
+															{clientImageError}
 														</p>
 													)}
 												</div>

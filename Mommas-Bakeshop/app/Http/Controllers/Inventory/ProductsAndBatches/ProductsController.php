@@ -17,12 +17,19 @@ class ProductsController extends Controller {
   }
 
   public function store(Request $request) {
+    $uploadedImage = $request->file('ProductImage');
+    if ($uploadedImage && !$uploadedImage->isValid()) {
+      return back()
+        ->withErrors(['ProductImage' => 'Image upload failed. Check temporary directory permissions.'])
+        ->withInput();
+    }
+
     $data = $request->validate([
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
-      'ProductImage' => 'nullable|file|image|max:5120',
+      'ProductImage' => 'nullable|file|image|max:2048',
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
 
@@ -48,12 +55,19 @@ class ProductsController extends Controller {
   public function update(Request $request, $id) {
     $product = Product::findOrFail($id);
 
+    $uploadedImage = $request->file('ProductImage');
+    if ($uploadedImage && !$uploadedImage->isValid()) {
+      return back()
+        ->withErrors(['ProductImage' => 'Image upload failed. Check temporary directory permissions.'])
+        ->withInput();
+    }
+
     $data = $request->validate([
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
-      'ProductImage' => 'nullable|file|image|max:5120',
+      'ProductImage' => 'nullable|file|image|max:2048',
       'RemoveProductImage' => 'nullable|boolean',
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
