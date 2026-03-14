@@ -168,6 +168,14 @@ export default function ShrinkageHistory({
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
 	const countLabel = formatCountLabel(filteredShrinkages.length, "record");
+	const unconfirmedCount = useMemo(
+		() =>
+			filteredShrinkages.filter(
+				(record) =>
+					!record.VerificationStatus || record.VerificationStatus === "Pending",
+			).length,
+		[filteredShrinkages],
+	);
 
 	const requestSort = (key) => {
 		let direction = "asc";
@@ -449,8 +457,15 @@ export default function ShrinkageHistory({
 					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
 						Shrinkage History
 					</h2>
-					<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-						{countLabel}
+					<div className="flex items-center gap-2">
+						{unconfirmedCount > 0 && (
+							<div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium">
+								{formatCountLabel(unconfirmedCount, "unconfirmed record")}
+							</div>
+						)}
+						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+							{countLabel}
+						</div>
 					</div>
 				</div>
 			}

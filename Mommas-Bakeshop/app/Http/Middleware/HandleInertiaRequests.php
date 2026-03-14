@@ -3,6 +3,11 @@
 namespace App\Http\Middleware;
 
 use App\Models\Audit;
+use App\Models\Inventory;
+use App\Models\JobOrder;
+use App\Models\Payment;
+use App\Models\Product;
+use App\Models\Shrinkage;
 use App\Services\SystemOperationService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -47,6 +52,11 @@ class HandleInertiaRequests extends Middleware {
       ->values()
       ->all();
     $recentAudits = collect();
+    $overdueJobOrdersCount = 0;
+    $noStockInventoryCount = 0;
+    $noStockProductsCount = 0;
+    $unconfirmedShrinkageCount = 0;
+    $overduePendingPaymentsCount = 0;
     if ($user) {
       $recentAudits = Audit::query()
         ->where('UserID', $user->id)
@@ -54,6 +64,36 @@ class HandleInertiaRequests extends Middleware {
         ->orderByDesc('DateAdded')
         ->limit(20)
         ->get(['ID', 'TableEdited', 'ReadableChanges', 'Action', 'Source', 'DateAdded']);
+
+      $overdueJobOrdersCount = JobOrder::query()
+        ->where('Status', 'Pending')
+        ->whereNotNull('DeliveryAt')
+        ->where('DeliveryAt', '<', now())
+        ->count();
+
+      $noStockInventoryCount = Inventory::query()
+        ->where('Quantity', '<=', 0)
+        ->count();
+
+      $noStockProductsCount = Product::query()
+        ->where('Quantity', '<=', 0)
+        ->count();
+
+      $unconfirmedShrinkageCount = Shrinkage::query()
+        ->where(function ($query) {
+          $query
+            ->whereNull('VerificationStatus')
+            ->orWhere('VerificationStatus', 'Pending');
+        })
+        ->count();
+
+      $overduePendingPaymentsCount = Payment::query()
+        ->whereNotNull('PaymentDueDate')
+        ->where(function ($query) {
+          $query->whereNull('PaymentStatus')->orWhere('PaymentStatus', '!=', 'Paid');
+        })
+        ->where('PaymentDueDate', '<', now()->startOfDay())
+        ->count();
     }
 
     return [
@@ -95,6 +135,11 @@ class HandleInertiaRequests extends Middleware {
         ] : null,
         'recentMaintenanceOperations' => $recentMaintenanceOperations,
       ],
+      'overdueJobOrdersCount' => $overdueJobOrdersCount,
+      'noStockInventoryCount' => $noStockInventoryCount,
+      'noStockProductsCount' => $noStockProductsCount,
+      'unconfirmedShrinkageCount' => $unconfirmedShrinkageCount,
+      'overduePendingPaymentsCount' => $overduePendingPaymentsCount,
     ];
   }
 }

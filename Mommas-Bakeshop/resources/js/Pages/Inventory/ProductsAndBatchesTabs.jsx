@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, router, useForm } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import Products from "./ProductsAndBatchesSubviews/Products";
 import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
 import Snapshots from "./ProductsAndBatchesSubviews/Snapshots";
@@ -10,7 +10,6 @@ import {
 	setPendingProductsBatchesFooterAction,
 } from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
-import ConfirmationModal from "@/Components/ConfirmationModal";
 
 export default function ProductsAndBatchesTabs({
 	products,
@@ -20,7 +19,7 @@ export default function ProductsAndBatchesTabs({
 	auth,
 	initialTab = "Products",
 }) {
-	const { can, requirePermission } = usePermissions();
+	const { can } = usePermissions();
 	const canCreateProduct = can("CanCreateProduct");
 	const canUpdateProduct = can("CanUpdateProduct");
 	const canDeleteProduct = can("CanDeleteProduct");
@@ -30,7 +29,6 @@ export default function ProductsAndBatchesTabs({
 	const canCreateProductionBatch = can("CanCreateProductionBatch");
 	const canUpdateProductionBatch = can("CanUpdateProductionBatch");
 	const canViewProductSnapshots = can("CanViewProductSnapshots");
-	const canRecordProductSnapshot = can("CanRecordProductSnapshot");
 	const canManageCategories =
 		canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory;
 	const [footerActions, setFooterActions] = useState({
@@ -39,8 +37,30 @@ export default function ProductsAndBatchesTabs({
 		openModifyCategories: null,
 	});
 
+	const noStockProductsCount = useMemo(
+		() =>
+			(products || []).reduce(
+				(total, item) => total + (Number(item.Quantity || 0) <= 0 ? 1 : 0),
+				0,
+			),
+		[products],
+	);
+	const lowStockProductsCount = useMemo(
+		() =>
+			(products || []).reduce((total, item) => {
+				const quantity = Number(item.Quantity || 0);
+				const threshold = Number(item.LowStockThreshold || 0);
+				if (quantity > 0 && quantity <= threshold) return total + 1;
+				return total;
+			}, 0),
+		[products],
+	);
 	const tabs = [
-		{ label: "Products", href: route("products.index") },
+		{
+			label: "Products",
+			href: route("products.index"),
+			badgeCount: noStockProductsCount,
+		},
 		{ label: "Production Batches", href: route("products.batches") },
 		{
 			label: "Snapshots",
@@ -81,51 +101,6 @@ export default function ProductsAndBatchesTabs({
 		setHeaderMeta(getDefaultHeaderMeta(activeTab));
 	}, [activeTab, products, batches, snapshots]);
 
-	const snapshotForm = useForm({
-		ProceedOnSameDay: false,
-	});
-	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] =
-		useState(false);
-
-	const hasSnapshotForToday = (snapshots || []).some((snapshot) => {
-		if (!snapshot?.SnapshotTime) return false;
-		const value = new Date(snapshot.SnapshotTime);
-		if (Number.isNaN(value.getTime())) return false;
-		const now = new Date();
-		return (
-			value.getFullYear() === now.getFullYear() &&
-			value.getMonth() === now.getMonth() &&
-			value.getDate() === now.getDate()
-		);
-	});
-
-	const submitSnapshotRecord = (proceedOnSameDay) => {
-		snapshotForm.transform(() => ({
-			ProceedOnSameDay: Boolean(proceedOnSameDay),
-		}));
-		snapshotForm.post(route("inventory.products.snapshots.store"), {
-			preserveScroll: true,
-			onSuccess: () => {
-				setIsSnapshotWarningModalOpen(false);
-			},
-			onError: (errors) => {
-				if (errors?.snapshot && !proceedOnSameDay) {
-					setIsSnapshotWarningModalOpen(true);
-				}
-			},
-		});
-	};
-
-	const handleRecordSnapshot = () => {
-		if (!canRecordProductSnapshot) {
-			return requirePermission("CanRecordProductSnapshot");
-		}
-		if (hasSnapshotForToday) {
-			setIsSnapshotWarningModalOpen(true);
-			return;
-		}
-		submitSnapshotRecord(false);
-	};
 
 	const triggerFooterAction = ({
 		targetTab,
@@ -154,11 +129,23 @@ export default function ProductsAndBatchesTabs({
 							</span>
 						)}
 					</h2>
-					{headerMeta?.countLabel && (
-						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-							{headerMeta.countLabel}
-						</div>
-					)}
+					<div className="flex items-center gap-2">
+						{activeTab === "Products" && noStockProductsCount > 0 && (
+							<div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+								{formatCountLabel(noStockProductsCount, "no stock item")}
+							</div>
+						)}
+						{activeTab === "Products" && lowStockProductsCount > 0 && (
+							<div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+								{formatCountLabel(lowStockProductsCount, "low stock item")}
+							</div>
+						)}
+						{headerMeta?.countLabel && (
+							<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+								{headerMeta.countLabel}
+							</div>
+						)}
+					</div>
 				</div>
 			}
 			disableScroll={true}
@@ -169,7 +156,9 @@ export default function ProductsAndBatchesTabs({
 				<div className="bg-white border-b border-gray-200 mt-0">
 					<div className="mx-auto px-4">
 						<nav className="-mb-px flex gap-2" aria-label="Tabs">
-							{visibleTabs.map((tab) => (
+						{visibleTabs.map((tab) => {
+							const badgeCount = Number(tab.badgeCount || 0);
+							return (
 								<Link
 									key={tab.label}
 									href={tab.href}
@@ -177,14 +166,20 @@ export default function ProductsAndBatchesTabs({
 										activeTab === tab.label
 											? "bg-primary-soft border-primary text-primary"
 											: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-									} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
+									} relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
 								>
 									{tab.label}
+									{badgeCount > 0 && (
+										<span className="pointer-events-none absolute -bottom-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white shadow-sm ring-2 ring-white">
+											{badgeCount}
+										</span>
+									)}
 								</Link>
-							))}
-						</nav>
-					</div>
+							);
+						})}
+					</nav>
 				</div>
+			</div>
 
 				{activeTab === "Products" && (
 					<Products
@@ -222,7 +217,7 @@ export default function ProductsAndBatchesTabs({
 			</div>
 
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 					<button
 						type="button"
 						onClick={() =>
@@ -268,25 +263,8 @@ export default function ProductsAndBatchesTabs({
 					>
 						Modify Categories
 					</button>
-					<button
-						type="button"
-						onClick={handleRecordSnapshot}
-						disabled={snapshotForm.processing || !canRecordProductSnapshot}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-					>
-						Record Snapshot
-					</button>
 				</div>
 			</div>
-			<ConfirmationModal
-				show={isSnapshotWarningModalOpen}
-				onClose={() => setIsSnapshotWarningModalOpen(false)}
-				onConfirm={() => submitSnapshotRecord(true)}
-				title="Snapshot Already Exists Today"
-				message="A snapshot for today already exists. Do you want to proceed and record another snapshot?"
-				confirmText="Proceed"
-				processing={snapshotForm.processing}
-			/>
 		</AuthenticatedLayout>
 	);
 }

@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@inertiajs/react";
 import usePermissions from "@/hooks/usePermissions";
 
-export default function CashierTabs() {
+export default function CashierTabs({ pendingOverdueCount = 0 }) {
 	const { can } = usePermissions();
 	const canViewCashier = can("CanViewCashier");
 	const canViewSalesHistoryBase = can("CanViewSalesHistory");
@@ -63,11 +63,18 @@ export default function CashierTabs() {
 							route().current(routeName),
 						);
 
+						const badgeCount =
+							tab.label === "Pending Payments"
+								? Number(pendingOverdueCount || 0)
+								: 0;
+
 						return (
 							<Link
 								key={tab.routeName}
 								href={
-									tab.routeName === "pos.sale-history" && !canViewSalesTab && canViewPendingTab
+									tab.routeName === "pos.sale-history" &&
+									!canViewSalesTab &&
+									canViewPendingTab
 										? route("pos.sale-history.pending")
 										: route(tab.routeName)
 								}
@@ -75,9 +82,14 @@ export default function CashierTabs() {
 									active
 										? "bg-primary-soft border-primary text-primary"
 										: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-								} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
+								} relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
 							>
 								{tab.label}
+								{badgeCount > 0 && (
+									<span className="pointer-events-none absolute -bottom-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white shadow-sm ring-2 ring-white">
+										{badgeCount}
+									</span>
+								)}
 							</Link>
 						);
 					})}
