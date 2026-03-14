@@ -143,14 +143,6 @@ const NAV_STRUCTURE = [
 				requiredPermissions: ["CanViewInventoryLevels"],
 			},
 			{
-				id: "inventory.shrinkage-history",
-				activeRoutes: ["inventory.shrinkage-history"],
-				label: "Shrinkage History",
-				icon: "audits",
-				href: route("inventory.shrinkage-history"),
-				requiredPermissions: ["CanViewShrinkageHistory"],
-			},
-			{
 				id: "inventory.products",
 				activeRoutes: [
 					"inventory.products",
@@ -162,6 +154,14 @@ const NAV_STRUCTURE = [
 				icon: "products",
 				href: route("products.index"),
 				requiredPermissions: ["CanViewProductsAndBatches"],
+			},
+			{
+				id: "inventory.shrinkage-history",
+				activeRoutes: ["inventory.shrinkage-history"],
+				label: "Shrinkage History",
+				icon: "audits",
+				href: route("inventory.shrinkage-history"),
+				requiredPermissions: ["CanViewShrinkageHistory"],
 			},
 		],
 	},
