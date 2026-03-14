@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react";
 import Users from "./UserManagementSubviews/Users";
 import Permissions from "./UserManagementSubviews/Permissions";
 import Roles from "./UserManagementSubviews/Roles";
 import PermissionGroups from "./UserManagementSubviews/PermissionGroups";
-import { formatCountLabel } from "@/utils/countLabel";
+import PageHeader from "@/Components/PageHeader";
+import ModuleTabs from "@/Components/ModuleTabs";
+import { Users as UsersIcon, ShieldCheck, Key, FolderLock } from "lucide-react";
 import usePermissions from "@/hooks/usePermissions";
 
 export default function UserManagementTabs({
@@ -25,135 +27,95 @@ export default function UserManagementTabs({
 	const canViewPermissionGroupsTab = can("CanViewUserManagementPermissionGroups");
 
 	const tabs = [
-		{ label: "Users", href: route("admin.users") },
-		{ label: "Permissions", href: route("admin.permissions") },
-		{ label: "Roles", href: route("admin.roles") },
-		{ label: "Permission Groups", href: route("admin.permission-groups") },
-	];
-	const visibleTabs = tabs.filter((tab) =>
-		tab.label === "Users"
-			? canViewUsersTab
-			: tab.label === "Permissions"
-				? canViewPermissionsTab
-				: tab.label === "Roles"
-					? canViewRolesTab
-					: canViewPermissionGroupsTab,
-	);
-	const tabLabels = visibleTabs.map((tab) => tab.label);
-	const normalizedInitialTab = tabLabels.includes(initialTab)
-		? initialTab
-		: tabLabels[0] || "Users";
-	const activeTab = normalizedInitialTab;
-	const getDefaultHeaderMeta = (tab) => {
-		if (tab === "Users") {
-			return {
-				subtitle: "Users",
-				countLabel: formatCountLabel((users || []).length, "user"),
-			};
-		}
-		if (tab === "Roles") {
-			return {
-				subtitle: "Roles",
-				countLabel: formatCountLabel((rolePresets || []).length, "role"),
-			};
-		}
-		if (tab === "Permission Groups") {
-			return {
-				subtitle: "Permission Groups",
-				countLabel: formatCountLabel((permissionGroupRows || []).length, "group"),
-			};
-		}
-			return {
-				subtitle: "Permissions",
-				countLabel: formatCountLabel((permissionsUsers || []).length, "record"),
-			};
-		};
-	const [headerMeta, setHeaderMeta] = useState(() =>
-		getDefaultHeaderMeta(activeTab),
-	);
+		{ label: "Users", icon: UsersIcon, value: "Users", hidden: !canViewUsersTab },
+		{ label: "Permissions", icon: Key, value: "Permissions", hidden: !canViewPermissionsTab },
+		{ label: "Roles", icon: ShieldCheck, value: "Roles", hidden: !canViewRolesTab },
+		{ label: "Permission Groups", icon: FolderLock, value: "Permission Groups", hidden: !canViewPermissionGroupsTab },
+	].filter(t => !t.hidden);
 
-	useEffect(() => {
-		setHeaderMeta(getDefaultHeaderMeta(activeTab));
-	}, [activeTab, users, permissionsUsers, rolePresets, permissionGroupRows]);
+	const activeTab = tabs.find(t => t.value === initialTab) ? initialTab : (tabs[0]?.value || "Users");
+	const [headerMeta, setHeaderMeta] = useState({ subtitle: activeTab, countLabel: "" });
 
 	return (
-		<AuthenticatedLayout
-			header={
-				<div className="flex items-center justify-between gap-4">
-					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-						User Management
-						{headerMeta?.subtitle && (
-							<span className="ml-2 text-base font-medium text-gray-500">
-								&gt; {headerMeta.subtitle}
-							</span>
-						)}
-					</h2>
-					{headerMeta?.countLabel && (
-						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-							{headerMeta.countLabel}
+		<AuthenticatedLayout disableScroll={true}>
+			<Head title="Access Control | Momma's Bakeshop" />
+
+			<div className="flex flex-col h-full bg-slate-50/50">
+				<PageHeader 
+					title="User Management" 
+					subtitle={headerMeta.subtitle}
+					count={headerMeta.countLabel}
+					actions={
+						<div className="flex items-center gap-3">
+							<span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-50 mr-4">Security Protocol 1.2</span>
 						</div>
-					)}
-				</div>
-			}
-			disableScroll={true}
-		>
-			<Head title="User Management" />
+					}
+				/>
 
-			<div className="bg-white border-b border-gray-200 mt-0">
-				<div className="mx-auto px-4">
-					<nav className="-mb-px flex gap-2" aria-label="Tabs">
-						{visibleTabs.map((tab) => (
-							<Link
-								key={tab.label}
-								href={tab.href}
-								className={`${
-									activeTab === tab.label
-										? "bg-primary-soft border-primary text-primary"
-										: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-								} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
-							>
-								{tab.label}
-							</Link>
-						))}
-					</nav>
+				<div className="px-10 mt-6">
+					<ModuleTabs 
+						tabs={tabs} 
+						activeTab={activeTab} 
+						onTabChange={(val) => {
+							const target = tabs.find(t => t.value === val);
+							if (target) {
+								const hrefs = {
+									"Users": route("admin.users"),
+									"Permissions": route("admin.permissions"),
+									"Roles": route("admin.roles"),
+									"Permission Groups": route("admin.permission-groups")
+								};
+								router.visit(hrefs[val]);
+							}
+						}} 
+					/>
 				</div>
-			</div>
 
-			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
-				{visibleTabs.length === 0 && (
-					<div className="m-6 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
-						No user management tabs are available for your account.
+				<main className="flex-1 overflow-hidden p-10 pt-6">
+					<div className="bg-white rounded-[2.5rem] border shadow-2xl shadow-slate-200/50 h-full flex flex-col overflow-hidden relative p-8">
+						<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
+						
+						<div className="flex-1 overflow-hidden flex flex-col">
+							{activeTab === "Users" && canViewUsersTab && (
+								<Users
+									users={users}
+									roles={roles}
+									onHeaderMetaChange={setHeaderMeta}
+								/>
+							)}
+							{activeTab === "Permissions" && canViewPermissionsTab && (
+								<Permissions
+									permissionsUsers={permissionsUsers}
+									permissionGroups={permissionGroups}
+									currentUserRoleRank={currentUserRoleRank}
+									onHeaderMetaChange={setHeaderMeta}
+								/>
+							)}
+							{activeTab === "Roles" && canViewRolesTab && (
+								<Roles
+									rolePresets={rolePresets}
+									permissionGroups={permissionGroups}
+									currentUserRoleRank={currentUserRoleRank}
+									onHeaderMetaChange={setHeaderMeta}
+								/>
+							)}
+							{activeTab === "Permission Groups" && canViewPermissionGroupsTab && (
+								<PermissionGroups
+									rows={permissionGroupRows}
+									onHeaderMetaChange={setHeaderMeta}
+								/>
+							)}
+
+							{tabs.length === 0 && (
+								<div className="flex flex-col items-center justify-center py-20 text-center opacity-40 border-2 border-dashed rounded-[3rem] bg-white">
+									<ShieldCheck className="h-12 w-12 mb-4" />
+									<p className="text-sm font-black uppercase tracking-widest leading-loose">Access Restricted</p>
+									<p className="text-xs font-medium italic">Your role does not have management elevation.</p>
+								</div>
+							)}
+						</div>
 					</div>
-				)}
-				{activeTab === "Users" && canViewUsersTab && (
-					<Users
-						users={users}
-						roles={roles}
-						onHeaderMetaChange={setHeaderMeta}
-					/>
-				)}
-						{activeTab === "Permissions" && canViewPermissionsTab && (
-							<Permissions
-								permissionsUsers={permissionsUsers}
-								permissionGroups={permissionGroups}
-								currentUserRoleRank={currentUserRoleRank}
-								onHeaderMetaChange={setHeaderMeta}
-							/>
-						)}
-				{activeTab === "Roles" && canViewRolesTab && (
-					<Roles
-						rolePresets={rolePresets}
-						permissionGroups={permissionGroups}
-						currentUserRoleRank={currentUserRoleRank}
-						onHeaderMetaChange={setHeaderMeta}
-					/>
-				)}
-				{activeTab === "Permission Groups" && canViewPermissionGroupsTab && (
-					<PermissionGroups
-						rows={permissionGroupRows}
-						onHeaderMetaChange={setHeaderMeta}
-					/>
-				)}
+				</main>
 			</div>
 		</AuthenticatedLayout>
 	);

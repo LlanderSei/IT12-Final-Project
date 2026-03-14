@@ -1,16 +1,28 @@
 import React, { useEffect, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, router, useForm } from "@inertiajs/react";
+import { Head, router, useForm } from "@inertiajs/react";
 import Products from "./ProductsAndBatchesSubviews/Products";
 import ProductionBatches from "./ProductsAndBatchesSubviews/ProductionBatches";
 import Snapshots from "./ProductsAndBatchesSubviews/Snapshots";
-import { formatCountLabel } from "@/utils/countLabel";
-import {
-	PRODUCTS_BATCHES_FOOTER_ACTIONS,
-	setPendingProductsBatchesFooterAction,
+import PageHeader from "@/Components/PageHeader";
+import ModuleTabs from "@/Components/ModuleTabs";
+import { 
+	Package, 
+	History, 
+	Camera, 
+	ChevronRight,
+	Plus,
+	Tags,
+	ClipboardList,
+	Camera as CameraIcon
+} from "lucide-react";
+import { 
+	PRODUCTS_BATCHES_FOOTER_ACTIONS, 
+	setPendingProductsBatchesFooterAction 
 } from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
 import ConfirmationModal from "@/Components/ConfirmationModal";
+import { Button } from "@/Components/ui/button";
 
 export default function ProductsAndBatchesTabs({
 	products,
@@ -21,271 +33,208 @@ export default function ProductsAndBatchesTabs({
 	initialTab = "Products",
 }) {
 	const { can, requirePermission } = usePermissions();
+	const [activeTab, setActiveTab] = useState(initialTab);
+	
 	const canCreateProduct = can("CanCreateProduct");
-	const canUpdateProduct = can("CanUpdateProduct");
-	const canDeleteProduct = can("CanDeleteProduct");
-	const canCreateProductCategory = can("CanCreateProductCategory");
-	const canUpdateProductCategory = can("CanUpdateProductCategory");
-	const canDeleteProductCategory = can("CanDeleteProductCategory");
 	const canCreateProductionBatch = can("CanCreateProductionBatch");
-	const canUpdateProductionBatch = can("CanUpdateProductionBatch");
 	const canViewProductSnapshots = can("CanViewProductSnapshots");
 	const canRecordProductSnapshot = can("CanRecordProductSnapshot");
-	const canManageCategories =
-		canCreateProductCategory || canUpdateProductCategory || canDeleteProductCategory;
+	const canManageCategories = can("CanCreateProductCategory") || can("CanUpdateProductCategory") || can("CanDeleteProductCategory");
+
 	const [footerActions, setFooterActions] = useState({
 		openAddProduct: null,
 		openRecordBatch: null,
 		openModifyCategories: null,
 	});
 
+	const [headerMeta, setHeaderMeta] = useState({ subtitle: "Finished Goods", countLabel: "" });
+
 	const tabs = [
-		{ label: "Products", href: route("products.index") },
-		{ label: "Production Batches", href: route("products.batches") },
-		{
-			label: "Snapshots",
-			href: route("products.snapshots"),
-			hidden: !canViewProductSnapshots,
-		},
-	];
-	const visibleTabs = tabs.filter((tab) => !tab.hidden);
-	const tabLabels = visibleTabs.map((tab) => tab.label);
-	const normalizedInitialTab = tabLabels.includes(initialTab)
-		? initialTab
-		: tabLabels[0];
-	const activeTab = normalizedInitialTab;
+		{ label: "Products", icon: Package, value: "Products" },
+		{ label: "Production Batches", icon: ClipboardList, value: "Production Batches" },
+		{ label: "Snapshots", icon: Camera, value: "Snapshots", hidden: !canViewProductSnapshots },
+	].filter(t => !t.hidden);
 
-	const getDefaultHeaderMeta = (tab) => {
-		if (tab === "Products") {
-			return {
-				subtitle: "Finished Goods",
-				countLabel: formatCountLabel((products || []).length, "product"),
-			};
-		}
-		if (tab === "Snapshots") {
-			return {
-				subtitle: "Snapshot History",
-				countLabel: formatCountLabel((snapshots || []).length, "record"),
-			};
-		}
-		return {
-			subtitle: "Batches History",
-			countLabel: formatCountLabel((batches || []).length, "record"),
-		};
-	};
-	const [headerMeta, setHeaderMeta] = useState(() =>
-		getDefaultHeaderMeta(activeTab),
-	);
+	// Snapshot Logic
+	const snapshotForm = useForm({ ProceedOnSameDay: false });
+	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] = useState(false);
 
-	useEffect(() => {
-		setHeaderMeta(getDefaultHeaderMeta(activeTab));
-	}, [activeTab, products, batches, snapshots]);
-
-	const snapshotForm = useForm({
-		ProceedOnSameDay: false,
-	});
-	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] =
-		useState(false);
-
-	const hasSnapshotForToday = (snapshots || []).some((snapshot) => {
-		if (!snapshot?.SnapshotTime) return false;
-		const value = new Date(snapshot.SnapshotTime);
-		if (Number.isNaN(value.getTime())) return false;
+	const hasSnapshotForToday = (snapshots || []).some((s) => {
+		if (!s?.SnapshotTime) return false;
+		const d = new Date(s.SnapshotTime);
 		const now = new Date();
-		return (
-			value.getFullYear() === now.getFullYear() &&
-			value.getMonth() === now.getMonth() &&
-			value.getDate() === now.getDate()
-		);
+		return d.toDateString() === now.toDateString();
 	});
 
-	const submitSnapshotRecord = (proceedOnSameDay) => {
-		snapshotForm.transform(() => ({
-			ProceedOnSameDay: Boolean(proceedOnSameDay),
-		}));
+	const submitSnapshotRecord = (proceed) => {
+		snapshotForm.transform(() => ({ ProceedOnSameDay: !!proceed }));
 		snapshotForm.post(route("inventory.products.snapshots.store"), {
 			preserveScroll: true,
-			onSuccess: () => {
-				setIsSnapshotWarningModalOpen(false);
-			},
-			onError: (errors) => {
-				if (errors?.snapshot && !proceedOnSameDay) {
-					setIsSnapshotWarningModalOpen(true);
-				}
-			},
+			onSuccess: () => setIsSnapshotWarningModalOpen(false),
+			onError: (err) => { if (err?.snapshot && !proceed) setIsSnapshotWarningModalOpen(true); }
 		});
 	};
 
 	const handleRecordSnapshot = () => {
-		if (!canRecordProductSnapshot) {
-			return requirePermission("CanRecordProductSnapshot");
-		}
-		if (hasSnapshotForToday) {
-			setIsSnapshotWarningModalOpen(true);
-			return;
-		}
+		if (!canRecordProductSnapshot) return requirePermission("CanRecordProductSnapshot");
+		if (hasSnapshotForToday) { setIsSnapshotWarningModalOpen(true); return; }
 		submitSnapshotRecord(false);
 	};
 
-	const triggerFooterAction = ({
-		targetTab,
-		targetHref,
-		pendingAction,
-		openHandler,
-	}) => {
+	const triggerFooterAction = ({ targetTab, targetHref, pendingAction, openHandler }) => {
 		if (activeTab === targetTab && typeof openHandler === "function") {
 			openHandler();
 			return;
 		}
-
 		setPendingProductsBatchesFooterAction(pendingAction);
 		router.visit(targetHref);
 	};
 
 	return (
-		<AuthenticatedLayout
-			header={
-				<div className="flex items-center justify-between gap-4">
-					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-						Products & Production Batches
-						{headerMeta?.subtitle && (
-							<span className="ml-2 text-base font-medium text-gray-500">
-								&gt; {headerMeta.subtitle}
-							</span>
-						)}
-					</h2>
-					{headerMeta?.countLabel && (
-						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-							{headerMeta.countLabel}
-						</div>
-					)}
-				</div>
-			}
-			disableScroll={true}
-		>
+		<AuthenticatedLayout disableScroll={true}>
 			<Head title="Products & Batches" />
 
-			<div className="flex flex-col flex-1 w-full overflow-hidden min-h-0">
-				<div className="bg-white border-b border-gray-200 mt-0">
-					<div className="mx-auto px-4">
-						<nav className="-mb-px flex gap-2" aria-label="Tabs">
-							{visibleTabs.map((tab) => (
-								<Link
-									key={tab.label}
-									href={tab.href}
-									className={`${
-										activeTab === tab.label
-											? "bg-primary-soft border-primary text-primary"
-											: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-									} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
-								>
-									{tab.label}
-								</Link>
-							))}
-						</nav>
+			<div className="flex flex-col h-full bg-slate-50/50">
+				<PageHeader 
+					title="Products & Production" 
+					subtitle={headerMeta.subtitle}
+					count={headerMeta.countLabel}
+					actions={
+						<div className="flex items-center gap-3">
+							<Button 
+								variant="outline" 
+								className="rounded-xl font-black uppercase tracking-widest text-[10px] h-10 px-5 gap-2 border-2"
+								onClick={handleRecordSnapshot}
+								disabled={snapshotForm.processing || !canRecordProductSnapshot}
+							>
+								<CameraIcon className="h-4 w-4" /> Record Snapshot
+							</Button>
+							<div className="h-6 w-px bg-border mx-1" />
+							<Button 
+								variant="secondary"
+								className="rounded-xl font-black uppercase tracking-widest text-[10px] h-10 px-5 gap-2 shadow-sm border"
+								onClick={() => triggerFooterAction({
+									targetTab: "Products",
+									targetHref: route("products.index"),
+									pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.MODIFY_CATEGORIES,
+									openHandler: footerActions.openModifyCategories,
+								})}
+								disabled={!canManageCategories}
+							>
+								<Tags className="h-4 w-4" /> Categories
+							</Button>
+						</div>
+					}
+				/>
+
+				<div className="px-10 mt-6">
+					<ModuleTabs 
+						tabs={tabs} 
+						activeTab={activeTab} 
+						onTabChange={(val) => {
+							const target = tabs.find(t => t.value === val);
+							if (target && target.value !== activeTab) {
+								const hrefs = {
+									"Products": route("products.index"),
+									"Production Batches": route("products.batches"),
+									"Snapshots": route("products.snapshots")
+								};
+								router.visit(hrefs[val]);
+							}
+						}} 
+					/>
+				</div>
+
+				<main className="flex-1 overflow-hidden p-10 pt-6">
+					<div className="bg-white rounded-[2.5rem] border shadow-2xl shadow-slate-200/50 h-full flex flex-col overflow-hidden relative">
+						<div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/50 via-primary to-primary/50" />
+						
+						<div className="flex-1 overflow-hidden flex flex-col p-8">
+							{activeTab === "Products" && (
+								<Products
+									products={products}
+									categories={categories}
+									onHeaderMetaChange={setHeaderMeta}
+									canCreateProduct={canCreateProduct}
+									canUpdateProduct={can("CanUpdateProduct")}
+									canDeleteProduct={can("CanDeleteProduct")}
+									canCreateProductCategory={can("CanCreateProductCategory")}
+									canUpdateProductCategory={can("CanUpdateProductCategory")}
+									canDeleteProductCategory={can("CanDeleteProductCategory")}
+									setFooterActions={setFooterActions}
+								/>
+							)}
+
+							{activeTab === "Production Batches" && (
+								<ProductionBatches
+									products={products}
+									categories={categories}
+									batches={batches}
+									onHeaderMetaChange={setHeaderMeta}
+									canCreateProductionBatch={canCreateProductionBatch}
+									canUpdateProductionBatch={can("CanUpdateProductionBatch")}
+									setFooterActions={setFooterActions}
+								/>
+							)}
+
+							{activeTab === "Snapshots" && (
+								<Snapshots
+									snapshots={snapshots}
+									onHeaderMetaChange={setHeaderMeta}
+									canViewDetails={canViewProductSnapshots}
+								/>
+							)}
+						</div>
+
+						{/* Quick Action Footer inside Main Container */}
+						{(activeTab === "Products" || activeTab === "Production Batches") && (
+							<div className="px-10 py-8 bg-slate-50 border-t flex items-center justify-between">
+								<div className="flex items-center gap-6">
+									<p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-50">Operational Shortcuts</p>
+									<ChevronRight className="h-4 w-4 text-muted-foreground opacity-20" />
+								</div>
+								<div className="flex items-center gap-4">
+									<Button 
+										variant="outline"
+										disabled={!canCreateProductionBatch}
+										className="rounded-2xl h-14 px-8 font-black uppercase tracking-widest text-[10px] border-2 bg-background shadow-md hover:bg-slate-100 transition-all gap-3"
+										onClick={() => triggerFooterAction({
+											targetTab: "Production Batches",
+											targetHref: route("products.batches"),
+											pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.RECORD_BATCH,
+											openHandler: footerActions.openRecordBatch,
+										})}
+									>
+										<ClipboardList className="h-5 w-5 opacity-40" /> Record Batch Log
+									</Button>
+									<Button 
+										disabled={!canCreateProduct}
+										className="rounded-2xl h-14 px-10 font-black uppercase tracking-widest text-[11px] bg-primary text-white shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all gap-3"
+										onClick={() => triggerFooterAction({
+											targetTab: "Products",
+											targetHref: route("products.index"),
+											pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.ADD_PRODUCT,
+											openHandler: footerActions.openAddProduct,
+										})}
+									>
+										<Plus className="h-5 w-5" /> New Product Entry
+									</Button>
+								</div>
+							</div>
+						)}
 					</div>
-				</div>
-
-				{activeTab === "Products" && (
-					<Products
-						products={products}
-						categories={categories}
-						onHeaderMetaChange={setHeaderMeta}
-						canCreateProduct={canCreateProduct}
-						canUpdateProduct={canUpdateProduct}
-						canDeleteProduct={canDeleteProduct}
-						canCreateProductCategory={canCreateProductCategory}
-						canUpdateProductCategory={canUpdateProductCategory}
-						canDeleteProductCategory={canDeleteProductCategory}
-						setFooterActions={setFooterActions}
-					/>
-				)}
-
-				{activeTab === "Production Batches" && (
-					<ProductionBatches
-						products={products}
-						categories={categories}
-						batches={batches}
-						onHeaderMetaChange={setHeaderMeta}
-						canCreateProductionBatch={canCreateProductionBatch}
-						canUpdateProductionBatch={canUpdateProductionBatch}
-						setFooterActions={setFooterActions}
-					/>
-				)}
-				{activeTab === "Snapshots" && (
-					<Snapshots
-						snapshots={snapshots}
-						onHeaderMetaChange={setHeaderMeta}
-						canViewDetails={canViewProductSnapshots}
-					/>
-				)}
+				</main>
 			</div>
 
-			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-					<button
-						type="button"
-						onClick={() =>
-							triggerFooterAction({
-								targetTab: "Products",
-								targetHref: route("products.index"),
-								pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.ADD_PRODUCT,
-								openHandler: footerActions.openAddProduct,
-							})
-						}
-						disabled={!canCreateProduct}
-						className="flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						Add Product
-					</button>
-					<button
-						type="button"
-						onClick={() =>
-							triggerFooterAction({
-								targetTab: "Production Batches",
-								targetHref: route("products.batches"),
-								pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.RECORD_BATCH,
-								openHandler: footerActions.openRecordBatch,
-							})
-						}
-						disabled={!canCreateProductionBatch}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						Record a Batch
-					</button>
-					<button
-						type="button"
-						onClick={() =>
-							triggerFooterAction({
-								targetTab: "Products",
-								targetHref: route("products.index"),
-								pendingAction: PRODUCTS_BATCHES_FOOTER_ACTIONS.MODIFY_CATEGORIES,
-								openHandler: footerActions.openModifyCategories,
-							})
-						}
-						disabled={!canManageCategories}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						Modify Categories
-					</button>
-					<button
-						type="button"
-						onClick={handleRecordSnapshot}
-						disabled={snapshotForm.processing || !canRecordProductSnapshot}
-						className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-					>
-						Record Snapshot
-					</button>
-				</div>
-			</div>
 			<ConfirmationModal
 				show={isSnapshotWarningModalOpen}
 				onClose={() => setIsSnapshotWarningModalOpen(false)}
 				onConfirm={() => submitSnapshotRecord(true)}
-				title="Snapshot Already Exists Today"
-				message="A snapshot for today already exists. Do you want to proceed and record another snapshot?"
-				confirmText="Proceed"
+				title="Duplicate Snapshot Warning"
+				message="An inventory snapshot for today already exists in the system. Continuing will create an additional timestamped record. Do you wish to proceed?"
+				confirmText="Proceed Anyway"
 				processing={snapshotForm.processing}
+				variant="warning"
 			/>
 		</AuthenticatedLayout>
 	);

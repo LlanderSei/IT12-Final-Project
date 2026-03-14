@@ -2,6 +2,7 @@ import Sidebar from "@/Layouts/Partials/Sidebar";
 import Toast from "@/Components/Toast";
 import { router, usePage } from "@inertiajs/react";
 import { useEffect, useRef } from "react";
+import { AlertCircle } from "lucide-react";
 
 export default function AuthenticatedLayout({
 	header,
@@ -62,30 +63,46 @@ export default function AuthenticatedLayout({
 	}, [recentMaintenanceOperations]);
 
 	return (
-		<div className="h-screen flex overflow-hidden">
+		<div className="h-screen flex overflow-hidden bg-slate-50 font-sans selection:bg-primary/20">
 			<Toast />
 			<Sidebar />
-			<div
-				className={`flex-1 flex flex-col min-w-0 min-h-0 ${disableScroll ? "overflow-hidden" : "overflow-y-auto"}`}
-			>
+			
+			<div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+				{/* Maintenance Overlay (High Visibility) */}
 				{maintenance && (
-					<div className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900">
-						<div className="font-medium">
-							Database maintenance in progress: {maintenance.title}
+					<div className="shrink-0 bg-amber-500 text-white px-8 py-3 flex items-center justify-between shadow-lg z-50 animate-in slide-in-from-top duration-500">
+						<div className="flex items-center gap-4">
+							<div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
+								<AlertCircle className="h-5 w-5" />
+							</div>
+							<div>
+								<div className="text-[10px] font-black uppercase tracking-widest opacity-80 leading-none mb-1">System Advisory</div>
+								<div className="text-sm font-black uppercase tracking-tight italic">
+									{maintenance.title} &bull; Write Actions Restricted
+								</div>
+							</div>
 						</div>
-						<div className="mt-1 text-xs text-amber-800">
-							Write actions are temporarily disabled.
-							{maintenance.createdBy ? ` Started by ${maintenance.createdBy}.` : ""}
-						</div>
+						{maintenance.createdBy && (
+							<div className="text-[10px] font-black uppercase tracking-widest bg-white/10 px-3 py-1.5 rounded-lg border border-white/20">
+								Initiated by {maintenance.createdBy}
+							</div>
+						)}
 					</div>
 				)}
-				{header && (
-					<header className="bg-white shadow">
-						<div className="mx-auto px-6 py-4">{header}</div>
-					</header>
-				)}
 
-				<main className="flex-1 flex flex-col min-h-0">{children}</main>
+				<div className={`flex-1 flex flex-col min-w-0 min-h-0 ${disableScroll ? "overflow-hidden" : "overflow-y-auto"}`}>
+					{/* Legacy Header Support (Deprecated but kept for safety) */}
+					{/* Most pages now use the PageHeader component directly in the children */}
+					{header && (
+						<header className="bg-white border-b shrink-0">
+							<div className="mx-auto px-10 py-6">{header}</div>
+						</header>
+					)}
+
+					<main className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-bottom-2 duration-700 ease-out">
+						{children}
+					</main>
+				</div>
 			</div>
 		</div>
 	);

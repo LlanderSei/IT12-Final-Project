@@ -1,64 +1,120 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+	--color-primary: rgb(255 175 48);
+	--color-primary-hover: rgb(224 160 51);
+	--color-primary-active: rgb(204 143 45);
+	--color-primary-soft: rgb(255 244 218);
+	--color-primary-hex: #ff9e30;
+
+	--color-app-bg: #f3f4f6;
+	--color-surface: #ffffff;
+	--color-text-strong: #111827;
+	--color-text: #374151;
+	--color-text-muted: #6b7280;
+	--color-border: #e5e7eb;
+
+	--font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+	--font-outfit: "Outfit", sans-serif;
+	--font-inter: "Inter", sans-serif;
+}
+
+@custom-variant dark (&:where(.theme-dark, .theme-dark *));
 
 :root {
-	--color-lightmode-primary: 255 175 48;
-	--color-lightmode-primary-hover: 224 160 51;
-	--color-lightmode-primary-active: 204 143 45;
-	--color-lightmode-primary-soft: 255 244 218;
-	--color-lightmode-primary-hex: #ff9e30;
-	--color-lightmode-app-bg: #f3f4f6;
-	--color-lightmode-surface: #ffffff;
-	--color-lightmode-text-strong: #111827;
-	--color-lightmode-text: #374151;
-	--color-lightmode-text-muted: #6b7280;
-	--color-lightmode-border: #e5e7eb;
+	--background: #f3f4f6;
+	--foreground: #111827;
+	--card: #ffffff;
+	--card-foreground: #111827;
+	--popover: #ffffff;
+	--popover-foreground: #111827;
+	--primary-hex: #ff9e30;
+	--primary: 255 175 48;
+	--primary-foreground: 255 255 255;
+	--secondary: #f3f4f6;
+	--secondary-foreground: #111827;
+	--muted: #f3f4f6;
+	--muted-foreground: #6b7280;
+	--accent: #f3f4f6;
+	--accent-foreground: #111827;
+	--destructive: #ef4444;
+	--destructive-foreground: #ffffff;
+	--border: #e5e7eb;
+	--input: #e5e7eb;
+	--ring: 255 175 48;
+	--radius: 0.5rem;
 
-	--color-darkmode-primary: 247 174 84;
-	--color-darkmode-primary-hover: 234 160 68;
-	--color-darkmode-primary-active: 219 145 56;
-	--color-darkmode-primary-soft: 72 55 28;
-	--color-darkmode-primary-hex: #f7ae54;
-	--color-darkmode-app-bg: #0f172a;
-	--color-darkmode-surface: #111827;
-	--color-darkmode-text-strong: #f9fafb;
-	--color-darkmode-text: #e5e7eb;
-	--color-darkmode-text-muted: #9ca3af;
-	--color-darkmode-border: #374151;
-
-	--color-primary: 255 175 48;
 	--color-primary-hover: 224 160 51;
 	--color-primary-active: 204 143 45;
 	--color-primary-soft: 255 244 218;
-	--color-primary-hex: #ff9e30;
-	--color-app-bg: var(--color-lightmode-app-bg);
-	--color-surface: var(--color-lightmode-surface);
-	--color-text-strong: var(--color-lightmode-text-strong);
-	--color-text: var(--color-lightmode-text);
-	--color-text-muted: var(--color-lightmode-text-muted);
-	--color-border: var(--color-lightmode-border);
 }
 
-html.theme-dark {
-	--color-primary: var(--color-darkmode-primary);
-	--color-primary-hover: var(--color-darkmode-primary-hover);
-	--color-primary-active: var(--color-darkmode-primary-active);
-	--color-primary-soft: var(--color-darkmode-primary-soft);
-	--color-primary-hex: var(--color-darkmode-primary-hex);
-	--color-app-bg: var(--color-darkmode-app-bg);
-	--color-surface: var(--color-darkmode-surface);
-	--color-text-strong: var(--color-darkmode-text-strong);
-	--color-text: var(--color-darkmode-text);
-	--color-text-muted: var(--color-darkmode-text-muted);
-	--color-border: var(--color-darkmode-border);
+.theme-dark {
+	--background: #0f172a;
+	--foreground: #f9fafb;
+	--card: #111827;
+	--card-foreground: #f9fafb;
+	--popover: #111827;
+	--popover-foreground: #f9fafb;
+	--primary-hex: #f7ae54;
+	--primary: 247 174 84;
+	--primary-foreground: 15 23 42;
+	--secondary: #1e293b;
+	--secondary-foreground: #f9fafb;
+	--muted: #1e293b;
+	--muted-foreground: #9ca3af;
+	--accent: #1e293b;
+	--accent-foreground: #f9fafb;
+	--destructive: #7f1d1d;
+	--destructive-foreground: #f9fafb;
+	--border: #334155;
+	--input: #334155;
+	--ring: 247 174 84;
+
+	--color-primary-hover: 234 160 68;
+	--color-primary-active: 219 145 56;
+	--color-primary-soft: 72 55 28;
+}
+
+@theme {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: rgb(var(--primary));
+	--color-primary-foreground: rgb(var(--primary-foreground));
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: rgb(var(--ring));
+	--radius-lg: var(--radius);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-sm: calc(var(--radius) - 4px);
+
+	--color-primary-hover: rgb(var(--color-primary-hover));
+	--color-primary-active: rgb(var(--color-primary-active));
+	--color-primary-soft: rgb(var(--color-primary-soft));
+	--color-primary-hex: var(--primary-hex);
+
+	--font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+	--font-outfit: "Outfit", sans-serif;
+	--font-inter: "Inter", sans-serif;
 }
 
 html,
 body,
 #app {
-	background: var(--color-app-bg);
-	color: var(--color-text);
+	background: var(--background);
+	color: var(--foreground);
 }
 
 html.theme-dark .bg-white {
@@ -139,12 +195,6 @@ html.theme-dark .shadow-sm {
 		padding: 1rem;
 		font-family: "Inter", sans-serif;
 		background-color: var(--color-app-bg);
-		background-image:
-			linear-gradient(rgba(17, 24, 39, 0.45), rgba(17, 24, 39, 0.45)),
-			url("/images/login/mommas-bakeshop-background-1.png");
-		background-position: center;
-		background-repeat: no-repeat;
-		background-size: cover;
 	}
 
 	.auth-login-overlay {
