@@ -5,6 +5,30 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultProjectRoot = path.resolve(__dirname, "..");
+
+const envPath = path.join(defaultProjectRoot, ".env");
+if (existsSync(envPath)) {
+	try {
+		const fs = await import("node:fs/promises");
+		const content = await fs.readFile(envPath, "utf-8");
+		content.split(/\r?\n/).forEach((line) => {
+			const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+			if (match) {
+				const key = match[1];
+				let value = match[2] || "";
+				if (value.startsWith('"') && value.endsWith('"')) {
+					value = value.substring(1, value.length - 1);
+				}
+				if (process.env[key] === undefined) {
+					process.env[key] = value;
+				}
+			}
+		});
+	} catch (err) {
+		console.error("Failed to load .env file:", err);
+	}
+}
+
 const packagedProjectRoot = process.resourcesPath
 	? path.join(process.resourcesPath, "app")
 	: defaultProjectRoot;

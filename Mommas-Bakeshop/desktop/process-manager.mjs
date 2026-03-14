@@ -31,12 +31,11 @@ export class DesktopProcessManager {
 		const desktopConfig = getDesktopConfig();
 		const phpBinary = await this.resolvePhpBinary();
 		const args = [
-			"artisan",
-			"serve",
-			"--host",
-			desktopConfig.host,
-			"--port",
-			String(desktopConfig.port),
+			"-S",
+			`${desktopConfig.host}:${desktopConfig.port}`,
+			"-t",
+			"public",
+			"server.php",
 		];
 
 		this.backendProcess = spawn(phpBinary, args, {
