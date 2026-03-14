@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, useForm } from "@inertiajs/react";
 import Inventory from "./InventoryLevelsSubviews/Inventory";
@@ -31,7 +31,6 @@ export default function InventoryLevelsTabs({
 	const canCreateStockOut = can("CanCreateStockOut");
 	const canUpdateStockOut = can("CanUpdateStockOut");
 	const canViewInventorySnapshots = can("CanViewInventorySnapshots");
-	const canRecordInventorySnapshot = can("CanRecordInventorySnapshot");
 	const parseStockOutReason = (reason) => {
 		const value = String(reason || "").trim();
 		if (!value) {
@@ -52,8 +51,30 @@ export default function InventoryLevelsTabs({
 
 	const STOCK_IN_DRAFT_KEY = "inventory.stock_in_draft.v1";
 	const STOCK_OUT_DRAFT_KEY = "inventory.stock_out_draft.v1";
+	const noStockInventoryCount = useMemo(
+		() =>
+			(inventory || []).reduce(
+				(total, item) => total + (Number(item.Quantity || 0) <= 0 ? 1 : 0),
+				0,
+			),
+		[inventory],
+	);
+	const lowStockInventoryCount = useMemo(
+		() =>
+			(inventory || []).reduce((total, item) => {
+				const quantity = Number(item.Quantity || 0);
+				const threshold = Number(item.LowCountThreshold || 0);
+				if (quantity > 0 && quantity <= threshold) return total + 1;
+				return total;
+			}, 0),
+		[inventory],
+	);
 	const tabs = [
-		{ label: "Inventory", href: route("inventory.index") },
+		{
+			label: "Inventory",
+			href: route("inventory.index"),
+			badgeCount: noStockInventoryCount,
+		},
 		{ label: "Stock-In", href: route("inventory.stock-in") },
 		{ label: "Stock-Out", href: route("inventory.stock-out") },
 		{
@@ -105,8 +126,6 @@ export default function InventoryLevelsTabs({
 		createDefaultStockOutDraft,
 	);
 	const [editingStockOutID, setEditingStockOutID] = useState(null);
-	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] =
-		useState(false);
 
 	useEffect(() => {
 		setHeaderMeta(getDefaultHeaderMeta(activeTab));
@@ -158,21 +177,6 @@ export default function InventoryLevelsTabs({
 	const stockInForm = useForm({});
 
 	const stockOutForm = useForm({});
-	const snapshotForm = useForm({
-		ProceedOnSameDay: false,
-	});
-
-	const hasSnapshotForToday = (snapshots || []).some((snapshot) => {
-		if (!snapshot?.SnapshotTime) return false;
-		const value = new Date(snapshot.SnapshotTime);
-		if (Number.isNaN(value.getTime())) return false;
-		const now = new Date();
-		return (
-			value.getFullYear() === now.getFullYear() &&
-			value.getMonth() === now.getMonth() &&
-			value.getDate() === now.getDate()
-		);
-	});
 
 	// Handlers
 	const openAddItemModal = () => {
@@ -382,33 +386,6 @@ export default function InventoryLevelsTabs({
 		return "On Stock";
 	};
 
-	const submitSnapshotRecord = (proceedOnSameDay) => {
-		snapshotForm.transform(() => ({
-			ProceedOnSameDay: Boolean(proceedOnSameDay),
-		}));
-		snapshotForm.post(route("inventory.snapshots.store"), {
-			preserveScroll: true,
-			onSuccess: () => {
-				setIsSnapshotWarningModalOpen(false);
-			},
-			onError: (errors) => {
-				if (errors?.snapshot && !proceedOnSameDay) {
-					setIsSnapshotWarningModalOpen(true);
-				}
-			},
-		});
-	};
-
-	const handleRecordSnapshot = () => {
-		if (!canRecordInventorySnapshot) {
-			return requirePermission("CanRecordInventorySnapshot");
-		}
-		if (hasSnapshotForToday) {
-			setIsSnapshotWarningModalOpen(true);
-			return;
-		}
-		submitSnapshotRecord(false);
-	};
 
 	return (
 		<AuthenticatedLayout
@@ -422,11 +399,23 @@ export default function InventoryLevelsTabs({
 							</span>
 						)}
 					</h2>
-					{headerMeta?.countLabel && (
-						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-							{headerMeta.countLabel}
-						</div>
-					)}
+					<div className="flex items-center gap-2">
+						{activeTab === "Inventory" && noStockInventoryCount > 0 && (
+							<div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+								{formatCountLabel(noStockInventoryCount, "no stock item")}
+							</div>
+						)}
+						{activeTab === "Inventory" && lowStockInventoryCount > 0 && (
+							<div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+								{formatCountLabel(lowStockInventoryCount, "low stock item")}
+							</div>
+						)}
+						{headerMeta?.countLabel && (
+							<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+								{headerMeta.countLabel}
+							</div>
+						)}
+					</div>
 				</div>
 			}
 		>
@@ -436,19 +425,27 @@ export default function InventoryLevelsTabs({
 			<div className="bg-white border-b border-gray-200 mt-0">
 				<div className="mx-auto px-4">
 					<nav className="-mb-px flex gap-2" aria-label="Tabs">
-						{visibleTabs.map((tab) => (
-							<Link
-								key={tab.label}
-								href={tab.href}
-								className={`${
-									activeTab === tab.label
-										? "bg-primary-soft border-primary text-primary"
-										: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-								} whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
-							>
-								{tab.label}
-							</Link>
-						))}
+						{visibleTabs.map((tab) => {
+							const badgeCount = Number(tab.badgeCount || 0);
+							return (
+								<Link
+									key={tab.label}
+									href={tab.href}
+									className={`${
+										activeTab === tab.label
+											? "bg-primary-soft border-primary text-primary"
+											: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+									} relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
+								>
+									{tab.label}
+									{badgeCount > 0 && (
+										<span className="pointer-events-none absolute -bottom-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white shadow-sm ring-2 ring-white">
+											{badgeCount}
+										</span>
+									)}
+								</Link>
+							);
+						})}
 					</nav>
 				</div>
 			</div>
@@ -496,7 +493,7 @@ export default function InventoryLevelsTabs({
 
 			{/* Shared Bottom Buttons */}
 			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-4 gap-4">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 gap-4">
 						<button
 							onClick={openAddItemModal}
 							disabled={!canCreateInventoryItem}
@@ -521,13 +518,6 @@ export default function InventoryLevelsTabs({
 							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
 						>
 							Stock-Out
-						</button>
-						<button
-							onClick={handleRecordSnapshot}
-							disabled={snapshotForm.processing || !canRecordInventorySnapshot}
-							className="flex justify-center py-3 px-4 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-white hover:bg-primary-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-						>
-							Record Snapshot
 						</button>
 				</div>
 			</div>
@@ -710,15 +700,6 @@ export default function InventoryLevelsTabs({
 				processing={itemForm.processing}
 			/>
 
-			<ConfirmationModal
-				show={isSnapshotWarningModalOpen}
-				onClose={() => setIsSnapshotWarningModalOpen(false)}
-				onConfirm={() => submitSnapshotRecord(true)}
-				title="Snapshot Already Exists Today"
-				message="A snapshot for today already exists. Do you want to proceed and record another snapshot?"
-				confirmText="Proceed"
-				processing={snapshotForm.processing}
-			/>
 		</AuthenticatedLayout>
 	);
 }

@@ -313,6 +313,18 @@ export default function SaleHistoryTabs({
 	}, [paymentForm.data.paymentType, selectedPendingSale]);
 
 	const countLabel = formatCountLabel(sortedDisplayRows.length, "sale");
+	const overduePendingCount = useMemo(() => {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		return pendingRows.filter((sale) => {
+			const dueDate = sale.payment?.PaymentDueDate
+				? new Date(sale.payment.PaymentDueDate)
+				: null;
+			if (!dueDate) return false;
+			dueDate.setHours(0, 0, 0, 0);
+			return dueDate < today;
+		}).length;
+	}, [pendingRows]);
 
 	const clearFilters = () => {
 		setSearchQuery("");
@@ -411,8 +423,15 @@ export default function SaleHistoryTabs({
 							&gt; {activeTab}
 						</span>
 					</h2>
-					<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-						{countLabel}
+					<div className="flex items-center gap-2">
+						{activeTab === "Pending Payments" && overduePendingCount > 0 && (
+							<div className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+								{formatCountLabel(overduePendingCount, "overdue payment")}
+							</div>
+						)}
+						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+							{countLabel}
+						</div>
 					</div>
 				</div>
 			}
@@ -420,7 +439,7 @@ export default function SaleHistoryTabs({
 		>
 			<Head title="Sale History" />
 
-			<CashierTabs />
+			<CashierTabs pendingOverdueCount={overduePendingCount} />
 
 			<div className="flex-1 p-4 md:p-6 min-h-0">
 				{visibleTabs.length === 0 ? (

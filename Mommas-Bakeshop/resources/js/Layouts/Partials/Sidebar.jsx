@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, router, usePage } from "@inertiajs/react";
 import usePermissions from "@/hooks/usePermissions";
 import Modal from "@/Components/Modal";
+import { countOverdueDeliveries } from "@/utils/jobOrders";
 import {
 	ChevronLeft,
 	ChevronDown,
@@ -108,7 +109,11 @@ const NAV_STRUCTURE = [
 				label: "Sale History",
 				icon: "saleHistory",
 				href: route("pos.sale-history"),
-				requiredPermissions: ["CanViewSalesHistory", "CanViewSalesHistorySales", "CanViewSalesHistoryPendingPayments"],
+				requiredPermissions: [
+					"CanViewSalesHistory",
+					"CanViewSalesHistorySales",
+					"CanViewSalesHistoryPendingPayments",
+				],
 			},
 			{
 				id: "pos.customers",
@@ -147,7 +152,12 @@ const NAV_STRUCTURE = [
 			},
 			{
 				id: "inventory.products",
-				activeRoutes: ["inventory.products", "products.index", "products.batches", "products.snapshots"],
+				activeRoutes: [
+					"inventory.products",
+					"products.index",
+					"products.batches",
+					"products.snapshots",
+				],
 				label: "Products & Batches",
 				icon: "products",
 				href: route("products.index"),
@@ -164,15 +174,28 @@ const NAV_STRUCTURE = [
 				label: "Reports",
 				icon: "reports",
 				href: route("admin.reports"),
-				requiredPermissions: ["CanViewReportsOverview", "CanViewReportsFullBreakdown"],
+				requiredPermissions: [
+					"CanViewReportsOverview",
+					"CanViewReportsFullBreakdown",
+				],
 			},
 			{
 				id: "admin.users",
-				activeRoutes: ["admin.users", "admin.permissions", "admin.roles", "admin.permission-groups"],
+				activeRoutes: [
+					"admin.users",
+					"admin.permissions",
+					"admin.roles",
+					"admin.permission-groups",
+				],
 				label: "User Management",
 				icon: "users",
 				href: route("admin.users"),
-				requiredPermissions: ["CanViewUserManagementUsers", "CanViewUserManagementPermissions", "CanViewUserManagementRoles", "CanViewUserManagementPermissionGroups"],
+				requiredPermissions: [
+					"CanViewUserManagementUsers",
+					"CanViewUserManagementPermissions",
+					"CanViewUserManagementRoles",
+					"CanViewUserManagementPermissionGroups",
+				],
 			},
 			{
 				id: "admin.database",
@@ -210,7 +233,8 @@ const NAV_STRUCTURE = [
 // ─── Role badge colour variants (matches reference .badge.admin/.cashier/.clerk) ─
 // ─── Sidebar Component ────────────────────────────────────────────────────────
 const Sidebar = () => {
-	const { auth } = usePage().props;
+	const pageProps = usePage().props;
+	const { auth } = pageProps;
 	const user = auth?.user ?? { name: "Admin User", role: "admin" };
 	const { can, canAny } = usePermissions();
 	const hasAnyPermission = (requiredPermissions = []) => {
@@ -223,11 +247,14 @@ const Sidebar = () => {
 			can("CanViewSalesHistoryPendingPayments"));
 	const canViewReportsOverview = can("CanViewReportsOverview");
 	const canViewReportsFullBreakdown = can("CanViewReportsFullBreakdown");
-	const canViewReportsNav = canViewReportsOverview || canViewReportsFullBreakdown;
+	const canViewReportsNav =
+		canViewReportsOverview || canViewReportsFullBreakdown;
 	const canViewUserMgmtUsers = can("CanViewUserManagementUsers");
 	const canViewUserMgmtPermissions = can("CanViewUserManagementPermissions");
 	const canViewUserMgmtRoles = can("CanViewUserManagementRoles");
-	const canViewUserMgmtPermissionGroups = can("CanViewUserManagementPermissionGroups");
+	const canViewUserMgmtPermissionGroups = can(
+		"CanViewUserManagementPermissionGroups",
+	);
 	const canViewUserMgmtNav =
 		canViewUserMgmtUsers ||
 		canViewUserMgmtPermissions ||
@@ -238,7 +265,9 @@ const Sidebar = () => {
 	const canViewDatabaseMaintenanceJobs = can("CanViewDatabaseMaintenanceJobs");
 	const canViewDatabaseSchemaReport = can("CanViewDatabaseSchemaReport");
 	const canViewDatabaseDataTransfer = can("CanViewDatabaseDataTransfer");
-	const canViewDatabaseRetentionCleanup = can("CanViewDatabaseRetentionCleanup");
+	const canViewDatabaseRetentionCleanup = can(
+		"CanViewDatabaseRetentionCleanup",
+	);
 	const canViewDatabaseNav =
 		canViewDatabaseBackups ||
 		canViewDatabaseConnections ||
@@ -246,6 +275,24 @@ const Sidebar = () => {
 		canViewDatabaseSchemaReport ||
 		canViewDatabaseDataTransfer ||
 		canViewDatabaseRetentionCleanup;
+	const pendingJobOrders = Array.isArray(pageProps?.pendingJobOrders)
+		? pageProps.pendingJobOrders
+		: [];
+	const sharedOverdueCount = Number(pageProps?.overdueJobOrdersCount || 0);
+	const noStockInventoryCount = Number(pageProps?.noStockInventoryCount || 0);
+	const noStockProductsCount = Number(pageProps?.noStockProductsCount || 0);
+	const unconfirmedShrinkageCount = Number(
+		pageProps?.unconfirmedShrinkageCount || 0,
+	);
+	const overduePendingPaymentsCount = Number(
+		pageProps?.overduePendingPaymentsCount || 0,
+	);
+	const overdueJobOrdersCount = useMemo(() => {
+		if (pendingJobOrders.length > 0) {
+			return countOverdueDeliveries(pendingJobOrders);
+		}
+		return Number.isFinite(sharedOverdueCount) ? sharedOverdueCount : 0;
+	}, [pendingJobOrders, sharedOverdueCount]);
 
 	const [isExpanded, setIsExpanded] = useState(() => {
 		if (typeof window === "undefined") return true;
@@ -302,7 +349,9 @@ const Sidebar = () => {
 	const avatarInitials = user.name
 		? user.name.substring(0, 2).toUpperCase()
 		: "MB";
-	const recentAudits = Array.isArray(user.recentAudits) ? user.recentAudits : [];
+	const recentAudits = Array.isArray(user.recentAudits)
+		? user.recentAudits
+		: [];
 	const formatAuditDateTime = (value) => {
 		if (!value) return "-";
 		const parsed = new Date(value);
@@ -312,11 +361,11 @@ const Sidebar = () => {
 
 	return (
 		<aside
-				style={{
-					width: isExpanded ? "260px" : "72px",
-					minWidth: isExpanded ? "260px" : "72px",
-					backgroundColor: "var(--color-surface)",
-					borderRight: "1px solid var(--color-border)",
+			style={{
+				width: isExpanded ? "260px" : "72px",
+				minWidth: isExpanded ? "260px" : "72px",
+				backgroundColor: "var(--color-surface)",
+				borderRight: "1px solid var(--color-border)",
 				display: "flex",
 				flexDirection: "column",
 				height: "100vh",
@@ -330,12 +379,12 @@ const Sidebar = () => {
 		>
 			{/* ── Header ── */}
 			<div
-					style={{
-						height: "70px",
-						display: "flex",
-						alignItems: "center",
-						padding: "0 1.25rem",
-						borderBottom: "1px solid var(--color-border)",
+				style={{
+					height: "70px",
+					display: "flex",
+					alignItems: "center",
+					padding: "0 1.25rem",
+					borderBottom: "1px solid var(--color-border)",
 					gap: "0.75rem",
 					justifyContent: isExpanded ? "flex-start" : "center",
 					flexShrink: 0,
@@ -386,25 +435,26 @@ const Sidebar = () => {
 						<button
 							onClick={() => setIsExpanded(false)}
 							title="Collapse sidebar"
-								style={{
-									background: "none",
-									border: "none",
-									cursor: "pointer",
-									padding: "4px",
-									borderRadius: "6px",
-									color: "var(--color-text-muted)",
+							style={{
+								background: "none",
+								border: "none",
+								cursor: "pointer",
+								padding: "4px",
+								borderRadius: "6px",
+								color: "var(--color-text-muted)",
 								display: "flex",
 								alignItems: "center",
 								transition: "background 0.2s, color 0.2s",
 							}}
-								onMouseEnter={(e) => {
-									e.currentTarget.style.backgroundColor = "rgba(156,163,175,0.15)";
-									e.currentTarget.style.color = "var(--color-primary-hex)";
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.backgroundColor = "transparent";
-									e.currentTarget.style.color = "var(--color-text-muted)";
-								}}
+							onMouseEnter={(e) => {
+								e.currentTarget.style.backgroundColor =
+									"rgba(156,163,175,0.15)";
+								e.currentTarget.style.color = "var(--color-primary-hex)";
+							}}
+							onMouseLeave={(e) => {
+								e.currentTarget.style.backgroundColor = "transparent";
+								e.currentTarget.style.color = "var(--color-text-muted)";
+							}}
 						>
 							{/* Left-arrow chevron */}
 							<ChevronLeft size={18} strokeWidth={2} />
@@ -414,20 +464,20 @@ const Sidebar = () => {
 			</div>
 
 			{/* ── User Profile Widget ── */}
-				<div
-					style={{
-						padding: isExpanded ? "1.25rem 1.5rem" : "1.25rem 0",
-						display: "flex",
-						alignItems: "center",
-						gap: "0.875rem",
-						borderBottom: "1px solid var(--color-border)",
-						justifyContent: isExpanded ? "flex-start" : "center",
-						flexShrink: 0,
-						cursor: "pointer",
-					}}
-					onClick={() => setIsProfileModalOpen(true)}
-					title="View profile details"
-				>
+			<div
+				style={{
+					padding: isExpanded ? "1.25rem 1.5rem" : "1.25rem 0",
+					display: "flex",
+					alignItems: "center",
+					gap: "0.875rem",
+					borderBottom: "1px solid var(--color-border)",
+					justifyContent: isExpanded ? "flex-start" : "center",
+					flexShrink: 0,
+					cursor: "pointer",
+				}}
+				onClick={() => setIsProfileModalOpen(true)}
+				title="View profile details"
+			>
 				{/* Avatar */}
 				<div
 					style={{
@@ -468,34 +518,57 @@ const Sidebar = () => {
 								{roleMeta.label}
 							</div>
 							<div>
-								<span className="font-semibold text-gray-900">Recent Actions:</span>{" "}
+								<span className="font-semibold text-gray-900">
+									Recent Actions:
+								</span>{" "}
 								{recentAudits.length}
 							</div>
 						</div>
 						<div className="mt-6">
-							<h4 className="text-sm font-semibold text-gray-900">Recent Actions (Application)</h4>
+							<h4 className="text-sm font-semibold text-gray-900">
+								Recent Actions (Application)
+							</h4>
 							<div className="mt-2 max-h-80 overflow-y-auto rounded-md border border-gray-200">
 								<table className="min-w-full divide-y divide-gray-200 text-sm">
 									<thead className="sticky top-0 z-10 bg-gray-50">
 										<tr>
-											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
-											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
-											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Table</th>
-											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Changes</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+												Date
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+												Action
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+												Table
+											</th>
+											<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+												Changes
+											</th>
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-gray-100 bg-white">
 										{recentAudits.map((audit) => (
 											<tr key={audit.ID}>
-												<td className="px-3 py-2 text-gray-700">{formatAuditDateTime(audit.DateAdded)}</td>
-												<td className="px-3 py-2 text-gray-700">{audit.Action || "-"}</td>
-												<td className="px-3 py-2 text-gray-700">{audit.TableEdited || "-"}</td>
-												<td className="px-3 py-2 text-gray-700">{audit.ReadableChanges || "-"}</td>
+												<td className="px-3 py-2 text-gray-700">
+													{formatAuditDateTime(audit.DateAdded)}
+												</td>
+												<td className="px-3 py-2 text-gray-700">
+													{audit.Action || "-"}
+												</td>
+												<td className="px-3 py-2 text-gray-700">
+													{audit.TableEdited || "-"}
+												</td>
+												<td className="px-3 py-2 text-gray-700">
+													{audit.ReadableChanges || "-"}
+												</td>
 											</tr>
 										))}
 										{recentAudits.length === 0 && (
 											<tr>
-												<td colSpan="4" className="px-3 py-6 text-center text-gray-500">
+												<td
+													colSpan="4"
+													className="px-3 py-6 text-center text-gray-500"
+												>
 													No recent application actions found.
 												</td>
 											</tr>
@@ -527,10 +600,10 @@ const Sidebar = () => {
 						}}
 					>
 						<span
-								style={{
-									fontWeight: 600,
-									fontSize: "0.9rem",
-									color: "var(--color-text-strong)",
+							style={{
+								fontWeight: 600,
+								fontSize: "0.9rem",
+								color: "var(--color-text-strong)",
 								whiteSpace: "nowrap",
 								overflow: "hidden",
 								textOverflow: "ellipsis",
@@ -569,22 +642,22 @@ const Sidebar = () => {
 					padding: "0.75rem 0",
 				}}
 			>
-					{NAV_STRUCTURE.map((section) => {
-						const visibleItems = (section.items || []).filter((item) => {
-							if (item.id === "pos.sale-history") {
-								return canViewSalesHistoryNav;
-							}
-							if (item.id === "admin.reports") {
-								return canViewReportsNav;
-							}
-							if (item.id === "admin.users") {
-								return canViewUserMgmtNav;
-							}
-							if (item.id === "admin.database") {
-								return canViewDatabaseNav;
-							}
-							return hasAnyPermission(item.requiredPermissions || []);
-						});
+				{NAV_STRUCTURE.map((section) => {
+					const visibleItems = (section.items || []).filter((item) => {
+						if (item.id === "pos.sale-history") {
+							return canViewSalesHistoryNav;
+						}
+						if (item.id === "admin.reports") {
+							return canViewReportsNav;
+						}
+						if (item.id === "admin.users") {
+							return canViewUserMgmtNav;
+						}
+						if (item.id === "admin.database") {
+							return canViewDatabaseNav;
+						}
+						return hasAnyPermission(item.requiredPermissions || []);
+					});
 					if (visibleItems.length === 0) return null;
 					const isSectionCollapsed = collapsedSections[section.section];
 
@@ -593,13 +666,13 @@ const Sidebar = () => {
 							{/* Section title */}
 							{isExpanded && (
 								<div
-										style={{
-											padding: "0 1.5rem",
-											fontSize: "0.7rem",
-											fontWeight: 700,
+									style={{
+										padding: "0 1.5rem",
+										fontSize: "0.7rem",
+										fontWeight: 700,
 										textTransform: "uppercase",
 										letterSpacing: "0.06em",
-											color: "var(--color-text-muted)",
+										color: "var(--color-text-muted)",
 										marginBottom: "0.35rem",
 										fontFamily: "'Outfit', sans-serif",
 										display: "flex",
@@ -635,80 +708,102 @@ const Sidebar = () => {
 									display: isExpanded && isSectionCollapsed ? "none" : "block",
 								}}
 							>
-									{visibleItems.map((item) => {
-										const activeRoutes = item.activeRoutes || [item.id];
-										const isActive = activeRoutes.some(
-											(routeName) =>
-												currentRoute === routeName ||
-												route().current(routeName) ||
-												route().current(routeName + ".*"),
-										);
-										const resolvedHref =
-											item.id === "pos.sale-history" &&
-											can("CanViewSalesHistory") &&
-											!can("CanViewSalesHistorySales") &&
-											can("CanViewSalesHistoryPendingPayments")
-												? route("pos.sale-history.pending")
-												: item.id === "admin.reports" &&
-														!canViewReportsOverview &&
-														canViewReportsFullBreakdown
-													? route("admin.reports.full-breakdown")
+								{visibleItems.map((item) => {
+									const activeRoutes = item.activeRoutes || [item.id];
+									const isActive = activeRoutes.some(
+										(routeName) =>
+											currentRoute === routeName ||
+											route().current(routeName) ||
+											route().current(routeName + ".*"),
+									);
+									const resolvedHref =
+										item.id === "pos.sale-history" &&
+										can("CanViewSalesHistory") &&
+										!can("CanViewSalesHistorySales") &&
+										can("CanViewSalesHistoryPendingPayments")
+											? route("pos.sale-history.pending")
+											: item.id === "admin.reports" &&
+												  !canViewReportsOverview &&
+												  canViewReportsFullBreakdown
+												? route("admin.reports.full-breakdown")
+												: item.id === "admin.users" &&
+													  !canViewUserMgmtUsers &&
+													  canViewUserMgmtPermissions
+													? route("admin.permissions")
 													: item.id === "admin.users" &&
-															!canViewUserMgmtUsers &&
-															canViewUserMgmtPermissions
-														? route("admin.permissions")
+														  !canViewUserMgmtUsers &&
+														  !canViewUserMgmtPermissions &&
+														  canViewUserMgmtRoles
+														? route("admin.roles")
 														: item.id === "admin.users" &&
-																!canViewUserMgmtUsers &&
-																!canViewUserMgmtPermissions &&
-																canViewUserMgmtRoles
-															? route("admin.roles")
-															: item.id === "admin.users" &&
-																	!canViewUserMgmtUsers &&
-															!canViewUserMgmtPermissions &&
-															!canViewUserMgmtRoles &&
-															canViewUserMgmtPermissionGroups
-																? route("admin.permission-groups")
-														: item.id === "admin.database" &&
-																canViewDatabaseConnections &&
-																!canViewDatabaseBackups
-															? route("admin.database.connections")
-														: item.id === "admin.database" &&
-																!canViewDatabaseBackups &&
-																!canViewDatabaseConnections &&
-																canViewDatabaseMaintenanceJobs
-															? route("admin.database.maintenance-jobs")
-														: item.id === "admin.database" &&
-																!canViewDatabaseBackups &&
-																!canViewDatabaseConnections &&
-																!canViewDatabaseMaintenanceJobs &&
-																canViewDatabaseSchemaReport
-															? route("admin.database.schema")
-														: item.id === "admin.database" &&
-																!canViewDatabaseBackups &&
-																!canViewDatabaseConnections &&
-																!canViewDatabaseMaintenanceJobs &&
-																!canViewDatabaseSchemaReport &&
-																canViewDatabaseDataTransfer
-															? route("admin.database.data-transfer")
-														: item.id === "admin.database" &&
-																!canViewDatabaseBackups &&
-																!canViewDatabaseConnections &&
-																!canViewDatabaseMaintenanceJobs &&
-																!canViewDatabaseSchemaReport &&
-																!canViewDatabaseDataTransfer &&
-																canViewDatabaseRetentionCleanup
-															? route("admin.database.retention")
-														: item.href;
+															  !canViewUserMgmtUsers &&
+															  !canViewUserMgmtPermissions &&
+															  !canViewUserMgmtRoles &&
+															  canViewUserMgmtPermissionGroups
+															? route("admin.permission-groups")
+															: item.id === "admin.database" &&
+																  canViewDatabaseConnections &&
+																  !canViewDatabaseBackups
+																? route("admin.database.connections")
+																: item.id === "admin.database" &&
+																	  !canViewDatabaseBackups &&
+																	  !canViewDatabaseConnections &&
+																	  canViewDatabaseMaintenanceJobs
+																	? route("admin.database.maintenance-jobs")
+																	: item.id === "admin.database" &&
+																		  !canViewDatabaseBackups &&
+																		  !canViewDatabaseConnections &&
+																		  !canViewDatabaseMaintenanceJobs &&
+																		  canViewDatabaseSchemaReport
+																		? route("admin.database.schema")
+																		: item.id === "admin.database" &&
+																			  !canViewDatabaseBackups &&
+																			  !canViewDatabaseConnections &&
+																			  !canViewDatabaseMaintenanceJobs &&
+																			  !canViewDatabaseSchemaReport &&
+																			  canViewDatabaseDataTransfer
+																			? route("admin.database.data-transfer")
+																			: item.id === "admin.database" &&
+																				  !canViewDatabaseBackups &&
+																				  !canViewDatabaseConnections &&
+																				  !canViewDatabaseMaintenanceJobs &&
+																				  !canViewDatabaseSchemaReport &&
+																				  !canViewDatabaseDataTransfer &&
+																				  canViewDatabaseRetentionCleanup
+																				? route("admin.database.retention")
+																				: item.href;
 
-										return (
-											<NavItem
-												key={item.id}
-												item={{ ...item, href: resolvedHref }}
-												isActive={isActive}
-												isExpanded={isExpanded}
-											/>
-										);
-									})}
+									const enrichedItem = (() => {
+										if (item.id === "pos.job-orders") {
+											return { ...item, badgeCount: overdueJobOrdersCount };
+										}
+										if (item.id === "inventory.levels") {
+											return { ...item, badgeCount: noStockInventoryCount };
+										}
+										if (item.id === "inventory.shrinkage-history") {
+											return { ...item, badgeCount: unconfirmedShrinkageCount };
+										}
+										if (item.id === "inventory.products") {
+											return { ...item, badgeCount: noStockProductsCount };
+										}
+										if (item.id === "pos.sale-history") {
+											return {
+												...item,
+												badgeCount: overduePendingPaymentsCount,
+											};
+										}
+										return item;
+									})();
+
+									return (
+										<NavItem
+											key={item.id}
+											item={{ ...enrichedItem, href: resolvedHref }}
+											isActive={isActive}
+											isExpanded={isExpanded}
+										/>
+									);
+								})}
 							</div>
 						</div>
 					);
@@ -716,63 +811,65 @@ const Sidebar = () => {
 			</nav>
 
 			{/* ── Footer / Logout ── */}
-				<div
+			<div
+				style={{
+					padding: isExpanded ? "1rem 1.25rem" : "1rem 0",
+					borderTop: "1px solid var(--color-border)",
+					display: "flex",
+					flexDirection: "column",
+					alignItems: isExpanded ? "stretch" : "center",
+					gap: "0.5rem",
+					justifyContent: isExpanded ? "flex-start" : "center",
+					flexShrink: 0,
+				}}
+			>
+				<button
+					type="button"
+					onClick={() =>
+						setTheme((prev) => (prev === "dark" ? "light" : "dark"))
+					}
 					style={{
-						padding: isExpanded ? "1rem 1.25rem" : "1rem 0",
-						borderTop: "1px solid var(--color-border)",
-						display: "flex",
-						flexDirection: "column",
-						alignItems: isExpanded ? "stretch" : "center",
-						gap: "0.5rem",
-						justifyContent: isExpanded ? "flex-start" : "center",
-						flexShrink: 0,
+						display: "inline-flex",
+						alignItems: "center",
+						gap: "0.6rem",
+						padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
+						borderRadius: "8px",
+						background: "none",
+						border: "none",
+						cursor: "pointer",
+						color: "var(--color-text-muted)",
+						fontSize: "0.875rem",
+						fontWeight: 500,
+						fontFamily: "'Inter', sans-serif",
+						transition: "background 0.2s",
+						width: isExpanded ? "100%" : "40px",
+						justifyContent: "center",
 					}}
+					onMouseEnter={(e) =>
+						(e.currentTarget.style.backgroundColor = "rgba(156,163,175,0.15)")
+					}
+					onMouseLeave={(e) =>
+						(e.currentTarget.style.backgroundColor = "transparent")
+					}
+					title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
 				>
-						<button
-							type="button"
-							onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-							style={{
-								display: "inline-flex",
-								alignItems: "center",
-								gap: "0.6rem",
-								padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
-								borderRadius: "8px",
-								background: "none",
-								border: "none",
-								cursor: "pointer",
-								color: "var(--color-text-muted)",
-								fontSize: "0.875rem",
-								fontWeight: 500,
-								fontFamily: "'Inter', sans-serif",
-								transition: "background 0.2s",
-								width: isExpanded ? "100%" : "40px",
-								justifyContent: "center",
-							}}
-							onMouseEnter={(e) =>
-								(e.currentTarget.style.backgroundColor = "rgba(156,163,175,0.15)")
-							}
-							onMouseLeave={(e) =>
-								(e.currentTarget.style.backgroundColor = "transparent")
-							}
-							title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
-						>
-							{theme === "dark" ? (
-								<Sun size={19} strokeWidth={1.9} />
-							) : (
-								<Moon size={19} strokeWidth={1.9} />
-							)}
-							{isExpanded && (
-								<span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
-							)}
-						</button>
-						<button
-							type="button"
-							onClick={() => setIsLogoutModalOpen(true)}
-						style={{
-							display: "inline-flex",
-							alignItems: "center",
-							gap: "0.6rem",
-							padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
+					{theme === "dark" ? (
+						<Sun size={19} strokeWidth={1.9} />
+					) : (
+						<Moon size={19} strokeWidth={1.9} />
+					)}
+					{isExpanded && (
+						<span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+					)}
+				</button>
+				<button
+					type="button"
+					onClick={() => setIsLogoutModalOpen(true)}
+					style={{
+						display: "inline-flex",
+						alignItems: "center",
+						gap: "0.6rem",
+						padding: isExpanded ? "0.5rem 0.75rem" : "0.5rem",
 						borderRadius: "8px",
 						background: "none",
 						border: "none",
@@ -780,54 +877,62 @@ const Sidebar = () => {
 						color: "#EF4444",
 						fontSize: "0.875rem",
 						fontWeight: 500,
-							fontFamily: "'Inter', sans-serif",
-							transition: "background 0.2s",
-							width: isExpanded ? "100%" : "40px",
-							justifyContent: "center",
-						}}
+						fontFamily: "'Inter', sans-serif",
+						transition: "background 0.2s",
+						width: isExpanded ? "100%" : "40px",
+						justifyContent: "center",
+					}}
 					onMouseEnter={(e) =>
 						(e.currentTarget.style.backgroundColor = "#FEE2E2")
 					}
-						onMouseLeave={(e) =>
-							(e.currentTarget.style.backgroundColor = "transparent")
-						}
-						title="Logout"
-					>
-						<Icon name="logout" size={19} />
-						{isExpanded && <span>Logout</span>}
-					</button>
-				</div>
-				<Modal show={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} maxWidth="md">
-					<div className="p-6">
-						<h3 className="text-lg font-semibold text-gray-900">Confirm Logout</h3>
-						<p className="mt-2 text-sm text-gray-600">
-							Are you sure you want to logout?
-						</p>
-						<div className="mt-6 flex justify-end gap-2">
-							<button
-								type="button"
-								onClick={() => setIsLogoutModalOpen(false)}
-								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								onClick={() => router.post(route("logout"))}
-								className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
-							>
-								Logout
-							</button>
-						</div>
+					onMouseLeave={(e) =>
+						(e.currentTarget.style.backgroundColor = "transparent")
+					}
+					title="Logout"
+				>
+					<Icon name="logout" size={19} />
+					{isExpanded && <span>Logout</span>}
+				</button>
+			</div>
+			<Modal
+				show={isLogoutModalOpen}
+				onClose={() => setIsLogoutModalOpen(false)}
+				maxWidth="md"
+			>
+				<div className="p-6">
+					<h3 className="text-lg font-semibold text-gray-900">
+						Confirm Logout
+					</h3>
+					<p className="mt-2 text-sm text-gray-600">
+						Are you sure you want to logout?
+					</p>
+					<div className="mt-6 flex justify-end gap-2">
+						<button
+							type="button"
+							onClick={() => setIsLogoutModalOpen(false)}
+							className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							onClick={() => router.post(route("logout"))}
+							className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover"
+						>
+							Logout
+						</button>
 					</div>
-				</Modal>
-			</aside>
-		);
-	};
+				</div>
+			</Modal>
+		</aside>
+	);
+};
 
 // ─── NavItem sub-component ────────────────────────────────────────────────────
 const NavItem = ({ item, isActive, isExpanded }) => {
 	const [hovered, setHovered] = useState(false);
+	const badgeCount = Number(item.badgeCount || 0);
+	const showBadge = badgeCount > 0;
 
 	const bgColor = isActive
 		? "rgb(var(--color-primary-soft))"
@@ -835,7 +940,10 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 			? "rgba(156,163,175,0.15)"
 			: "transparent";
 
-	const textColor = isActive || hovered ? "var(--color-primary-hex)" : "var(--color-text-muted)";
+	const textColor =
+		isActive || hovered
+			? "var(--color-primary-hex)"
+			: "var(--color-text-muted)";
 
 	return (
 		<Link
@@ -852,27 +960,79 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 				fontSize: "0.9rem",
 				fontWeight: 500,
 				cursor: "pointer",
-				borderRight: isActive ? "3px solid var(--color-primary-hex)" : "3px solid transparent",
+				borderRight: isActive
+					? "3px solid var(--color-primary-hex)"
+					: "3px solid transparent",
 				transition: "background 0.15s, color 0.15s, border-color 0.15s",
 				whiteSpace: "nowrap",
 				overflow: "hidden",
+				position: "relative",
 			}}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 			title={!isExpanded ? item.label : undefined}
 		>
-			<Icon
-				name={item.icon}
-				size={20}
-				style={{
-					opacity: isActive ? 1 : 0.75,
-					flexShrink: 0,
-					lineHeight: 1,
-				}}
-			/>
+			<span
+				style={{ position: "relative", display: "flex", alignItems: "center" }}
+			>
+				<Icon
+					name={item.icon}
+					size={20}
+					style={{
+						opacity: isActive ? 1 : 0.75,
+						flexShrink: 0,
+						lineHeight: 1,
+					}}
+				/>
+				{!isExpanded && showBadge && (
+					<span
+						style={{
+							position: "absolute",
+							right: -6,
+							bottom: -6,
+							minWidth: "18px",
+							height: "18px",
+							padding: "0 4px",
+							borderRadius: "9999px",
+							backgroundColor: "#EF4444",
+							color: "#fff",
+							fontSize: "0.65rem",
+							fontWeight: 700,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							boxShadow: "0 2px 4px rgba(0,0,0,0.15)",
+							pointerEvents: "none",
+						}}
+					>
+						{badgeCount}
+					</span>
+				)}
+			</span>
 			{isExpanded && (
 				<span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
 					{item.label}
+				</span>
+			)}
+			{isExpanded && showBadge && (
+				<span
+					style={{
+						marginLeft: "auto",
+						minWidth: "22px",
+						height: "20px",
+						padding: "0 6px",
+						borderRadius: "9999px",
+						backgroundColor: "#EF4444",
+						color: "#fff",
+						fontSize: "0.7rem",
+						fontWeight: 700,
+						display: "inline-flex",
+						alignItems: "center",
+						justifyContent: "center",
+						boxShadow: "0 2px 4px rgba(0,0,0,0.12)",
+					}}
+				>
+					{badgeCount}
 				</span>
 			)}
 		</Link>
@@ -880,5 +1040,3 @@ const NavItem = ({ item, isActive, isExpanded }) => {
 };
 
 export default Sidebar;
-
-
