@@ -143,9 +143,13 @@ export class DesktopProcessManager {
 		const desktopConfig = getDesktopConfig();
 		try {
 			await access(desktopConfig.phpBinary, fsConstants.X_OK);
-			return desktopConfig.phpBinary;
+			return path.isAbsolute(desktopConfig.phpBinary)
+				? desktopConfig.phpBinary
+				: path.resolve(desktopConfig.projectRoot, desktopConfig.phpBinary);
 		} catch {
 			if (desktopConfig.allowSystemPhp) {
+				// We don't resolve the path for "php" yet, but we will in buildPhpEnv 
+				// if we can find it in the PATH.
 				return "php";
 			}
 			throw new Error(
@@ -356,11 +360,32 @@ export class DesktopProcessManager {
 			...process.env,
 			...extraEnv,
 		};
-		const phpDir = path.dirname(phpBinary);
-		if (phpBinary !== "php" && existsSync(path.join(phpDir, "php.ini"))) {
+
+		// If it's a relative path or "php", try to find where it is using system "where" or "which"
+		// to ensure we can set PHPRC correctly to its directory.
+		let resolvedPath = phpBinary;
+		if (phpBinary === "php") {
+			try {
+				const { execSync } = require("node:child_process");
+				const command = process.platform === "win32" ? "where.exe php" : "which php";
+				const output = execSync(command, { encoding: "utf8" }).split(/\r?\n/)[0].trim();
+				if (existsSync(output)) {
+					resolvedPath = output;
+				}
+			} catch {
+				// Fallback to system env if resolving fails
+			}
+		}
+
+		if (path.isAbsolute(resolvedPath)) {
+			const phpDir = path.dirname(resolvedPath);
+			// Always set PHPRC to the directory containing php.exe/php so it finds php.ini 
+			// and its dependent DLLs (like sqlite3.dll)
 			env.PHPRC = phpDir;
-			env.PHP_INI_SCAN_DIR = phpDir;
+			env.PHP_INI_SCAN_DIR = ""; // Explicitly clear to prevent dual loading of ini chunks
+
 			if (process.platform === "win32") {
+				// Inject the PHP directory at the FRONT of PATH so it finds its own DLLs first
 				env.PATH = `${phpDir};${env.PATH || ""}`;
 			}
 		}
