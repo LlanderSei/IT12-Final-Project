@@ -17,25 +17,23 @@ class ProductsController extends Controller {
   }
 
   public function store(Request $request) {
-    $uploadedImage = $request->file('ProductImage');
-    if ($uploadedImage && !$uploadedImage->isValid()) {
-      return back()
-        ->withErrors(['ProductImage' => 'Image upload failed. Check temporary directory permissions.'])
-        ->withInput();
-    }
+    // No longer checking isValid() here because we're using Base64 strings to bypass tmp issues
+    // Validation will happen below with the 'ProductImage' field being a string (data URL)
+
 
     $data = $request->validate([
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
-      'ProductImage' => 'nullable|file|image|max:2048',
+      'ProductImage' => 'nullable|string', // Accept Base64 data URL
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
 
-    $productImagePath = $request->hasFile('ProductImage')
-      ? $request->file('ProductImage')->store('products', 'public')
-      : null;
+    $productImagePath = null;
+    if (!empty($data['ProductImage']) && str_starts_with($data['ProductImage'], 'data:image')) {
+      $productImagePath = $this->uploadToImgBB($data['ProductImage']);
+    }
 
     Product::create([
       'ProductName' => $data['ProductName'],
@@ -55,19 +53,15 @@ class ProductsController extends Controller {
   public function update(Request $request, $id) {
     $product = Product::findOrFail($id);
 
-    $uploadedImage = $request->file('ProductImage');
-    if ($uploadedImage && !$uploadedImage->isValid()) {
-      return back()
-        ->withErrors(['ProductImage' => 'Image upload failed. Check temporary directory permissions.'])
-        ->withInput();
-    }
+    // No longer checking isValid() for the same reason as store()
+
 
     $data = $request->validate([
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
       'Price' => 'required|numeric|min:0',
-      'ProductImage' => 'nullable|file|image|max:2048',
+      'ProductImage' => 'nullable|string', // Accept Base64 data URL
       'RemoveProductImage' => 'nullable|boolean',
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
@@ -75,8 +69,8 @@ class ProductsController extends Controller {
     $removeProductImage = filter_var($request->input('RemoveProductImage', false), FILTER_VALIDATE_BOOL);
     $productImagePath = $product->ProductImage;
 
-    if ($request->hasFile('ProductImage')) {
-      $productImagePath = $request->file('ProductImage')->store('products', 'public');
+    if (!empty($data['ProductImage']) && str_starts_with($data['ProductImage'], 'data:image')) {
+      $productImagePath = $this->uploadToImgBB($data['ProductImage']);
       $this->deleteProductImage($product->ProductImage);
     } elseif ($removeProductImage) {
       $this->deleteProductImage($product->ProductImage);
@@ -214,5 +208,32 @@ class ProductsController extends Controller {
     if (Storage::disk('public')->exists($normalized)) {
       Storage::disk('public')->delete($normalized);
     }
+  }
+
+  /**
+   * Upload Base64 image to ImgBB and return the direct URL.
+   */
+  private function uploadToImgBB(string $base64Data): string {
+    $apiKey = \App\Models\SystemSetting::get('imgbb_api_key', env('IMGBB_API_KEY'));
+    if (!$apiKey) {
+      throw new \Exception('ImgBB API key is not configured. Please set it in Application Settings.');
+    }
+
+    // Strip the data URL prefix if present
+    $base64Image = $base64Data;
+    if (str_contains($base64Data, ',')) {
+      $base64Image = explode(',', $base64Data)[1];
+    }
+
+    $response = \Illuminate\Support\Facades\Http::withoutVerifying()->asForm()->post('https://api.imgbb.com/1/upload', [
+      'key' => $apiKey,
+      'image' => $base64Image,
+    ]);
+
+    if (!$response->successful()) {
+      throw new \Exception('ImgBB upload failed: ' . $response->body());
+    }
+
+    return $response->json('data.url');
   }
 }

@@ -60,14 +60,6 @@ class DesktopController extends Controller {
 				!$storageWritable ? 'Storage directory is not writable.' : null,
 			])),
 			'timestamp' => now()->toIso8601String(),
-			'php' => [
-				'ini' => php_ini_loaded_file(),
-				'tmp_dir' => ini_get('upload_tmp_dir'),
-				'sys_tmp_dir' => ini_get('sys_temp_dir'),
-				'upload_max_filesize' => ini_get('upload_max_filesize'),
-				'post_max_size' => ini_get('post_max_size'),
-				'scanned_files' => php_ini_scanned_files(),
-			],
 		]);
 	}
 }

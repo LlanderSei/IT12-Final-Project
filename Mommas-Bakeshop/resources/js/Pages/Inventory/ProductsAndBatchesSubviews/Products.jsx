@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { useEffect } from "react";
 import ConfirmationModal from "@/Components/ConfirmationModal";
@@ -44,7 +44,7 @@ export default function Products({
 	const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 	const [existingImageUrl, setExistingImageUrl] = useState(null);
 	const [clientImageError, setClientImageError] = useState("");
-	const maxImageBytes = 2 * 1024 * 1024;
+	const maxImageBytes = 5 * 1024 * 1024; // 5MB limit
 
 	const categoryOptions = useMemo(
 		() => [...new Set((products || []).map((p) => p.category?.CategoryName).filter(Boolean))],
@@ -66,6 +66,7 @@ export default function Products({
 		errors,
 		reset,
 		transform,
+		progress,
 	} = useForm({
 		ProductName: "",
 		ProductDescription: "",
@@ -138,14 +139,11 @@ export default function Products({
 	};
 
 	useEffect(() => {
-		if (!(data.ProductImage instanceof File)) {
+		if (typeof data.ProductImage !== "string" || !data.ProductImage.startsWith("data:image")) {
 			return undefined;
 		}
 
-		const previewUrl = URL.createObjectURL(data.ProductImage);
-		setSelectedImagePreview(previewUrl);
-
-		return () => URL.revokeObjectURL(previewUrl);
+		setSelectedImagePreview(data.ProductImage);
 	}, [data.ProductImage]);
 
 	const removeSelectedImage = () => {
@@ -162,18 +160,27 @@ export default function Products({
 	const handleImageSelection = (event) => {
 		const file = event.target.files?.[0] || null;
 		if (file && file.size > maxImageBytes) {
-			setClientImageError("Image must be 2MB or smaller.");
+			setClientImageError("Image must be 5MB or smaller.");
 			setData("ProductImage", null);
 			setData("RemoveProductImage", false);
 			setSelectedImagePreview(null);
 			setImageInputKey((prev) => prev + 1);
 			return;
 		}
-		setData("ProductImage", file);
-		setData("RemoveProductImage", false);
-		setClientImageError("");
+
 		if (file) {
-			setExistingImageUrl(null);
+			const reader = new FileReader();
+			reader.onloadend = () => {
+				setData("ProductImage", reader.result); // This will be the base64 string
+				setData("RemoveProductImage", false);
+				setClientImageError("");
+				setExistingImageUrl(null);
+			};
+			reader.readAsDataURL(file);
+		} else {
+			setData("ProductImage", null);
+			setData("RemoveProductImage", false);
+			setClientImageError("");
 		}
 	};
 
@@ -994,6 +1001,23 @@ export default function Products({
 															onChange={handleImageSelection}
 															className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-primary-soft file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary hover:file:bg-primary-soft"
 														/>
+														
+														{/* Progress Bar */}
+														{processing && progress && (
+															<div className="mt-2 w-full">
+																<div className="flex justify-between items-center mb-1">
+																	<span className="text-xs font-medium text-primary">Uploading...</span>
+																	<span className="text-xs font-medium text-primary">{progress.percentage}%</span>
+																</div>
+																<div className="w-full bg-gray-200 rounded-full h-1.5">
+																	<div
+																		className="bg-primary h-1.5 rounded-full transition-all duration-300"
+																		style={{ width: `${progress.percentage}%` }}
+																	/>
+																</div>
+															</div>
+														)}
+
 														{productPreviewImage ? (
 															<div className="rounded-lg border border-gray-200 p-3">
 																<img

@@ -362,6 +362,14 @@ return new class extends Migration {
 				$table->index(['OperationType', 'Status']);
 			});
 		}
+
+		Schema::create('system_settings', function (Blueprint $table) {
+			$table->id('ID');
+			$table->string('SettingKey')->unique();
+			$table->text('SettingValue')->nullable();
+			$table->timestamp('DateAdded')->useCurrent();
+			$table->timestamp('DateModified')->useCurrent();
+		});
 	}
 
 	public function down(): void {
@@ -397,5 +405,6 @@ return new class extends Migration {
 		Schema::dropIfExists('permissions');
 		Schema::dropIfExists('permission_groups');
 		Schema::dropIfExists('customers');
+		Schema::dropIfExists('system_settings');
 	}
 };
