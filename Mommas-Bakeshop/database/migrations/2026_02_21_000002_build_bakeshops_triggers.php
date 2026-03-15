@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
 	public function up(): void {
+		if (DB::getDriverName() !== 'mysql') {
+			return;
+		}
 		DB::unprepared('
 			CREATE TRIGGER UpdateTotalProductsProduced
 			AFTER INSERT ON production_batches
@@ -432,6 +435,9 @@ return new class extends Migration {
 	}
 
 	public function down(): void {
+		if (DB::getDriverName() !== 'mysql') {
+			return;
+		}
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdateTotalProductsProduced');
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductQuantitiesOnSale');
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductQuantitiesOnShrinkage');
