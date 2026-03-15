@@ -11,6 +11,7 @@ use PDO;
 
 class DesktopBootstrapCommand extends Command {
 	protected $signature = 'desktop:bootstrap
+		{--seed : Force role and permission seed synchronization}
 		{--skip-seed : Skip role and permission seed synchronization}
 		{--force : Force bootstrap tasks even in production}';
 
@@ -25,12 +26,31 @@ class DesktopBootstrapCommand extends Command {
 		$this->runMigrations();
 		$this->ensureStorageLink();
 
-		if (!$this->option('skip-seed')) {
+		if ($this->shouldSeed()) {
 			$this->seedCoreAccessData();
 		}
 
 		$this->info('Desktop bootstrap completed.');
 		return self::SUCCESS;
+	}
+	
+	private function shouldSeed(): bool {
+		if ($this->option('skip-seed')) {
+			return false;
+		}
+
+		if ($this->option('seed')) {
+			return true;
+		}
+
+		// Automatically skip seeding if roles already exist.
+		// This prevents overwriting user customizations on every startup.
+		try {
+			return DB::table('roles')->count() === 0;
+		} catch (\Exception $e) {
+			// If table doesn't exist yet, we definitely need to seed.
+			return true;
+		}
 	}
 
 	private function ensureEnvFile(): void {
@@ -78,6 +98,7 @@ class DesktopBootstrapCommand extends Command {
 			config('desktop.managed_mysql.log_dir'),
 			storage_path('app/private/backups'),
 			storage_path('app/public/products'),
+			storage_path('tmp'),
 		];
 
 		foreach ($directories as $directory) {

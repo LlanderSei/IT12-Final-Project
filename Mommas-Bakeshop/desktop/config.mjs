@@ -1,5 +1,5 @@
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,10 +12,54 @@ const projectRoot =
 	process.env.DESKTOP_APP_ROOT ||
 	(existsSync(packagedProjectRoot) ? packagedProjectRoot : defaultProjectRoot);
 
+const loadDotEnv = () => {
+	const envPath = path.join(projectRoot, ".env");
+	const fallbackPath = path.join(projectRoot, ".env.example");
+	const sourcePath = existsSync(envPath) ? envPath : existsSync(fallbackPath) ? fallbackPath : null;
+	if (!sourcePath) {
+		return;
+	}
+
+	const content = readFileSync(sourcePath, "utf8");
+	for (const rawLine of content.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (line === "" || line.startsWith("#")) {
+			continue;
+		}
+
+		const separatorIndex = line.indexOf("=");
+		if (separatorIndex === -1) {
+			continue;
+		}
+
+		const key = line.slice(0, separatorIndex).trim();
+		if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) {
+			continue;
+		}
+
+		let value = line.slice(separatorIndex + 1).trim();
+		if (
+			(value.startsWith('"') && value.endsWith('"')) ||
+			(value.startsWith("'") && value.endsWith("'"))
+		) {
+			value = value.slice(1, -1);
+		}
+
+		process.env[key] = value;
+	}
+};
+
+loadDotEnv();
+
 export const getDesktopConfig = () => {
 	const defaultHost = process.env.DESKTOP_HOST || "127.0.0.1";
 	const defaultPort = Number.parseInt(process.env.DESKTOP_PORT || "8123", 10);
 	const healthPath = process.env.DESKTOP_HEALTH_PATH || "/desktop/health";
+	const healthTimeoutMsRaw =
+		process.env.DESKTOP_HEALTH_TIMEOUT_MS ||
+		(process.env.DESKTOP_HEALTH_TIMEOUT
+			? String(Number.parseInt(process.env.DESKTOP_HEALTH_TIMEOUT, 10) * 1000)
+			: undefined);
 	const localRuntimeRoot = path.join(projectRoot, "desktop", "runtime");
 	const packagedRuntimeRoot = process.resourcesPath
 		? path.join(process.resourcesPath, "runtime")
@@ -30,8 +74,7 @@ export const getDesktopConfig = () => {
 		port: Number.isFinite(defaultPort) ? defaultPort : 8123,
 		healthPath,
 		healthTimeoutMs:
-			Number.parseInt(process.env.DESKTOP_HEALTH_TIMEOUT_MS || "90000", 10) ||
-			90000,
+			Number.parseInt(healthTimeoutMsRaw || "90000", 10) || 90000,
 		phpBinary:
 			process.env.DESKTOP_PHP_BINARY ||
 			(process.platform === "win32"

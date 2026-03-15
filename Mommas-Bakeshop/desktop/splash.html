@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Momma's Bakeshop - Starting...</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b1220;
+      --accent-blue: #2563eb;
+      --accent-purple: #7c3aed;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --glass-bg: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .container {
+      width: 450px;
+      padding: 40px;
+      text-align: center;
+      position: relative;
+    }
+
+    .logo-container {
+      margin-bottom: 32px;
+      position: relative;
+      display: inline-block;
+    }
+
+    .logo-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 120px;
+      height: 120px;
+      background: radial-gradient(circle, var(--accent-blue) 0%, transparent 70%);
+      opacity: 0.3;
+      filter: blur(20px);
+      z-index: -1;
+      animation: pulse 3s infinite ease-in-out;
+    }
+
+    .logo-icon {
+      font-size: 48px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -2px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    p#status {
+      font-size: 14px;
+      color: var(--text-muted);
+      height: 20px;
+      margin-bottom: 24px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .progress-container {
+      width: 100%;
+      height: 6px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+      border-radius: 10px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+    }
+
+    .details {
+      font-size: 11px;
+      color: rgba(148, 163, 184, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+      50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; }
+    }
+
+    /* Floating particles effect */
+    .particle {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      opacity: 0.1;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-container">
+      <div class="logo-glow"></div>
+      <div class="logo-icon">MB</div>
+    </div>
+    <h1>Momma's Bakeshop</h1>
+    <p id="status">Initializing system...</p>
+    
+    <div class="progress-container">
+      <div id="progress" class="progress-bar"></div>
+    </div>
+    
+    <div class="details">System Initialization v1.0</div>
+  </div>
+
+  <script>
+    const statusText = document.getElementById('status');
+    const progressBar = document.getElementById('progress');
+
+    // Handle updates from main process
+    try {
+      window.electronAPI?.onUpdate((message, percent) => {
+        if (message) statusText.innerText = message;
+        if (percent !== undefined) progressBar.style.width = `${percent}%`;
+      });
+    } catch (e) {
+      console.error("Failed to connect to Electron API", e);
+    }
+
+    // Create some subtle floating background particles
+    function createParticles() {
+      const container = document.body;
+      for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        const size = Math.random() * 3 + 1;
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.top = `${Math.random() * 100}vh`;
+        particle.style.left = `${Math.random() * 100}vw`;
+        
+        container.appendChild(particle);
+        
+        animateParticle(particle);
+      }
+    }
+
+    function animateParticle(p) {
+      const duration = 10000 + Math.random() * 20000;
+      const x = (Math.random() - 0.5) * 100;
+      const y = (Math.random() - 0.5) * 100;
+      
+      p.animate([
+        { transform: 'translate(0, 0)', opacity: 0.1 },
+        { transform: `translate(${x}px, ${y}px)`, opacity: 0.2 },
+        { transform: 'translate(0, 0)', opacity: 0.1 }
+      ], {
+        duration: duration,
+        iterations: Infinity,
+        easing: 'linear'
+      });
+    }
+
+    createParticles();
+  </script>
+</body>
+</html>

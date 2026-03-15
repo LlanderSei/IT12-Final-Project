@@ -1,0 +1,1 @@
+Get-EventLog -LogName Application -Newest 200 | Where-Object { $_.Message -match "php" -or $_.Source -match "Application Error" } | Select-Object -Property TimeGenerated, Source, Message | Format-List

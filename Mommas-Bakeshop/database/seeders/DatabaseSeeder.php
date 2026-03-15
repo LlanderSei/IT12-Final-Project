@@ -25,20 +25,19 @@ class DatabaseSeeder extends Seeder {
 		];
 
 		foreach ($roles as $role) {
-			Role::updateOrCreate(
+			Role::firstOrCreate(
 				['RoleName' => $role['RoleName']],
 				[
 					'RoleDescription' => $role['RoleDescription'],
 					'RoleColor' => $role['RoleColor'],
 					'RoleRank' => $role['RoleRank'],
-					'DateModified' => now(),
 				]
 			);
 		}
 
 		$ownerRoleId = Role::query()->where('RoleName', 'Owner')->value('ID');
 
-		User::updateOrCreate(
+		User::firstOrCreate(
 			['email' => 'owner@example.com'],
 			[
 				'FullName' => "Momma's Bakeshop Owner",

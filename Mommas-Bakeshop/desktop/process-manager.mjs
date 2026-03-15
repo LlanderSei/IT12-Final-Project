@@ -1,36 +1,105 @@
 import { spawn } from "node:child_process";
 import { access, mkdir } from "node:fs/promises";
-import { constants as fsConstants, existsSync, readdirSync } from "node:fs";
+import {
+	appendFileSync,
+	constants as fsConstants,
+	existsSync,
+	readFileSync,
+	readdirSync,
+	writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import net from "node:net";
 import { getDesktopConfig, getHealthUrl, getServerUrl } from "./config.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const formatFetchError = (error) => {
+	if (!error) {
+		return "Unknown error.";
+	}
+
+	if (error instanceof Error) {
+		const parts = [error.message || error.name];
+		if (error.cause instanceof Error) {
+			parts.push(`cause=${error.cause.message || error.cause.name}`);
+		} else if (error.cause) {
+			parts.push(`cause=${String(error.cause)}`);
+		}
+		return parts.join(" | ");
+	}
+
+	return String(error);
+};
+
+const logDesktop = (projectRoot, message) => {
+	if (!projectRoot) {
+		return;
+	}
+
+	try {
+		const logPath = path.join(projectRoot, "storage", "logs", "desktop-startup.log");
+		const line = `[${new Date().toISOString()}] ${message}\n`;
+		appendFileSync(logPath, line, { encoding: "utf8" });
+	} catch {
+		// Best-effort logging only.
+	}
+};
+
 export class DesktopProcessManager {
 	constructor() {
 		this.backendProcess = null;
 		this.mysqlProcess = null;
 		this.shuttingDown = false;
+		this.onProgress = (message, percent) => {};
+	}
+
+	setProgressCallback(cb) {
+		this.onProgress = cb;
 	}
 
 	async prepareRuntime() {
+		this.onProgress("Preparing runtime...", 10);
 		const desktopConfig = getDesktopConfig();
 		if (desktopConfig.managedMysql.enabled) {
 			await this.startManagedMysql();
 		}
 
+		this.onProgress("Bootstrapping application...", 40);
 		await this.runBootstrap();
+
+		this.onProgress("Configuring PHP runtime...", 50);
+		await this.ensurePhpIniConfigured();
 	}
 
 	async startBackend() {
+		this.onProgress("Starting backend server...", 70);
 		if (process.env.DESKTOP_APP_URL) {
 			return process.env.DESKTOP_APP_URL;
 		}
 
 		const desktopConfig = getDesktopConfig();
+
+		// Proactively ensure the port is free.
+		if (process.platform === "win32") {
+			try {
+				const { spawnSync } = await import("node:child_process");
+				spawnSync("cmd", ["/c", `for /f "tokens=5" %a in ('netstat -aon ^| findstr :${desktopConfig.port} ^| findstr LISTENING') do taskkill /f /pid %a /t`], {
+					windowsHide: true,
+				});
+				await sleep(1000); // Give it a moment to release.
+			} catch {
+				// Ignore errors if port is already free.
+			}
+		}
+
 		const phpBinary = await this.resolvePhpBinary();
+		const tmpDir = path.join(desktopConfig.projectRoot, "storage", "tmp").replace(/\\/g, "/");
 		const args = [
+			"-d", `upload_tmp_dir=${tmpDir}`,
+			"-d", `sys_temp_dir=${tmpDir}`,
+			"-d", "upload_max_filesize=10M",
+			"-d", "post_max_size=10M",
 			"artisan",
 			"serve",
 			"--host",
@@ -54,10 +123,22 @@ export class DesktopProcessManager {
 		this.backendProcess.stderr?.on("data", (chunk) => {
 			process.stderr.write(`[desktop-backend] ${chunk}`);
 		});
+		this.backendProcess.on("error", (error) => {
+			logDesktop(desktopConfig.projectRoot, `Backend process error: ${formatFetchError(error)}`);
+		});
 		this.backendProcess.on("exit", (code, signal) => {
 			if (!this.shuttingDown) {
 				process.stderr.write(
 					`[desktop-backend] exited unexpectedly (code=${code}, signal=${signal})\n`,
+				);
+				logDesktop(
+					desktopConfig.projectRoot,
+					`Backend process exited unexpectedly (code=${code}, signal=${signal}). Check logs for details.`,
+				);
+			} else {
+				logDesktop(
+					desktopConfig.projectRoot,
+					`Backend process exited (code=${code}, signal=${signal}).`,
 				);
 			}
 			this.backendProcess = null;
@@ -67,13 +148,17 @@ export class DesktopProcessManager {
 	}
 
 	async waitForHealth() {
+		this.onProgress("Finalizing startup...", 90);
 		const desktopConfig = getDesktopConfig();
 		const deadline = Date.now() + desktopConfig.healthTimeoutMs;
 		let lastError = null;
+		const healthUrl = process.env.DESKTOP_APP_URL
+			? `${process.env.DESKTOP_APP_URL}${desktopConfig.healthPath}`
+			: getHealthUrl();
 
 		while (Date.now() < deadline) {
 			try {
-				const response = await fetch(process.env.DESKTOP_APP_URL ? `${process.env.DESKTOP_APP_URL}${desktopConfig.healthPath}` : getHealthUrl(), {
+				const response = await fetch(healthUrl, {
 					headers: {
 						Accept: "application/json",
 					},
@@ -81,7 +166,9 @@ export class DesktopProcessManager {
 				if (response.ok) {
 					return await response.json();
 				}
-				lastError = new Error(`Health endpoint returned ${response.status}.`);
+				lastError = new Error(
+					`Health endpoint returned ${response.status} at ${healthUrl}.`,
+				);
 			} catch (error) {
 				lastError = error;
 			}
@@ -89,7 +176,10 @@ export class DesktopProcessManager {
 			await sleep(1000);
 		}
 
-		throw lastError || new Error("Timed out waiting for the local desktop health endpoint.");
+		const details = formatFetchError(lastError);
+		const message = `Failed to reach desktop health endpoint at ${healthUrl}. ${details}`;
+		logDesktop(desktopConfig.projectRoot, message);
+		throw new Error(message);
 	}
 
 	async stopBackend() {
@@ -102,19 +192,18 @@ export class DesktopProcessManager {
 		const processToStop = this.backendProcess;
 		this.backendProcess = null;
 
-		await new Promise((resolve) => {
-			processToStop.once("exit", () => resolve());
+		if (process.platform === "win32") {
+			spawn("taskkill", ["/pid", String(processToStop.pid), "/f", "/t"], {
+				windowsHide: true,
+			});
+		} else {
+			processToStop.kill("SIGTERM");
+			setTimeout(() => {
+				if (!processToStop.killed) processToStop.kill("SIGKILL");
+			}, 2000);
+		}
 
-			if (process.platform === "win32") {
-				spawn("taskkill", ["/pid", String(processToStop.pid), "/f", "/t"], {
-					windowsHide: true,
-				});
-			} else {
-				processToStop.kill("SIGTERM");
-			}
-
-			setTimeout(() => resolve(), 5000);
-		});
+		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 
 	async stopManagedMysql() {
@@ -125,19 +214,18 @@ export class DesktopProcessManager {
 		const processToStop = this.mysqlProcess;
 		this.mysqlProcess = null;
 
-		await new Promise((resolve) => {
-			processToStop.once("exit", () => resolve());
+		if (process.platform === "win32") {
+			spawn("taskkill", ["/pid", String(processToStop.pid), "/f", "/t"], {
+				windowsHide: true,
+			});
+		} else {
+			processToStop.kill("SIGTERM");
+			setTimeout(() => {
+				if (!processToStop.killed) processToStop.kill("SIGKILL");
+			}, 2000);
+		}
 
-			if (process.platform === "win32") {
-				spawn("taskkill", ["/pid", String(processToStop.pid), "/f", "/t"], {
-					windowsHide: true,
-				});
-			} else {
-				processToStop.kill("SIGTERM");
-			}
-
-			setTimeout(() => resolve(), 5000);
-		});
+		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 
 	async resolvePhpBinary() {
@@ -163,8 +251,11 @@ export class DesktopProcessManager {
 		}
 
 		if (await this.isPortOpen(mysqlConfig.host, mysqlConfig.port)) {
+			this.onProgress("Database already running...", 30);
 			return;
 		}
+
+		this.onProgress("Starting database engine...", 20);
 
 		const mysqlBinary = await this.resolveMysqlBinary();
 		await mkdir(mysqlConfig.dataDir, { recursive: true });
@@ -194,12 +285,22 @@ export class DesktopProcessManager {
 		this.mysqlProcess.stderr?.on("data", (chunk) => {
 			process.stderr.write(`[desktop-mysql] ${chunk}`);
 		});
+		this.mysqlProcess.on("error", (error) => {
+			logDesktop(
+				desktopConfig.projectRoot,
+				`MySQL process error: ${formatFetchError(error)}`,
+			);
+		});
 		this.mysqlProcess.on("exit", (code, signal) => {
 			if (!this.shuttingDown) {
 				process.stderr.write(
 					`[desktop-mysql] exited unexpectedly (code=${code}, signal=${signal})\n`,
 				);
 			}
+			logDesktop(
+				desktopConfig.projectRoot,
+				`MySQL process exited (code=${code}, signal=${signal}).`,
+			);
 			this.mysqlProcess = null;
 		});
 
@@ -235,6 +336,7 @@ export class DesktopProcessManager {
 		];
 
 		await new Promise((resolve, reject) => {
+			this.onProgress("Initializing database storage...", 25);
 			const initProcess = spawn(mysqlBinary, initArgs, {
 				cwd: desktopConfig.projectRoot,
 				stdio: "pipe",
@@ -253,7 +355,13 @@ export class DesktopProcessManager {
 				stderr += chunk.toString();
 				process.stderr.write(`[desktop-mysql-init] ${chunk}`);
 			});
-			initProcess.once("error", reject);
+			initProcess.once("error", (error) => {
+				logDesktop(
+					desktopConfig.projectRoot,
+					`MySQL init error: ${formatFetchError(error)}`,
+				);
+				reject(error);
+			});
 			initProcess.once("exit", (code) => {
 				if (code === 0) {
 					resolve();
@@ -287,7 +395,16 @@ export class DesktopProcessManager {
 	async runBootstrap() {
 		const desktopConfig = getDesktopConfig();
 		const phpBinary = await this.resolvePhpBinary();
-		const bootstrapArgs = ["artisan", "desktop:bootstrap", "--force"];
+		const tmpDir = path.join(desktopConfig.projectRoot, "storage", "tmp").replace(/\\/g, "/");
+		const bootstrapArgs = [
+			"-d", `upload_tmp_dir=${tmpDir}`,
+			"-d", `sys_temp_dir=${tmpDir}`,
+			"-d", "upload_max_filesize=10M",
+			"-d", "post_max_size=10M",
+			"artisan",
+			"desktop:bootstrap",
+			"--force",
+		];
 
 		await new Promise((resolve, reject) => {
 			const bootstrapProcess = spawn(phpBinary, bootstrapArgs, {
@@ -310,7 +427,13 @@ export class DesktopProcessManager {
 				stderr += chunk.toString();
 				process.stderr.write(`[desktop-bootstrap] ${chunk}`);
 			});
-			bootstrapProcess.once("error", reject);
+			bootstrapProcess.once("error", (error) => {
+				logDesktop(
+					desktopConfig.projectRoot,
+					`Bootstrap error: ${formatFetchError(error)}`,
+				);
+				reject(error);
+			});
 			bootstrapProcess.once("exit", (code) => {
 				if (code === 0) {
 					resolve();
@@ -352,15 +475,80 @@ export class DesktopProcessManager {
 		});
 	}
 
+	async ensurePhpIniConfigured() {
+		const desktopConfig = getDesktopConfig();
+		const phpBinary = await this.resolvePhpBinary();
+		if (phpBinary === "php") {
+			return; // Using system PHP, don't touch its config.
+		}
+
+		const phpDir = path.dirname(phpBinary);
+		const iniPath = path.join(phpDir, "php.ini");
+		if (!existsSync(iniPath)) {
+			return;
+		}
+
+		try {
+			let content = readFileSync(iniPath, "utf8");
+			const projectRoot = desktopConfig.projectRoot;
+			
+			// Use forward slashes even on Windows for PHP config, and wrap in quotes
+			const tmpDir = path.join(projectRoot, "storage", "tmp").replace(/\\/g, "/");
+
+			// Ensure storage/tmp exists
+			await mkdir(path.join(projectRoot, "storage", "tmp"), { recursive: true });
+
+			const settings = {
+				upload_tmp_dir: `"${tmpDir}"`,
+				sys_temp_dir: `"${tmpDir}"`,
+				upload_max_filesize: "5M",
+				post_max_size: "8M",
+			};
+
+			let modified = false;
+			for (const [key, value] of Object.entries(settings)) {
+				const pattern = new RegExp(`^;?\\s*${key}\\s*=.*$`, "m");
+				const newLine = `${key} = ${value}`;
+
+				if (pattern.test(content)) {
+					const match = content.match(pattern)[0];
+					if (match !== newLine) {
+						content = content.replace(pattern, newLine);
+						modified = true;
+					}
+				} else {
+					content = content.trimEnd() + `\n${newLine}\n`;
+					modified = true;
+				}
+			}
+
+			if (modified) {
+				writeFileSync(iniPath, content, "utf8");
+				logDesktop(desktopConfig.projectRoot, "Updated php.ini with dynamic paths and size limits.");
+			}
+		} catch (error) {
+			logDesktop(
+				desktopConfig.projectRoot,
+				`Failed to configure php.ini: ${formatFetchError(error)}`,
+			);
+		}
+	}
+
 	buildPhpEnv(phpBinary, extraEnv = {}) {
+		const desktopConfig = getDesktopConfig();
+		const tmpDir = path.join(desktopConfig.projectRoot, "storage", "tmp");
+
 		const env = {
 			...process.env,
 			...extraEnv,
+			TMP: tmpDir,
+			TEMP: tmpDir,
+			TMPDIR: tmpDir,
 		};
 		const phpDir = path.dirname(phpBinary);
 		if (phpBinary !== "php" && existsSync(path.join(phpDir, "php.ini"))) {
 			env.PHPRC = phpDir;
-			env.PHP_INI_SCAN_DIR = phpDir;
+			env.PHP_INI_SCAN_DIR = "";
 			if (process.platform === "win32") {
 				env.PATH = `${phpDir};${env.PATH || ""}`;
 			}
