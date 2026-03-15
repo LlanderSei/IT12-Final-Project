@@ -26,12 +26,11 @@ class PermissionsSeeder extends Seeder {
 			['GroupName' => 'Database', 'GroupDescription' => 'Database backup management and local backup downloads.', 'DisplayOrder' => 12],
 		];
 		foreach ($groups as $group) {
-			PermissionGroup::updateOrCreate(
+			PermissionGroup::firstOrCreate(
 				['GroupName' => $group['GroupName']],
 				[
 					'GroupDescription' => $group['GroupDescription'],
 					'DisplayOrder' => $group['DisplayOrder'],
-					'DateModified' => now(),
 				]
 			);
 		}
@@ -148,7 +147,7 @@ class PermissionsSeeder extends Seeder {
 		];
 
 		foreach ($permissions as $permission) {
-			Permission::updateOrCreate(
+			Permission::firstOrCreate(
 				['PermissionName' => $permission['PermissionName']],
 				[
 					'PermissionDescription' => $permission['PermissionDescription'],
