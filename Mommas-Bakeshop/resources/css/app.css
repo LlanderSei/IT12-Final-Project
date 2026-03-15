@@ -175,6 +175,22 @@ html.theme-dark .shadow-sm {
 	box-shadow: none !important;
 }
 
+.overdue-row {
+	background-color: #fef2f2;
+}
+
+.overdue-row:hover {
+	background-color: #fee2e2;
+}
+
+html.theme-dark .overdue-row {
+	background-color: rgba(127, 29, 29, 0.32);
+}
+
+html.theme-dark .overdue-row:hover {
+	background-color: rgba(127, 29, 29, 0.48);
+}
+
 @layer components {
 	.btn-solid {
 		@apply inline-flex items-center justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white transition duration-150 ease-in-out hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50;

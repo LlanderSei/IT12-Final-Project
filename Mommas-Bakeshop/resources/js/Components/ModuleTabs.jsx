@@ -17,13 +17,18 @@ export default function ModuleTabs({ tabs }) {
 							key={tab.label + idx}
 							href={tab.href}
 							className={cn(
-								"whitespace-nowrap py-3 px-5 border-b-2 font-medium text-sm transition-all duration-200 rounded-t-lg",
+								"relative whitespace-nowrap py-3 px-5 border-b-2 font-medium text-sm transition-all duration-200 rounded-t-lg",
 								tab.active
 									? "border-primary bg-primary-soft text-primary-hex shadow-sm"
 									: "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/50 hover:border-border"
 							)}
 						>
 							{tab.label}
+							{Number(tab.badgeCount || 0) > 0 && (
+								<span className="absolute -bottom-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground shadow-sm ring-2 ring-background">
+									{tab.badgeCount}
+								</span>
+							)}
 						</Link>
 					))}
 				</nav>

@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Role;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -176,31 +175,8 @@ class DesktopBootstrapCommand extends Command {
 	}
 
 	private function seedCoreAccessData(): void {
-		$roles = [
-			['RoleName' => 'Owner', 'RoleDescription' => 'Business owner with full access.', 'RoleColor' => '#2563EB', 'RoleRank' => 1],
-			['RoleName' => 'Admin', 'RoleDescription' => 'Administrative access for operations.', 'RoleColor' => '#7C3AED', 'RoleRank' => 2],
-			['RoleName' => 'Cashier', 'RoleDescription' => 'Sales and payment handling access.', 'RoleColor' => '#F59E0B', 'RoleRank' => 3],
-			['RoleName' => 'Clerk', 'RoleDescription' => 'Basic operational access.', 'RoleColor' => '#10B981', 'RoleRank' => 4],
-		];
-
-		foreach ($roles as $role) {
-			Role::query()->updateOrCreate(
-				['RoleName' => $role['RoleName']],
-				[
-					'RoleDescription' => $role['RoleDescription'],
-					'RoleColor' => $role['RoleColor'],
-					'RoleRank' => $role['RoleRank'],
-					'DateModified' => now(),
-				],
-			);
-		}
-
 		Artisan::call('db:seed', [
-			'--class' => 'Database\\Seeders\\PermissionsSeeder',
-			'--force' => true,
-		]);
-		Artisan::call('db:seed', [
-			'--class' => 'Database\\Seeders\\RolePermissionSeeder',
+			'--class' => 'Database\\Seeders\\DatabaseSeeder',
 			'--force' => true,
 		]);
 

@@ -2,7 +2,7 @@ import React from "react";
 import usePermissions from "@/hooks/usePermissions";
 import ModuleTabs from "@/Components/ModuleTabs";
 
-export default function CashierTabs() {
+export default function CashierTabs({ pendingOverdueCount = 0 }) {
 	const { can } = usePermissions();
 	const canViewCashier = can("CanViewCashier");
 	const canViewSalesHistoryBase = can("CanViewSalesHistory");
@@ -30,13 +30,15 @@ export default function CashierTabs() {
 						label: "Pending Payments",
 						href: route("pos.sale-history.pending"),
 						active: route().current("pos.sale-history.pending"),
+						badgeCount: pendingOverdueCount,
 					},
 				]
 			: [
 					canViewSaleHistory && {
 						label: "Sale History",
-						href: route("pos.sale-history"),
+						href: !canViewSalesTab && canViewPendingTab ? route("pos.sale-history.pending") : route("pos.sale-history"),
 						active: route().current("pos.sale-history") || route().current("pos.sale-history.pending"),
+						badgeCount: !canViewSalesTab && canViewPendingTab ? pendingOverdueCount : 0,
 					},
 				]),
 		canViewCustomers && {

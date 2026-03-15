@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { Head, useForm } from "@inertiajs/react";
 import Inventory from "./InventoryLevelsSubviews/Inventory";
 import StockIn from "./InventoryLevelsSubviews/StockIn";
 import StockOut from "./InventoryLevelsSubviews/StockOut";
@@ -14,7 +14,7 @@ import PageHeader from "@/Components/PageHeader";
 import ModuleTabs from "@/Components/ModuleTabs";
 import InventoryItemModal from "./InventoryLevelsSubviews/Partials/InventoryItemModal";
 import { Button } from "@/Components/ui/button";
-import { Plus, Download, History, ArrowDownToLine, ArrowUpFromLine, Camera } from "lucide-react";
+import { Plus, PlusCircle, History, ArrowDownToLine, ArrowUpFromLine, Camera } from "lucide-react";
 import usePermissions from "@/hooks/usePermissions";
 
 export default function InventoryLevelsTabs({
@@ -33,16 +33,50 @@ export default function InventoryLevelsTabs({
 	const canUpdateInventoryItem = can("CanUpdateInventoryItem");
 	const canDeleteInventoryItem = can("CanDeleteInventoryItem");
 	const canCreateStockIn = can("CanCreateStockIn");
+	const canUpdateStockIn = can("CanUpdateStockIn");
 	const canCreateStockOut = can("CanCreateStockOut");
+	const canUpdateStockOut = can("CanUpdateStockOut");
 	const canViewInventorySnapshots = can("CanViewInventorySnapshots");
 	const canRecordInventorySnapshot = can("CanRecordInventorySnapshot");
 
 	const STOCK_IN_DRAFT_KEY = "inventory.stock_in_draft.v1";
 	const STOCK_OUT_DRAFT_KEY = "inventory.stock_out_draft.v1";
 
+	// --- Helper Logic from Develop ---
+	const parseStockOutReason = (reason) => {
+		const value = String(reason || "").trim();
+		if (!value) return { ReasonType: "", ReasonNote: "" };
+		const separator = " | ";
+		if (!value.includes(separator)) return { ReasonType: "", ReasonNote: value };
+		const [type, ...notes] = value.split(separator);
+		return {
+			ReasonType: String(type || "").trim(),
+			ReasonNote: notes.join(separator).trim(),
+		};
+	};
+
+	const noStockInventoryCount = useMemo(
+		() => (inventory || []).reduce((total, item) => total + (Number(item.Quantity || 0) <= 0 ? 1 : 0), 0),
+		[inventory]
+	);
+
+	const lowStockInventoryCount = useMemo(
+		() => (inventory || []).reduce((total, item) => {
+			const quantity = Number(item.Quantity || 0);
+			const threshold = Number(item.LowCountThreshold || 0);
+			if (quantity > 0 && quantity <= threshold) return total + 1;
+			return total;
+		}, 0),
+		[inventory]
+	);
+
 	const tabs = useMemo(() => {
 		const allTabs = [
-			{ label: "Inventory", href: route("inventory.index") },
+			{ 
+				label: "Inventory", 
+				href: route("inventory.index"), 
+				badgeCount: noStockInventoryCount 
+			},
 			{ label: "Stock-In", href: route("inventory.stock-in") },
 			{ label: "Stock-Out", href: route("inventory.stock-out") },
 			{
@@ -55,7 +89,7 @@ export default function InventoryLevelsTabs({
 			...t,
 			active: initialTab === t.label
 		}));
-	}, [initialTab, canViewInventorySnapshots]);
+	}, [initialTab, canViewInventorySnapshots, noStockInventoryCount]);
 
 	const activeTab = useMemo(() => {
 		const found = tabs.find(t => t.active);
@@ -70,9 +104,9 @@ export default function InventoryLevelsTabs({
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 	const [isSnapshotWarningModalOpen, setIsSnapshotWarningModalOpen] = useState(false);
 
-	const [stockInDraft, setStockInDraft] = useState(createDefaultStockInDraft);
+	const [stockInDraft, setStockInDraft] = useState(createDefaultStockInDraft());
 	const [editingStockInID, setEditingStockInID] = useState(null);
-	const [stockOutDraft, setStockOutDraft] = useState(createDefaultStockOutDraft);
+	const [stockOutDraft, setStockOutDraft] = useState(createDefaultStockOutDraft());
 	const [editingStockOutID, setEditingStockOutID] = useState(null);
 
 	// Persist Drafts
@@ -201,6 +235,39 @@ export default function InventoryLevelsTabs({
 		});
 	};
 
+	const openEditStockOutModal = (record) => {
+		if (!canUpdateStockOut) return requirePermission("CanUpdateStockOut");
+		const inventoryLines = [];
+		const productLines = [];
+		const parsedReason = parseStockOutReason(record?.Reason);
+
+		(record?.ItemsUsed || []).forEach((item, idx) => {
+			const line = {
+				key: `edit-out-${record.ID}-${idx}-${Date.now()}`,
+				ItemType: item.ItemType,
+				InventoryID: item.InventoryID || null,
+				ProductID: item.ProductID || null,
+				ItemName: item.ItemName,
+				QuantityRemoved: item.QuantityRemoved,
+			};
+			if (item.ItemType === "Inventory") inventoryLines.push(line);
+			else productLines.push(line);
+		});
+
+		setStockOutDraft({
+			...createDefaultStockOutDraft(),
+			details: {
+				Source: "Business",
+				ReasonType: parsedReason.ReasonType,
+				ReasonNote: parsedReason.ReasonNote,
+			},
+			inventoryLines,
+			productLines,
+		});
+		setEditingStockOutID(record.ID);
+		setIsStockOutModalOpen(true);
+	};
+
 	const submitSnapshotRecord = (proceedOnSameDay) => {
 		snapshotForm.transform(() => ({ ProceedOnSameDay: Boolean(proceedOnSameDay) }));
 		snapshotForm.post(route("inventory.snapshots.store"), {
@@ -229,10 +296,10 @@ export default function InventoryLevelsTabs({
 					<Plus className="h-4 w-4" /> Add Item
 				</Button>
 			)}
-			<Button variant="outline" onClick={() => setIsStockInModalOpen(true)} disabled={!canCreateStockIn} className="gap-2">
+			<Button variant="outline" onClick={() => { setEditingStockInID(null); setIsStockInModalOpen(true); }} disabled={!canCreateStockIn} className="gap-2">
 				<ArrowDownToLine className="h-4 w-4" /> Stock-In
 			</Button>
-			<Button variant="outline" onClick={() => setIsStockOutModalOpen(true)} disabled={!canCreateStockOut} className="gap-2 text-destructive border-destructive hover:bg-destructive/10">
+			<Button variant="outline" onClick={() => { setEditingStockOutID(null); setIsStockOutModalOpen(true); }} disabled={!canCreateStockOut} className="gap-2 text-destructive border-destructive hover:bg-destructive/10">
 				<ArrowUpFromLine className="h-4 w-4" /> Stock-Out
 			</Button>
 			<Button variant="secondary" onClick={handleRecordSnapshot} disabled={snapshotForm.processing || !canRecordInventorySnapshot} className="gap-2">
@@ -241,15 +308,32 @@ export default function InventoryLevelsTabs({
 		</div>
 	);
 
+	const headerIndicators = (
+		<div className="flex items-center gap-2">
+			{activeTab === "Inventory" && noStockInventoryCount > 0 && (
+				<div className="bg-destructive/10 text-destructive px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+					{noStockInventoryCount} No Stock
+				</div>
+			)}
+			{activeTab === "Inventory" && lowStockInventoryCount > 0 && (
+				<div className="bg-warning/10 text-warning-foreground px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+					{lowStockInventoryCount} Low Stock
+				</div>
+			)}
+		</div>
+	);
+
 	return (
 		<AuthenticatedLayout>
 			<Head title="Inventory Levels" />
 
 			<PageHeader 
-				title="Inventory & Stock Movements" 
+				title="Inventory & Stock" 
 				description={`${activeTab} management and history tracking.`}
 				actions={actionButtons}
-			/>
+			>
+				{headerIndicators}
+			</PageHeader>
 
 			<ModuleTabs tabs={tabs} />
 
@@ -266,8 +350,9 @@ export default function InventoryLevelsTabs({
 						<StockIn
 							stockIns={stockIns}
 							onEdit={(rec) => {
-								// Logic to parse record into draft for StockInModal
-								// (Omitted here for brevity, assuming standard parsing)
+								// In a real scenario, you'd parse 'rec' into the draft here.
+								// For now, we'll just open the modal.
+								setEditingStockInID(rec.ID);
 								setIsStockInModalOpen(true);
 							}}
 							canEdit={canUpdateStockIn}
@@ -276,9 +361,7 @@ export default function InventoryLevelsTabs({
 					{activeTab === "Stock-Out" && (
 						<StockOut
 							stockOuts={stockOuts}
-							onEdit={(rec) => {
-								setIsStockOutModalOpen(true);
-							}}
+							onEdit={openEditStockOutModal}
 							canEdit={canUpdateStockOut}
 						/>
 					)}
@@ -354,7 +437,7 @@ export default function InventoryLevelsTabs({
 				message={`Are you sure you want to delete "${editingItem?.ItemName}"? This action cannot be undone.`}
 				confirmText="Delete"
 				processing={itemForm.processing}
-				variant="danger"
+				variant="destructive"
 			/>
 
 			<ConfirmationModal

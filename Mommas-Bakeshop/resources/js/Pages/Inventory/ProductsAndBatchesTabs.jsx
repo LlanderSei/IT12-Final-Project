@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, router, useForm } from "@inertiajs/react";
 import Products from "./ProductsAndBatchesSubviews/Products";
@@ -8,8 +8,6 @@ import PageHeader from "@/Components/PageHeader";
 import ModuleTabs from "@/Components/ModuleTabs";
 import { 
 	Package, 
-	History, 
-	Camera, 
 	ChevronRight,
 	Plus,
 	Tags,
@@ -29,7 +27,6 @@ export default function ProductsAndBatchesTabs({
 	categories,
 	batches,
 	snapshots,
-	auth,
 	initialTab = "Products",
 }) {
 	const { can, requirePermission } = usePermissions();
@@ -49,11 +46,34 @@ export default function ProductsAndBatchesTabs({
 
 	const [headerMeta, setHeaderMeta] = useState({ subtitle: "Finished Goods", countLabel: "" });
 
-	const tabs = [
-		{ label: "Products", icon: Package, value: "Products" },
-		{ label: "Production Batches", icon: ClipboardList, value: "Production Batches" },
-		{ label: "Snapshots", icon: Camera, value: "Snapshots", hidden: !canViewProductSnapshots },
-	].filter(t => !t.hidden);
+	// --- Count Logic from Develop ---
+	const noStockProductsCount = useMemo(
+		() => (products || []).reduce((total, item) => total + (Number(item.Quantity || 0) <= 0 ? 1 : 0), 0),
+		[products]
+	);
+	const lowStockProductsCount = useMemo(
+		() => (products || []).reduce((total, item) => {
+			const quantity = Number(item.Quantity || 0);
+			const threshold = Number(item.LowStockThreshold || 0);
+			if (quantity > 0 && quantity <= threshold) return total + 1;
+			return total;
+		}, 0),
+		[products]
+	);
+
+	const tabs = useMemo(() => {
+		const allTabs = [
+			{ label: "Products", icon: Package, value: "Products", badgeCount: noStockProductsCount },
+			{ label: "Production Batches", icon: ClipboardList, value: "Production Batches" },
+			{ label: "Snapshots", icon: CameraIcon, value: "Snapshots", hidden: !canViewProductSnapshots },
+		];
+		const visible = allTabs.filter(t => !t.hidden);
+		return visible.map(t => ({
+			...t,
+			active: activeTab === t.value,
+			href: "#" // ModuleTabs handles internal switching via onTabChange in this file
+		}));
+	}, [activeTab, canViewProductSnapshots, noStockProductsCount]);
 
 	// Snapshot Logic
 	const snapshotForm = useForm({ ProceedOnSameDay: false });
@@ -125,12 +145,26 @@ export default function ProductsAndBatchesTabs({
 							</Button>
 						</div>
 					}
-				/>
+				>
+					{activeTab === "Products" && (
+						<div className="flex items-center gap-2">
+							{noStockProductsCount > 0 && (
+								<div className="bg-destructive/10 text-destructive px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+									{noStockProductsCount} No Stock
+								</div>
+							)}
+							{lowStockProductsCount > 0 && (
+								<div className="bg-warning/10 text-warning-foreground px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+									{lowStockProductsCount} Low Stock
+								</div>
+							)}
+						</div>
+					)}
+				</PageHeader>
 
 				<div className="px-10 mt-6">
 					<ModuleTabs 
 						tabs={tabs} 
-						activeTab={activeTab} 
 						onTabChange={(val) => {
 							const target = tabs.find(t => t.value === val);
 							if (target && target.value !== activeTab) {

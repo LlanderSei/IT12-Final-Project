@@ -14,13 +14,9 @@ import {
 import { 
 	Search, 
 	Plus, 
-	Filter, 
 	RotateCcw, 
 	Edit2, 
 	Image as ImageIcon,
-	Tags,
-	Package,
-	DollarSign
 } from "lucide-react";
 import { Badge } from "@/Components/ui/badge";
 import { 
@@ -32,6 +28,7 @@ import usePermissions from "@/hooks/usePermissions";
 import ProductFormModal from "./Partials/ProductFormModal";
 import CategoryManagementModal from "./Partials/CategoryManagementModal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
+import { Separator } from "@/Components/ui/separator";
 
 export default function Products({
 	products,
@@ -63,6 +60,8 @@ export default function Products({
 	const [imageInputKey, setImageInputKey] = useState(0);
 	const [selectedImagePreview, setSelectedImagePreview] = useState(null);
 	const [existingImageUrl, setExistingImageUrl] = useState(null);
+	const [clientImageError, setClientImageError] = useState("");
+	const maxImageBytes = 2 * 1024 * 1024;
 
 	// Forms
 	const productForm = useForm({
@@ -127,6 +126,8 @@ export default function Products({
 		productForm.reset();
 		setSelectedImagePreview(null);
 		setExistingImageUrl(null);
+		setClientImageError("");
+		setImageInputKey((prev) => prev + 1);
 		setIsModalOpen(true);
 	};
 
@@ -144,22 +145,35 @@ export default function Products({
 		});
 		setSelectedImagePreview(null);
 		setExistingImageUrl(product.ProductImageUrl || null);
+		setClientImageError("");
+		setImageInputKey((prev) => prev + 1);
 		setIsModalOpen(true);
 	};
 
 	const handleImageSelection = (e) => {
 		const file = e.target.files?.[0] || null;
+		if (file && file.size > maxImageBytes) {
+			setClientImageError("Image must be 2MB or smaller.");
+			productForm.setData("ProductImage", null);
+			productForm.setData("RemoveProductImage", false);
+			setSelectedImagePreview(null);
+			setImageInputKey((prev) => prev + 1);
+			return;
+		}
 		productForm.setData("ProductImage", file);
 		productForm.setData("RemoveProductImage", false);
+		setClientImageError("");
 		if (file) {
 			setSelectedImagePreview(URL.createObjectURL(file));
 			setExistingImageUrl(null);
 		}
+		setImageInputKey(prev => prev + 1);
 	};
 
 	const removeSelectedImage = () => {
 		productForm.setData("ProductImage", null);
 		setSelectedImagePreview(null);
+		setClientImageError("");
 		if (existingImageUrl) {
 			productForm.setData("RemoveProductImage", true);
 			setExistingImageUrl(null);
@@ -173,8 +187,12 @@ export default function Products({
 			forceFormData: true,
 			onSuccess: () => setIsModalOpen(false)
 		};
-		if (editingProduct) productForm.put(route("inventory.products.update", editingProduct.ID), options);
-		else productForm.post(route("inventory.products.store"), options);
+		if (editingProduct) {
+			productForm.transform((data) => ({ ...data, _method: "put" }));
+			productForm.post(route("inventory.products.update", editingProduct.ID), options);
+		} else {
+			productForm.post(route("inventory.products.store"), options);
+		}
 	};
 
 	const openCategoryManager = () => {
@@ -200,64 +218,70 @@ export default function Products({
 		{
 			header: "Product Detail",
 			accessorKey: "ProductName",
-			cell: (row) => (
-				<div className="flex items-center gap-3">
-					<div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden border">
-						{row.ProductImageUrl ? (
-							<img src={row.ProductImageUrl} alt="" className="h-full w-full object-cover" />
-						) : (
-							<ImageIcon className="h-5 w-5 text-muted-foreground/50" />
-						)}
-					</div>
-					<div>
-						<div className="font-bold text-gray-900">{row.ProductName}</div>
-						<div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-							{row.category?.CategoryName || "Uncategorized"}
+			cell: ({ row }) => {
+				const p = row.original;
+				return (
+					<div className="flex items-center gap-3">
+						<div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center overflow-hidden border">
+							{p.ProductImageUrl ? (
+								<img src={p.ProductImageUrl} alt="" className="h-full w-full object-cover" />
+							) : (
+								<ImageIcon className="h-5 w-5 text-muted-foreground/50" />
+							)}
+						</div>
+						<div>
+							<div className="font-bold text-gray-900">{p.ProductName}</div>
+							<div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+								{p.category?.CategoryName || "Uncategorized"}
+							</div>
 						</div>
 					</div>
-				</div>
-			),
+				);
+			},
 			sortable: true
 		},
 		{
 			header: "Source",
 			accessorKey: "ProductFrom",
-			cell: (row) => <Badge variant="secondary" className="font-bold uppercase text-[10px]">{row.ProductFrom || "N/A"}</Badge>,
+			cell: ({ row }) => <Badge variant="secondary" className="font-bold uppercase text-[10px]">{row.original.ProductFrom || "N/A"}</Badge>,
 			sortable: true
 		},
 		{
 			header: "Unit Price",
 			accessorKey: "Price",
-			cell: (row) => <div className="font-black text-primary">₱{Number(row.Price).toFixed(2)}</div>,
+			cell: ({ row }) => <div className="font-black text-primary">₱{Number(row.original.Price).toFixed(2)}</div>,
 			sortable: true,
 			className: "text-right"
 		},
 		{
 			header: "Inventory",
 			accessorKey: "Quantity",
-			cell: (row) => (
-				<div>
-					<div className="font-bold">{row.Quantity} units</div>
-					<div className="text-[10px] text-muted-foreground font-medium italic">Min: {row.LowStockThreshold ?? 10}</div>
-				</div>
-			),
+			cell: ({ row }) => {
+				const p = row.original;
+				return (
+					<div>
+						<div className="font-bold">{p.Quantity} units</div>
+						<div className="text-[10px] text-muted-foreground font-medium italic">Min: {p.LowStockThreshold ?? 10}</div>
+					</div>
+				);
+			},
 			sortable: true
 		},
 		{
 			header: "Status",
 			id: "status",
-			cell: (row) => <StatusBadge status={getStatus(row)} />,
+			cell: ({ row }) => <StatusBadge status={getStatus(row.original)} />,
 			sortable: true
 		},
 		{
 			header: "Actions",
 			id: "actions",
-			cell: (row) => (
+			cell: ({ row }) => (
 				<Button 
 					variant="ghost" 
 					size="icon" 
 					className="h-8 w-8 text-primary hover:text-primary-hover hover:bg-primary-soft"
-					onClick={() => openEditModal(row)}
+					onClick={() => openEditModal(row.original)}
 					disabled={!canUpdateProduct}
 				>
 					<Edit2 className="h-4 w-4" />

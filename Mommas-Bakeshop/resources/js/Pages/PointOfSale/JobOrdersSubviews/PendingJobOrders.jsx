@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import DataTable from "@/Components/DataTable";
 import PageHeader from "@/Components/PageHeader";
@@ -16,6 +16,12 @@ import {
 } from "lucide-react";
 import { exportJobOrderPdf } from "@/utils/saleDocuments";
 import usePermissions from "@/hooks/usePermissions";
+import { formatCountLabel } from "@/utils/countLabel";
+import {
+	countOverdueDeliveries,
+	getDeliveryTimestamp,
+	isDeliveryOverdue,
+} from "@/utils/jobOrders";
 
 // Partials
 import JobOrderDetailDialog from "./Partials/JobOrderDetailDialog";
@@ -31,13 +37,21 @@ const plusThirtyDaysISO = () => {
 	return date.toISOString().split("T")[0];
 };
 
-export default function PendingJobOrders({ rows = [] }) {
+export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 	const { requirePermission } = usePermissions();
 	
 	// Modal States
 	const [viewOrder, setViewOrder] = useState(null);
 	const [deliverTarget, setDeliverTarget] = useState(null);
 	const [cancelTarget, setCancelTarget] = useState(null);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [deliveryFilter, setDeliveryFilter] = useState("all");
+	const [sortConfig, setSortConfig] = useState({
+		key: "DeliveryAt",
+		direction: "asc",
+	});
+	const [currentPage, setCurrentPage] = useState(1);
+	const [itemsPerPage, setItemsPerPage] = useState(25);
 
 	const deliverForm = useForm({
 		paymentSelection: "pay_later",
@@ -136,6 +150,119 @@ export default function PendingJobOrders({ rows = [] }) {
 		cancelForm.post(route("pos.job-orders.cancel", cancelTarget.ID), {
 			onSuccess: () => setCancelTarget(null),
 		});
+	};
+
+	const resetFilters = () => {
+		setSearchQuery("");
+		setDeliveryFilter("all");
+	};
+
+	const requestSort = (key) => {
+		let direction = "asc";
+		if (sortConfig.key === key && sortConfig.direction === "asc") {
+			direction = "desc";
+		}
+		setSortConfig({ key, direction });
+	};
+
+	const filteredAndSortedRows = useMemo(() => {
+		let items = [...(rows || [])];
+		const query = searchQuery.trim().toLowerCase();
+		const referenceTime = Date.now();
+
+		if (query) {
+			items = items.filter((row) => {
+				const haystack = [
+					`#${row.ID}`,
+					row.ID,
+					row.customer?.CustomerName,
+					row.Status,
+					row.TotalAmount,
+					row.DeliveryAt,
+				]
+					.join(" ")
+					.toLowerCase();
+				return haystack.includes(query);
+			});
+		}
+
+		if (deliveryFilter !== "all") {
+			items = items.filter((row) => {
+				const overdue = isDeliveryOverdue(row, referenceTime);
+				return deliveryFilter === "overdue" ? overdue : !overdue;
+			});
+		}
+
+		items.sort((a, b) => {
+			const getValue = (row) => {
+				switch (sortConfig.key) {
+					case "ID":
+						return Number(row.ID || 0);
+					case "Customer":
+						return String(row.customer?.CustomerName || "").toLowerCase();
+					case "DeliveryAt":
+						return getDeliveryTimestamp(row.DeliveryAt) || 0;
+					case "TotalAmount":
+						return Number(row.TotalAmount || 0);
+					case "Status":
+						return String(row.Status || "").toLowerCase();
+					default:
+						return String(row[sortConfig.key] || "").toLowerCase();
+				}
+			};
+
+			const aValue = getValue(a);
+			const bValue = getValue(b);
+			if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+			if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+			return 0;
+		});
+
+		return items;
+	}, [rows, searchQuery, deliveryFilter, sortConfig]);
+
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [searchQuery, deliveryFilter, sortConfig, itemsPerPage]);
+
+	const totalPages = Math.max(1, Math.ceil(filteredAndSortedRows.length / itemsPerPage));
+	const safeCurrentPage = Math.min(currentPage, totalPages);
+	const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+	const paginatedRows = filteredAndSortedRows.slice(startIndex, startIndex + itemsPerPage);
+	const pageNumberWindow = 2;
+	const pageStart = Math.max(1, safeCurrentPage - pageNumberWindow);
+	const pageEnd = Math.min(totalPages, safeCurrentPage + pageNumberWindow);
+	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
+	const canGoPrevious = safeCurrentPage > 1;
+	const canGoNext = safeCurrentPage < totalPages;
+	const countLabel = formatCountLabel(
+		filteredAndSortedRows.length,
+		"pending job order",
+		"pending job orders",
+	);
+	const overdueCount = countOverdueDeliveries(filteredAndSortedRows);
+	const alertLabel =
+		overdueCount > 0
+			? `${overdueCount} overdue ${overdueCount === 1 ? "delivery" : "deliveries"}`
+			: "";
+
+	useEffect(() => {
+		onHeaderMetaChange?.({
+			subtitle: "Pending Job Orders",
+			countLabel,
+			alertLabel,
+		});
+	}, [onHeaderMetaChange, countLabel, alertLabel]);
+
+	const goToPage = (page) => {
+		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
+	};
+
+	const statusBadgeClass = (status) => {
+		if (status === "Pending") return "bg-yellow-100 text-yellow-800";
+		if (status === "Delivered") return "bg-green-100 text-green-800";
+		if (status === "Cancelled") return "bg-red-100 text-red-800";
+		return "bg-gray-100 text-gray-800";
 	};
 
 	return (

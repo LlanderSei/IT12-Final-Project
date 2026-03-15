@@ -100,24 +100,97 @@ return new class extends Migration {
 			');
 
 		DB::unprepared('
-					CREATE TRIGGER BlockProductLeftoverUpdate
-					BEFORE UPDATE ON product_leftovers
-					FOR EACH ROW
-					BEGIN
-						SIGNAL SQLSTATE "45000"
-							SET MESSAGE_TEXT = "Snapshot leftovers are immutable; updating lines is not allowed.";
-					END
-				');
+				CREATE TRIGGER UpdateProductLeftoverSnapshotOnUpdate
+				AFTER UPDATE ON product_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE old_total_products BIGINT;
+					DECLARE old_total_leftovers BIGINT;
+					DECLARE old_total_amount DECIMAL(12, 2);
+					DECLARE snapshot_user_id BIGINT;
+					DECLARE old_line_amount DECIMAL(14, 2);
+					DECLARE new_line_amount DECIMAL(14, 2);
+
+					SET old_line_amount = ROUND(OLD.LeftoverQuantity * OLD.PerUnitAmount, 2);
+					SET new_line_amount = ROUND(NEW.LeftoverQuantity * NEW.PerUnitAmount, 2);
+
+					SELECT TotalProducts, TotalLeftovers, TotalAmount, UserID
+					INTO old_total_products, old_total_leftovers, old_total_amount, snapshot_user_id
+					FROM product_leftover_snapshots
+					WHERE ID = NEW.ProductLeftoverID;
+
+					UPDATE product_leftover_snapshots
+					SET
+						TotalLeftovers = TotalLeftovers + (NEW.LeftoverQuantity - OLD.LeftoverQuantity),
+						TotalAmount = ROUND(TotalAmount + (new_line_amount - old_line_amount), 2)
+					WHERE ID = NEW.ProductLeftoverID;
+				END
+			');
 
 		DB::unprepared('
-					CREATE TRIGGER BlockProductLeftoverDelete
-					BEFORE DELETE ON product_leftovers
-					FOR EACH ROW
-					BEGIN
+				CREATE TRIGGER UpdateProductLeftoverSnapshotOnDelete
+				AFTER DELETE ON product_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE old_total_products BIGINT;
+					DECLARE old_total_leftovers BIGINT;
+					DECLARE old_total_amount DECIMAL(12, 2);
+					DECLARE snapshot_user_id BIGINT;
+					DECLARE line_amount DECIMAL(14, 2);
+
+					SET line_amount = ROUND(OLD.LeftoverQuantity * OLD.PerUnitAmount, 2);
+
+					SELECT TotalProducts, TotalLeftovers, TotalAmount, UserID
+					INTO old_total_products, old_total_leftovers, old_total_amount, snapshot_user_id
+					FROM product_leftover_snapshots
+					WHERE ID = OLD.ProductLeftoverID;
+
+					UPDATE product_leftover_snapshots
+					SET
+						TotalProducts = IF(TotalProducts > 0, TotalProducts - 1, 0),
+						TotalLeftovers = IF(TotalLeftovers > OLD.LeftoverQuantity, TotalLeftovers - OLD.LeftoverQuantity, 0),
+						TotalAmount = ROUND(IF(TotalAmount > line_amount, TotalAmount - line_amount, 0), 2)
+					WHERE ID = OLD.ProductLeftoverID;
+				END
+			');
+
+		DB::unprepared('
+				CREATE TRIGGER BlockProductLeftoverUpdate
+				BEFORE UPDATE ON product_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE snapshot_date DATE;
+
+					SELECT DATE(SnapshotTime)
+					INTO snapshot_date
+					FROM product_leftover_snapshots
+					WHERE ID = OLD.ProductLeftoverID;
+
+					IF snapshot_date IS NULL OR snapshot_date <> CURDATE() THEN
+						SIGNAL SQLSTATE "45000"
+							SET MESSAGE_TEXT = "Snapshot leftovers are immutable; updating lines is not allowed.";
+					END IF;
+				END
+			');
+
+		DB::unprepared('
+				CREATE TRIGGER BlockProductLeftoverDelete
+				BEFORE DELETE ON product_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE snapshot_date DATE;
+
+					SELECT DATE(SnapshotTime)
+					INTO snapshot_date
+					FROM product_leftover_snapshots
+					WHERE ID = OLD.ProductLeftoverID;
+
+					IF snapshot_date IS NULL OR snapshot_date <> CURDATE() THEN
 						SIGNAL SQLSTATE "45000"
 							SET MESSAGE_TEXT = "Snapshot leftovers are immutable; deleting lines is not allowed.";
-					END
-				');
+					END IF;
+				END
+			');
 
 		DB::unprepared('
 			CREATE TRIGGER UpdatePaymentStatus
@@ -337,6 +410,154 @@ return new class extends Migration {
 		');
 
 		DB::unprepared('
+			CREATE TRIGGER AutoInventorySnapshotOnInsert
+			AFTER INSERT ON inventory
+			FOR EACH ROW
+			BEGIN
+				DECLARE snapshot_id BIGINT DEFAULT NULL;
+				DECLARE snapshot_user_id BIGINT DEFAULT NULL;
+
+				IF IFNULL(NEW.Quantity, 0) > 0 THEN
+					SELECT ID INTO snapshot_id
+					FROM inventory_leftover_snapshots
+					WHERE SnapshotTime >= CURDATE()
+						AND SnapshotTime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+					ORDER BY SnapshotTime DESC, ID DESC
+					LIMIT 1;
+
+					IF snapshot_id IS NULL THEN
+						SELECT id INTO snapshot_user_id FROM users ORDER BY id ASC LIMIT 1;
+						INSERT INTO inventory_leftover_snapshots (UserID, TotalItems, TotalLeftovers, SnapshotTime)
+						VALUES (snapshot_user_id, 0, 0, NOW());
+						SET snapshot_id = LAST_INSERT_ID();
+					END IF;
+
+					INSERT INTO inventory_leftovers (InventoryLeftoverID, InventoryID, LeftoverQuantity, DateAdded)
+					VALUES (snapshot_id, NEW.ID, NEW.Quantity, NOW())
+					ON DUPLICATE KEY UPDATE
+						LeftoverQuantity = VALUES(LeftoverQuantity),
+						DateAdded = VALUES(DateAdded);
+				END IF;
+			END
+		');
+
+		DB::unprepared('
+			CREATE TRIGGER AutoInventorySnapshotOnUpdate
+			AFTER UPDATE ON inventory
+			FOR EACH ROW
+			BEGIN
+				DECLARE snapshot_id BIGINT DEFAULT NULL;
+				DECLARE snapshot_user_id BIGINT DEFAULT NULL;
+
+				IF IFNULL(NEW.Quantity, 0) <> IFNULL(OLD.Quantity, 0) THEN
+					SELECT ID INTO snapshot_id
+					FROM inventory_leftover_snapshots
+					WHERE SnapshotTime >= CURDATE()
+						AND SnapshotTime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+					ORDER BY SnapshotTime DESC, ID DESC
+					LIMIT 1;
+
+					IF snapshot_id IS NULL THEN
+						SELECT id INTO snapshot_user_id FROM users ORDER BY id ASC LIMIT 1;
+						INSERT INTO inventory_leftover_snapshots (UserID, TotalItems, TotalLeftovers, SnapshotTime)
+						VALUES (snapshot_user_id, 0, 0, NOW());
+						SET snapshot_id = LAST_INSERT_ID();
+					END IF;
+
+					IF IFNULL(NEW.Quantity, 0) > 0 THEN
+						INSERT INTO inventory_leftovers (InventoryLeftoverID, InventoryID, LeftoverQuantity, DateAdded)
+						VALUES (snapshot_id, NEW.ID, NEW.Quantity, NOW())
+						ON DUPLICATE KEY UPDATE
+							LeftoverQuantity = VALUES(LeftoverQuantity),
+							DateAdded = VALUES(DateAdded);
+					ELSE
+						DELETE FROM inventory_leftovers
+						WHERE InventoryLeftoverID = snapshot_id
+							AND InventoryID = NEW.ID;
+					END IF;
+				END IF;
+			END
+		');
+
+		DB::unprepared('
+			CREATE TRIGGER AutoProductSnapshotOnInsert
+			AFTER INSERT ON products
+			FOR EACH ROW
+			BEGIN
+				DECLARE snapshot_id BIGINT DEFAULT NULL;
+				DECLARE snapshot_user_id BIGINT DEFAULT NULL;
+				DECLARE unit_amount DECIMAL(10, 2);
+
+				IF IFNULL(NEW.Quantity, 0) > 0 THEN
+					SELECT ID INTO snapshot_id
+					FROM product_leftover_snapshots
+					WHERE SnapshotTime >= CURDATE()
+						AND SnapshotTime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+					ORDER BY SnapshotTime DESC, ID DESC
+					LIMIT 1;
+
+					IF snapshot_id IS NULL THEN
+						SELECT id INTO snapshot_user_id FROM users ORDER BY id ASC LIMIT 1;
+						INSERT INTO product_leftover_snapshots (UserID, TotalProducts, TotalLeftovers, TotalAmount, SnapshotTime)
+						VALUES (snapshot_user_id, 0, 0, 0, NOW());
+						SET snapshot_id = LAST_INSERT_ID();
+					END IF;
+
+					SET unit_amount = ROUND(CAST(NEW.Price AS DECIMAL(10, 2)), 2);
+
+					INSERT INTO product_leftovers (ProductLeftoverID, ProductID, LeftoverQuantity, PerUnitAmount, DateAdded)
+					VALUES (snapshot_id, NEW.ID, NEW.Quantity, unit_amount, NOW())
+					ON DUPLICATE KEY UPDATE
+						LeftoverQuantity = VALUES(LeftoverQuantity),
+						PerUnitAmount = VALUES(PerUnitAmount),
+						DateAdded = VALUES(DateAdded);
+				END IF;
+			END
+		');
+
+		DB::unprepared('
+			CREATE TRIGGER AutoProductSnapshotOnUpdate
+			AFTER UPDATE ON products
+			FOR EACH ROW
+			BEGIN
+				DECLARE snapshot_id BIGINT DEFAULT NULL;
+				DECLARE snapshot_user_id BIGINT DEFAULT NULL;
+				DECLARE unit_amount DECIMAL(10, 2);
+
+				IF IFNULL(NEW.Quantity, 0) <> IFNULL(OLD.Quantity, 0)
+					OR IFNULL(NEW.Price, 0) <> IFNULL(OLD.Price, 0) THEN
+					SELECT ID INTO snapshot_id
+					FROM product_leftover_snapshots
+					WHERE SnapshotTime >= CURDATE()
+						AND SnapshotTime < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+					ORDER BY SnapshotTime DESC, ID DESC
+					LIMIT 1;
+
+					IF snapshot_id IS NULL THEN
+						SELECT id INTO snapshot_user_id FROM users ORDER BY id ASC LIMIT 1;
+						INSERT INTO product_leftover_snapshots (UserID, TotalProducts, TotalLeftovers, TotalAmount, SnapshotTime)
+						VALUES (snapshot_user_id, 0, 0, 0, NOW());
+						SET snapshot_id = LAST_INSERT_ID();
+					END IF;
+
+					IF IFNULL(NEW.Quantity, 0) > 0 THEN
+						SET unit_amount = ROUND(CAST(NEW.Price AS DECIMAL(10, 2)), 2);
+						INSERT INTO product_leftovers (ProductLeftoverID, ProductID, LeftoverQuantity, PerUnitAmount, DateAdded)
+						VALUES (snapshot_id, NEW.ID, NEW.Quantity, unit_amount, NOW())
+						ON DUPLICATE KEY UPDATE
+							LeftoverQuantity = VALUES(LeftoverQuantity),
+							PerUnitAmount = VALUES(PerUnitAmount),
+							DateAdded = VALUES(DateAdded);
+					ELSE
+						DELETE FROM product_leftovers
+						WHERE ProductLeftoverID = snapshot_id
+							AND ProductID = NEW.ID;
+					END IF;
+				END IF;
+			END
+		');
+
+		DB::unprepared('
 				CREATE TRIGGER UpdateInventoryLeftoverSnapshotOnInsert
 				AFTER INSERT ON inventory_leftovers
 				FOR EACH ROW
@@ -371,24 +592,85 @@ return new class extends Migration {
 			');
 
 		DB::unprepared('
-					CREATE TRIGGER BlockInventoryLeftoverUpdate
-					BEFORE UPDATE ON inventory_leftovers
-					FOR EACH ROW
-					BEGIN
-						SIGNAL SQLSTATE "45000"
-							SET MESSAGE_TEXT = "Snapshot leftovers are immutable; updating lines is not allowed.";
-					END
-				');
+				CREATE TRIGGER UpdateInventoryLeftoverSnapshotOnUpdate
+				AFTER UPDATE ON inventory_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE old_total_items BIGINT;
+					DECLARE old_total_leftovers BIGINT;
+					DECLARE snapshot_user_id BIGINT;
+
+					SELECT TotalItems, TotalLeftovers, UserID
+					INTO old_total_items, old_total_leftovers, snapshot_user_id
+					FROM inventory_leftover_snapshots
+					WHERE ID = NEW.InventoryLeftoverID;
+
+					UPDATE inventory_leftover_snapshots
+					SET
+						TotalLeftovers = TotalLeftovers + (NEW.LeftoverQuantity - OLD.LeftoverQuantity)
+					WHERE ID = NEW.InventoryLeftoverID;
+				END
+			');
 
 		DB::unprepared('
-					CREATE TRIGGER BlockInventoryLeftoverDelete
-					BEFORE DELETE ON inventory_leftovers
-					FOR EACH ROW
-					BEGIN
+				CREATE TRIGGER UpdateInventoryLeftoverSnapshotOnDelete
+				AFTER DELETE ON inventory_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE old_total_items BIGINT;
+					DECLARE old_total_leftovers BIGINT;
+					DECLARE snapshot_user_id BIGINT;
+
+					SELECT TotalItems, TotalLeftovers, UserID
+					INTO old_total_items, old_total_leftovers, snapshot_user_id
+					FROM inventory_leftover_snapshots
+					WHERE ID = OLD.InventoryLeftoverID;
+
+					UPDATE inventory_leftover_snapshots
+					SET
+						TotalItems = IF(TotalItems > 0, TotalItems - 1, 0),
+						TotalLeftovers = IF(TotalLeftovers > OLD.LeftoverQuantity, TotalLeftovers - OLD.LeftoverQuantity, 0)
+					WHERE ID = OLD.InventoryLeftoverID;
+				END
+			');
+
+		DB::unprepared('
+				CREATE TRIGGER BlockInventoryLeftoverUpdate
+				BEFORE UPDATE ON inventory_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE snapshot_date DATE;
+
+					SELECT DATE(SnapshotTime)
+					INTO snapshot_date
+					FROM inventory_leftover_snapshots
+					WHERE ID = OLD.InventoryLeftoverID;
+
+					IF snapshot_date IS NULL OR snapshot_date <> CURDATE() THEN
+						SIGNAL SQLSTATE "45000"
+							SET MESSAGE_TEXT = "Snapshot leftovers are immutable; updating lines is not allowed.";
+					END IF;
+				END
+			');
+
+		DB::unprepared('
+				CREATE TRIGGER BlockInventoryLeftoverDelete
+				BEFORE DELETE ON inventory_leftovers
+				FOR EACH ROW
+				BEGIN
+					DECLARE snapshot_date DATE;
+
+					SELECT DATE(SnapshotTime)
+					INTO snapshot_date
+					FROM inventory_leftover_snapshots
+					WHERE ID = OLD.InventoryLeftoverID;
+
+					IF snapshot_date IS NULL OR snapshot_date <> CURDATE() THEN
 						SIGNAL SQLSTATE "45000"
 							SET MESSAGE_TEXT = "Snapshot leftovers are immutable; deleting lines is not allowed.";
-					END
-				');
+					END IF;
+				END
+			');
 
 		foreach ($this->trackedTables() as $table) {
 			$primaryKey = $this->primaryKeyForTable($table);
@@ -444,6 +726,10 @@ return new class extends Migration {
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdatePaymentStatus');
 		DB::unprepared('DROP TRIGGER IF EXISTS TriggerUpdateStockQuantitiesOnStockIn');
 		DB::unprepared('DROP TRIGGER IF EXISTS TriggerUpdateStockQuantitiesOnStockOut');
+		DB::unprepared('DROP TRIGGER IF EXISTS AutoInventorySnapshotOnInsert');
+		DB::unprepared('DROP TRIGGER IF EXISTS AutoInventorySnapshotOnUpdate');
+		DB::unprepared('DROP TRIGGER IF EXISTS AutoProductSnapshotOnInsert');
+		DB::unprepared('DROP TRIGGER IF EXISTS AutoProductSnapshotOnUpdate');
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductLeftoverSnapshotOnInsert');
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductLeftoverSnapshotOnUpdate');
 		DB::unprepared('DROP TRIGGER IF EXISTS UpdateProductLeftoverSnapshotOnDelete');

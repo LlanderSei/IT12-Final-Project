@@ -8,17 +8,12 @@ import { Input } from "@/Components/ui/input";
 import { 
     Search, 
     RotateCcw, 
-    Plus, 
     TrendingDown, 
     ChevronRight, 
-    CheckCircle2, 
-    Clock, 
     History,
-    AlertTriangle,
     Eye,
     ShieldCheck,
     Trash2,
-    Calendar as CalendarIcon
 } from "lucide-react";
 import { Badge } from "@/Components/ui/badge";
 import { 
@@ -50,6 +45,9 @@ const buildGroupedQuantities = (items = [], excludeIndex = null) =>
 		accumulator[productId] = (accumulator[productId] || 0) + quantity;
 		return accumulator;
 	}, {});
+
+const formatCountLabel = (count, label) => 
+	`${count} ${label}${count !== 1 ? 's' : ''}`;
 
 export default function ShrinkageHistory({
 	shrinkages = [],
@@ -104,6 +102,10 @@ export default function ShrinkageHistory({
 		let items = [...(shrinkages || [])];
 		const query = searchQuery.toLowerCase().trim();
 		
+		if (reasonFilter !== "all") {
+			items = items.filter(s => s.Reason === reasonFilter);
+		}
+
 		if (query) {
 			items = items.filter(s => 
 				s.ID.toString().includes(query) ||
@@ -112,10 +114,14 @@ export default function ShrinkageHistory({
 				s.items?.some(i => i.ProductName?.toLowerCase().includes(query))
 			);
 		}
-		if (reasonFilter !== "all") items = items.filter(s => s.Reason === reasonFilter);
 		
 		return items;
 	}, [shrinkages, searchQuery, reasonFilter]);
+
+	const unconfirmedCount = useMemo(
+		() => shrinkages.filter(s => !s.VerificationStatus || s.VerificationStatus === "Pending").length,
+		[shrinkages]
+	);
 
 	// Handlers
 	const addProductLine = () => {
@@ -308,7 +314,7 @@ export default function ShrinkageHistory({
 				<PageHeader 
 					title="Inventory Shrinkage" 
 					subtitle="Audit History"
-					count={filteredShrinkages.length === shrinkages.length ? `${shrinkages.length} Records` : `${filteredShrinkages.length} of ${shrinkages.length}`}
+					count={filteredShrinkages.length === shrinkages.length ? formatCountLabel(shrinkages.length, "Record") : `${filteredShrinkages.length} of ${shrinkages.length}`}
 					actions={
 						<Button 
 							className="rounded-xl font-black uppercase tracking-widest text-[11px] h-12 px-8 gap-3 bg-foreground text-white shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
@@ -318,7 +324,13 @@ export default function ShrinkageHistory({
 							<TrendingDown className="h-5 w-5" /> Record New Loss
 						</Button>
 					}
-				/>
+				>
+					{unconfirmedCount > 0 && (
+						<div className="bg-warning/10 text-warning-foreground px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+							{unconfirmedCount} Pending Verification
+						</div>
+					)}
+				</PageHeader>
 
 				<main className="flex-1 overflow-hidden p-10 pt-6">
 					<div className="bg-white rounded-[2.5rem] border shadow-2xl shadow-slate-200/50 h-full flex flex-col overflow-hidden relative p-8">
@@ -420,7 +432,7 @@ export default function ShrinkageHistory({
 				title="Delete Shrinkage Record?"
 				message="This action is permanent and will remove this audit trial entry. This should only be done for data entry errors."
 				confirmText="Permanently Delete"
-				variant="danger"
+				variant="destructive"
 			/>
 
 			<ConfirmationModal 

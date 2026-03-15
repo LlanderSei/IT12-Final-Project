@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { usePage } from "@inertiajs/react";
+import React, { useEffect, useMemo, useState } from "react";
+import { router, usePage } from "@inertiajs/react";
 import usePermissions from "@/hooks/usePermissions";
 import { ChevronLeft, ChevronDown, Croissant, Sun, Moon, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/Components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/Components/ui/tooltip";
+import { countOverdueDeliveries } from "@/utils/jobOrders";
 import ProfileModal from "./ProfileModal";
 import LogoutModal from "./LogoutModal";
 import SidebarItem from "./SidebarItem";
@@ -54,7 +55,8 @@ const NAV_STRUCTURE = [
 ];
 
 const Sidebar = () => {
-	const { auth } = usePage().props;
+	const pageProps = usePage().props;
+	const { auth } = pageProps;
 	const user = auth?.user ?? { name: "Admin User", role: "admin" };
 	const { can, canAny } = usePermissions();
 
@@ -99,15 +101,59 @@ const Sidebar = () => {
 	const resolvedRoleColor = /^#[0-9A-Fa-f]{6}$/.test(user.roleColor || "")
 		? user.roleColor.toUpperCase()
 		: DEFAULT_ROLE_COLOR;
+	
 	const roleMeta = {
 		label: user.roleLabel || user.role || "User",
 		bg: rgbaFromHex(resolvedRoleColor, 0.12),
 		color: resolvedRoleColor,
 	};
 
+	// --- Permissions Logic from Develop ---
+	const canViewSalesHistoryNav = can("CanViewSalesHistory") && (can("CanViewSalesHistorySales") || can("CanViewSalesHistoryPendingPayments"));
+	const canViewReportsNav = can("CanViewReportsOverview") || can("CanViewReportsFullBreakdown");
+	const canViewUserMgmtNav = can("CanViewUserManagementUsers") || can("CanViewUserManagementPermissions") || can("CanViewUserManagementRoles") || can("CanViewUserManagementPermissionGroups");
+	const canViewDatabaseNav = can("CanViewDatabaseBackups") || can("CanViewDatabaseConnections") || can("CanViewDatabaseMaintenanceJobs") || can("CanViewDatabaseSchemaReport") || can("CanViewDatabaseDataTransfer") || can("CanViewDatabaseRetentionCleanup");
+
+	// --- Badges Logic from Develop ---
+	const pendingJobOrders = Array.isArray(pageProps?.pendingJobOrders) ? pageProps.pendingJobOrders : [];
+	const sharedOverdueCount = Number(pageProps?.overdueJobOrdersCount || 0);
+	const noStockInventoryCount = Number(pageProps?.noStockInventoryCount || 0);
+	const noStockProductsCount = Number(pageProps?.noStockProductsCount || 0);
+	const unconfirmedShrinkageCount = Number(pageProps?.unconfirmedShrinkageCount || 0);
+	const overduePendingPaymentsCount = Number(pageProps?.overduePendingPaymentsCount || 0);
+
+	const overdueJobOrdersCount = useMemo(() => {
+		if (pendingJobOrders.length > 0) return countOverdueDeliveries(pendingJobOrders);
+		return Number.isFinite(sharedOverdueCount) ? sharedOverdueCount : 0;
+	}, [pendingJobOrders, sharedOverdueCount]);
+
 	const checkPermission = (item) => {
+		if (item.id === "pos.sale-history") return canViewSalesHistoryNav;
+		if (item.id === "admin.reports") return canViewReportsNav;
+		if (item.id === "admin.users") return canViewUserMgmtNav;
+		if (item.id === "admin.database") return canViewDatabaseNav;
 		if (!item.requiredPermissions?.length) return true;
 		return canAny(item.requiredPermissions);
+	};
+
+	const getResolvedHref = (item) => {
+		if (item.id === "pos.sale-history" && can("CanViewSalesHistory") && !can("CanViewSalesHistorySales") && can("CanViewSalesHistoryPendingPayments")) {
+			return route("pos.sale-history.pending");
+		}
+		if (item.id === "admin.reports" && !can("CanViewReportsOverview") && can("CanViewReportsFullBreakdown")) {
+			return route("admin.reports.full-breakdown");
+		}
+		// ... (Add other dynamic HREFs if needed, but the ones above are the main ones from develop)
+		return item.href;
+	};
+
+	const getBadgeCount = (itemId) => {
+		if (itemId === "pos.job-orders") return overdueJobOrdersCount;
+		if (itemId === "inventory.levels") return noStockInventoryCount;
+		if (itemId === "inventory.shrinkage-history") return unconfirmedShrinkageCount;
+		if (itemId === "inventory.products") return noStockProductsCount;
+		if (itemId === "pos.sale-history") return overduePendingPaymentsCount;
+		return 0;
 	};
 
 	return (
@@ -156,6 +202,7 @@ const Sidebar = () => {
 				<div className="size-[42px] min-w-[42px] rounded-full bg-primary-soft text-primary-hex flex items-center justify-center font-outfit font-bold text-base shadow-sm">
 					{user.name?.substring(0, 2).toUpperCase() || "MB"}
 				</div>
+
 				{isExpanded && (
 					<div className="flex flex-col gap-0.5 overflow-hidden">
 						<span className="font-semibold text-[0.9rem] text-foreground truncate">{user.name}</span>
@@ -194,7 +241,11 @@ const Sidebar = () => {
 								{visibleItems.map(item => (
 									<SidebarItem
 										key={item.id}
-										item={item}
+										item={{
+											...item,
+											href: getResolvedHref(item),
+											badgeCount: getBadgeCount(item.id)
+										}}
 										isActive={item.activeRoutes?.some(r => currentRoute === r || route().current(r) || route().current(r + ".*")) || currentRoute === item.id}
 										isExpanded={isExpanded}
 									/>
