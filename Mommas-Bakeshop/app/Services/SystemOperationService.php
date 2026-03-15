@@ -92,7 +92,7 @@ class SystemOperationService {
 
 		return SystemOperation::query()
 			->whereIn('Status', ['Pending', 'Running'])
-			->orderByRaw("FIELD(Status, 'Running', 'Pending')")
+			->orderByRaw("CASE Status WHEN 'Running' THEN 1 WHEN 'Pending' THEN 2 ELSE 3 END")
 			->orderByDesc('DateAdded')
 			->orderByDesc('ID')
 			->first();
@@ -104,7 +104,7 @@ class SystemOperationService {
 		return SystemOperation::query()
 			->where('LockWrites', true)
 			->whereIn('Status', ['Pending', 'Running'])
-			->orderByRaw("FIELD(Status, 'Running', 'Pending')")
+			->orderByRaw("CASE Status WHEN 'Running' THEN 1 WHEN 'Pending' THEN 2 ELSE 3 END")
 			->orderByDesc('DateAdded')
 			->orderByDesc('ID')
 			->first();
@@ -123,7 +123,7 @@ class SystemOperationService {
 
 		return SystemOperation::query()
 			->where('Scope', $scope)
-			->orderByRaw("FIELD(Status, 'Running', 'Pending', 'Failed', 'Completed')")
+			->orderByRaw("CASE Status WHEN 'Running' THEN 1 WHEN 'Pending' THEN 2 WHEN 'Failed' THEN 3 WHEN 'Completed' THEN 4 ELSE 5 END")
 			->orderByDesc('DateAdded')
 			->orderByDesc('ID')
 			->limit($limit)
