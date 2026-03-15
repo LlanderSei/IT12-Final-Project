@@ -95,26 +95,27 @@ export class DesktopProcessManager {
 
 		const phpBinary = await this.resolvePhpBinary();
 		const tmpDir = path.join(desktopConfig.projectRoot, "storage", "tmp").replace(/\\/g, "/");
+		
+		// Use direct php -S for more reliable configuration inheritance via -d flags
 		const args = [
 			"-d", `upload_tmp_dir=${tmpDir}`,
 			"-d", `sys_temp_dir=${tmpDir}`,
 			"-d", "upload_max_filesize=10M",
 			"-d", "post_max_size=10M",
-			"artisan",
-			"serve",
-			"--host",
-			desktopConfig.host,
-			"--port",
-			String(desktopConfig.port),
+			"-S", `${desktopConfig.host}:${desktopConfig.port}`,
+			"-t", "public"
 		];
+
+		const env = this.buildPhpEnv(phpBinary, {
+			APP_ENV: process.env.APP_ENV || "production",
+			PHP_CLI_SERVER_WORKERS: "4", // Enable multi-threaded support
+		});
 
 		this.backendProcess = spawn(phpBinary, args, {
 			cwd: desktopConfig.projectRoot,
 			stdio: "pipe",
 			windowsHide: true,
-			env: this.buildPhpEnv(phpBinary, {
-				APP_ENV: process.env.APP_ENV || "production",
-			}),
+			env,
 		});
 
 		this.backendProcess.stdout?.on("data", (chunk) => {

@@ -24,6 +24,7 @@ class PermissionsSeeder extends Seeder {
 			['GroupName' => 'User Management', 'GroupDescription' => 'Users, permissions, and roles administration.', 'DisplayOrder' => 10],
 			['GroupName' => 'Audits', 'GroupDescription' => 'Audit history access.', 'DisplayOrder' => 11],
 			['GroupName' => 'Database', 'GroupDescription' => 'Database backup management and local backup downloads.', 'DisplayOrder' => 12],
+			['GroupName' => 'Application', 'GroupDescription' => 'General application settings and configurations.', 'DisplayOrder' => 13],
 		];
 		foreach ($groups as $group) {
 			PermissionGroup::firstOrCreate(
@@ -140,6 +141,9 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanManageDatabaseBackupSettings', 'PermissionDescription' => 'Can update local backup retention and cleanup settings.', 'PermissionGroup' => 'Database'],
 			['PermissionName' => 'CanCleanupDatabaseBackups', 'PermissionDescription' => 'Can delete old local backups using the configured retention rules.', 'PermissionGroup' => 'Database'],
 			['PermissionName' => 'CanDownloadDatabaseBackup', 'PermissionDescription' => 'Can download generated database backup files.', 'PermissionGroup' => 'Database'],
+
+			// Application Settings
+			['PermissionName' => 'CanUpdateImageHosting', 'PermissionDescription' => 'Can modify image hosting service and API keys.', 'PermissionGroup' => 'Application'],
 
 			// Deferred:
 			// Sales and Shrinkage report tab permissions are intentionally postponed

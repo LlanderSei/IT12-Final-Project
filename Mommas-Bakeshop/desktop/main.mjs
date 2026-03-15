@@ -32,7 +32,6 @@ const createWindow = async () => {
 		process.chdir(config.projectRoot);
 	}
 
-	console.log("[desktop-main] Initializing startup sequence...");
 	splashWindow = await createSplashWindow();
 	splashWindow.focus();
 

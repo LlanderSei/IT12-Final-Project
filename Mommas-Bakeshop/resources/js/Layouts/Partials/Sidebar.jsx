@@ -228,6 +228,18 @@ const NAV_STRUCTURE = [
 			},
 		],
 	},
+	{
+		section: "Application",
+		items: [
+			{
+				id: "application.settings",
+				label: "Settings",
+				icon: "audits", // Temporarily use audits icon or find a better one
+				href: route("application.settings"),
+				requiredPermissions: ["CanUpdateImageHosting"],
+			},
+		],
+	},
 ];
 
 // ─── Role badge colour variants (matches reference .badge.admin/.cashier/.clerk) ─

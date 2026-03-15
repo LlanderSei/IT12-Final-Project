@@ -32,6 +32,7 @@ use App\Http\Controllers\Inventory\ProductsAndBatches\ProductionBatchesControlle
 use App\Http\Controllers\Inventory\ProductsAndBatches\ProductSnapshotsController;
 use App\Http\Controllers\Inventory\ProductsAndBatches\CategoryController as InventoryCategoryController;
 use App\Http\Controllers\Inventory\ShrinkageHistoryController;
+use App\Http\Controllers\Application\SettingsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -208,6 +209,10 @@ Route::middleware('auth')->group(function () {
   Route::put('/admin/database/settings', [RetentionAndCleanupController::class, 'updateSettings'])->middleware('permission:CanManageDatabaseBackupSettings')->name('admin.database.settings.update');
   Route::post('/admin/database/cleanup', [RetentionAndCleanupController::class, 'cleanup'])->middleware('permission:CanCleanupDatabaseBackups')->name('admin.database.cleanup');
   Route::get('/admin/database/backups/{id}/download', [BackupsController::class, 'download'])->middleware('permission:CanDownloadDatabaseBackup')->name('admin.database.download');
+
+  // Application Settings
+  Route::get('/application/settings', [SettingsController::class, 'index'])->name('application.settings');
+  Route::put('/application/settings', [SettingsController::class, 'update'])->middleware(['maintenance.lock'])->name('application.settings.update');
 });
 
 
