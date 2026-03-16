@@ -337,6 +337,9 @@ class UserManagementBaseController extends Controller {
         'CanCleanupDatabaseBackups',
         'CanDownloadDatabaseBackup',
       ],
+      'systemsLevel' => [
+        'CanUpdateImageHosting',
+      ],
     ];
   }
 
@@ -345,6 +348,7 @@ class UserManagementBaseController extends Controller {
       'cashierLevel' => 3,
       'clerkLevel' => 4,
       'adminLevel' => 2,
+      'systemsLevel' => 1,
     ];
   }
 

@@ -82,7 +82,7 @@ return new class extends Migration {
 			$table->foreignId('CategoryID')->constrained('categories', 'ID')->onDelete('cascade');
 			$table->text('ProductImage')->nullable();
 			$table->enum('ProductFrom', ['Produced', 'Purchased', 'Consignment'])->default('Produced'); // e.g. "Owned", "Consignment", "Drop-shipped"
-			$table->text('Price');
+			$table->decimal('Price', 10, 2);
 			$table->unsignedBigInteger('LowStockThreshold')->default(10);
 			$table->unsignedBigInteger('Quantity');
 			$table->timestamp('DateAdded')->useCurrent();

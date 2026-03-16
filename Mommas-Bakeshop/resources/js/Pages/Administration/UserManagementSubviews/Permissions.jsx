@@ -2,31 +2,153 @@ import React, { useEffect, useMemo, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import Modal from "@/Components/Modal";
+import SecondaryButton from "@/Components/SecondaryButton";
+import PrimaryButton from "@/Components/PrimaryButton";
+import TextInput from "@/Components/TextInput";
 
-function PermissionColumn({ permissions = [], rowPermissions = {}, onToggle, disabled = false }) {
+function PermissionGroupRow({ title, permissions, userPermissions, onToggle, searchQuery }) {
+	const [isOpen, setIsOpen] = useState(true);
+
+	const filteredPermissions = useMemo(() => {
+		if (!searchQuery) return permissions;
+		return permissions.filter(p => 
+			p.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			p.name.toLowerCase().includes(searchQuery.toLowerCase())
+		);
+	}, [permissions, searchQuery]);
+
+	if (filteredPermissions.length === 0 && searchQuery) return null;
+
 	return (
-		<div className="max-h-56 overflow-y-auto pr-2 space-y-2">
-			{permissions.map((permission) => (
-				<label key={permission.name} className="flex items-start gap-2 text-xs text-gray-700">
-					<input
-						type="checkbox"
-						className="mt-0.5 rounded border-gray-300 text-primary focus:ring-primary"
-						checked={Boolean(rowPermissions[permission.name])}
-						disabled={disabled}
-						onChange={(e) => onToggle(permission.name, e.target.checked)}
-					/>
-					<span className="leading-5 break-words">
-						<span className="block">{permission.label}</span>
-						{permission.groupName && (
-							<span className="mt-0.5 block text-[11px] text-gray-500">
-								Group: {permission.groupName}
-							</span>
-						)}
-					</span>
-				</label>
-			))}
-			{permissions.length === 0 && <p className="text-xs text-gray-400 italic">No permissions in this group.</p>}
+		<div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+			<button
+				onClick={() => setIsOpen(!isOpen)}
+				className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+			>
+				<span className="font-semibold text-sm text-gray-700">{title} ({filteredPermissions.length})</span>
+				<svg
+					className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+			{isOpen && (
+				<div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white">
+					{filteredPermissions.map((permission) => (
+						<label key={permission.name} className="flex items-start gap-3 p-2 hover:bg-gray-50 rounded-md cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								className="mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+								checked={Boolean(userPermissions[permission.name])}
+								onChange={(e) => onToggle(permission.name, e.target.checked)}
+							/>
+							<div className="flex flex-col">
+								<span className="text-sm font-medium text-gray-900">{permission.label}</span>
+								<span className="text-xs text-gray-500 font-mono">{permission.name}</span>
+							</div>
+						</label>
+					))}
+				</div>
+			)}
 		</div>
+	);
+}
+
+function EditPermissionModal({ show, onClose, user, permissionGroups, onSave, isSaving }) {
+	const [localPermissions, setLocalPermissions] = useState({});
+	const [searchQuery, setSearchQuery] = useState("");
+
+	useEffect(() => {
+		if (show && user) {
+			setLocalPermissions(user.permissions || {});
+		}
+	}, [show, user]);
+
+	const handleToggle = (name, checked) => {
+		setLocalPermissions(prev => ({ ...prev, [name]: checked }));
+	};
+
+	const handleSave = () => {
+		onSave(user.id, user.permissions, localPermissions);
+	};
+
+	return (
+		<Modal show={show} onClose={onClose} maxWidth="4xl">
+			<div className="p-6">
+				<div className="flex items-center justify-between mb-6">
+					<div>
+						<h3 className="text-lg font-bold text-gray-900">Edit Permissions</h3>
+						<p className="text-sm text-gray-500">Managing permissions for <span className="font-semibold text-primary">{user?.FullName}</span></p>
+					</div>
+					<button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+						<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
+
+				<div className="mb-6">
+					<div className="relative">
+						<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+							<svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+							</svg>
+						</div>
+						<TextInput
+							type="text"
+							className="block w-full pl-10"
+							placeholder="Search permissions by name or label..."
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+						/>
+					</div>
+				</div>
+
+				<div className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+					<PermissionGroupRow
+						title="Cashier-Level Permissions"
+						permissions={permissionGroups.cashierLevel || []}
+						userPermissions={localPermissions}
+						onToggle={handleToggle}
+						searchQuery={searchQuery}
+					/>
+					<PermissionGroupRow
+						title="Clerk-Level Permissions"
+						permissions={permissionGroups.clerkLevel || []}
+						userPermissions={localPermissions}
+						onToggle={handleToggle}
+						searchQuery={searchQuery}
+					/>
+					<PermissionGroupRow
+						title="Administrator-Level Permissions"
+						permissions={permissionGroups.adminLevel || []}
+						userPermissions={localPermissions}
+						onToggle={handleToggle}
+						searchQuery={searchQuery}
+					/>
+					<PermissionGroupRow
+						title="Systems-Level Permissions"
+						permissions={permissionGroups.systemsLevel || []}
+						userPermissions={localPermissions}
+						onToggle={handleToggle}
+						searchQuery={searchQuery}
+					/>
+				</div>
+
+				<div className="mt-8 flex justify-end gap-3 border-t pt-6">
+					<SecondaryButton onClick={onClose} disabled={isSaving}>
+						Cancel
+					</SecondaryButton>
+					<PrimaryButton onClick={handleSave} disabled={isSaving}>
+						{isSaving ? "Saving..." : "Save Changes"}
+					</PrimaryButton>
+				</div>
+			</div>
+		</Modal>
 	);
 }
 
@@ -44,10 +166,12 @@ export default function Permissions({
 		cashierLevel: 3,
 		clerkLevel: 4,
 		adminLevel: 2,
+		systemsLevel: 1,
 	};
 	const [searchQuery, setSearchQuery] = useState("");
 	const [rows, setRows] = useState(permissionsUsers);
 	const [savingByUserId, setSavingByUserId] = useState({});
+	const [editingUser, setEditingUser] = useState(null);
 
 	useEffect(() => {
 		setRows(permissionsUsers);
@@ -62,6 +186,7 @@ export default function Permissions({
 			return fullName.includes(query) || role.includes(query);
 		});
 	}, [rows, searchQuery]);
+
 	const permissionGroupByName = useMemo(() => {
 		const map = {};
 		Object.entries(permissionGroups || {}).forEach(([groupKey, list]) => {
@@ -91,6 +216,9 @@ export default function Permissions({
 				preserveState: true,
 				replace: true,
 				only: ["permissionsUsers", "auth"],
+				onSuccess: () => {
+					setEditingUser(null);
+				},
 				onError: (errors) => {
 					setRows((prevRows) =>
 						prevRows.map((row) =>
@@ -123,55 +251,18 @@ export default function Permissions({
 		);
 	};
 
-	const togglePermission = (userId, permissionName, checked) => {
-		const currentRow = rows.find((row) => row.id === userId);
-		if (!canUpdateUserPermissions) {
-			requirePermission("CanUpdateUserPermissions");
-			return;
-		}
-		const permissionGroupKey = permissionGroupByName[permissionName];
-		const maxRoleRankForGroup =
-			PERMISSION_GROUP_MAX_ROLE_RANK[permissionGroupKey] ?? Number.MAX_SAFE_INTEGER;
-		const actorRoleRank = Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER);
-		const targetRoleRank = Number(currentRow?.RoleRank ?? Number.MAX_SAFE_INTEGER);
-		if (actorRoleRank > targetRoleRank) {
-			deny("You can only edit permissions for users with the same role or lower.");
-			return;
-		}
-		if (actorRoleRank > maxRoleRankForGroup) {
-			deny("You cannot edit permissions that are above your role level.");
-			return;
-		}
-		const isSelf = Number(currentRow?.id ?? 0) === currentUserId;
-		const isSelfCriticalPermission =
-			permissionName === "CanViewUserManagementPermissions" ||
-			permissionName === "CanUpdateUserPermissions";
-		if (isSelf && isSelfCriticalPermission && !checked) {
-			deny(
-				"Warning: You cannot revoke your own permissions to view or update permissions.",
-			);
-			return;
-		}
-		const previousPermissions = {
-			...(currentRow?.permissions || {}),
-		};
-		const nextPermissions = {
-			...(currentRow?.permissions || {}),
-			[permissionName]: checked,
-		};
+	const getPermissionCount = (userPermissions, groupList) => {
+		if (!groupList) return 0;
+		return groupList.filter(p => Boolean(userPermissions[p.name])).length;
+	};
 
-		setRows((prevRows) =>
-			prevRows.map((row) =>
-				row.id === userId
-					? {
-							...row,
-							permissions: nextPermissions,
-					  }
-					: row,
-			),
+	const renderCountLabel = (count, total) => {
+		if (count === 0) return <span className="text-gray-400 italic">No Permission</span>;
+		return (
+			<span className={`px-2 py-1 rounded text-xs font-semibold ${count === total ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary'}`}>
+				{count} {count === 1 ? 'Permission' : 'Permissions'}
+			</span>
 		);
-
-		updateUserPermissions(userId, previousPermissions, nextPermissions);
 	};
 
 	return (
@@ -198,89 +289,91 @@ export default function Permissions({
 							</div>
 							{!canUpdateUserPermissions && (
 								<div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-									Permission toggles are disabled for your account.
+									Permission editing is disabled for your account.
 								</div>
 							)}
 
 							<div className="border rounded-lg border-gray-200 flex-1 min-h-0 flex flex-col overflow-hidden">
-								<div className="overflow-x-auto overflow-y-auto min-h-0 flex-1">
+								<div className="overflow-x-auto overflow-y-auto min-h-0 flex-1 custom-scrollbar">
 									<table className="min-w-full divide-y divide-gray-200">
-										<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+										<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm border-b">
 											<tr>
-												<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-56">Full Name</th>
-												<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Role</th>
-												<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-72">Cashier-Level Permissions</th>
-												<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-72">Clerk-Level Permissions</th>
-												<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-72">Admin-Level Permissions</th>
+												<th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Full Name</th>
+												<th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
+												<th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Cashier</th>
+												<th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Clerk</th>
+												<th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Administrator</th>
+												<th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Systems</th>
+												<th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
 											</tr>
 										</thead>
 										<tbody className="bg-white divide-y divide-gray-200">
 												{filteredRows.map((row) => (
-													<tr key={row.id} className="align-top hover:bg-gray-50">
-													<td className="px-6 py-4 text-sm font-medium text-gray-900">
-														<div>{row.FullName}</div>
+													<tr key={row.id} className="hover:bg-gray-50 transition-colors">
+													<td className="px-6 py-4 whitespace-nowrap">
+														<div className="text-sm font-semibold text-gray-900">{row.FullName}</div>
 														{savingByUserId[row.id] && (
-															<p className="mt-1 text-xs text-gray-500">Saving changes...</p>
+															<p className="mt-0.5 text-[10px] text-primary animate-pulse font-medium uppercase tracking-tight">Saving changes...</p>
 														)}
 													</td>
-													<td className="px-6 py-4 text-sm text-gray-700">{row.Role || "-"}</td>
-														<td className="px-6 py-4">
-															<PermissionColumn
-																permissions={permissionGroups.cashierLevel || []}
-																rowPermissions={row.permissions}
-																disabled={
-																	Boolean(savingByUserId[row.id]) ||
-																	!canUpdateUserPermissions ||
-																	Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER) >
-																		Number(row.RoleRank ?? Number.MAX_SAFE_INTEGER) ||
-																	Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER) >
-																		PERMISSION_GROUP_MAX_ROLE_RANK.cashierLevel
-																}
-																onToggle={(permissionName, checked) =>
-																	togglePermission(row.id, permissionName, checked)
-																}
-															/>
-														</td>
-														<td className="px-6 py-4">
-															<PermissionColumn
-																permissions={permissionGroups.clerkLevel || []}
-																rowPermissions={row.permissions}
-																disabled={
-																	Boolean(savingByUserId[row.id]) ||
-																	!canUpdateUserPermissions ||
-																	Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER) >
-																		Number(row.RoleRank ?? Number.MAX_SAFE_INTEGER) ||
-																	Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER) >
-																		PERMISSION_GROUP_MAX_ROLE_RANK.clerkLevel
-																}
-																onToggle={(permissionName, checked) =>
-																	togglePermission(row.id, permissionName, checked)
-																}
-															/>
-														</td>
-														<td className="px-6 py-4">
-															<PermissionColumn
-																permissions={permissionGroups.adminLevel || []}
-																rowPermissions={row.permissions}
-																disabled={
-																	Boolean(savingByUserId[row.id]) ||
-																	!canUpdateUserPermissions ||
-																	Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER) >
-																		Number(row.RoleRank ?? Number.MAX_SAFE_INTEGER) ||
-																	Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER) >
-																		PERMISSION_GROUP_MAX_ROLE_RANK.adminLevel
-																}
-																onToggle={(permissionName, checked) =>
-																	togglePermission(row.id, permissionName, checked)
-																}
-														/>
+													<td className="px-6 py-4 whitespace-nowrap">
+														<span className="px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+															{row.Role || "-"}
+														</span>
 													</td>
+														<td className="px-6 py-4 text-center">
+															{renderCountLabel(
+																getPermissionCount(row.permissions, permissionGroups.cashierLevel),
+																permissionGroups.cashierLevel?.length
+															)}
+														</td>
+														<td className="px-6 py-4 text-center">
+															{renderCountLabel(
+																getPermissionCount(row.permissions, permissionGroups.clerkLevel),
+																permissionGroups.clerkLevel?.length
+															)}
+														</td>
+														<td className="px-6 py-4 text-center">
+															{renderCountLabel(
+																getPermissionCount(row.permissions, permissionGroups.adminLevel),
+																permissionGroups.adminLevel?.length
+															)}
+														</td>
+														<td className="px-6 py-4 text-center">
+															{renderCountLabel(
+																getPermissionCount(row.permissions, permissionGroups.systemsLevel),
+																permissionGroups.systemsLevel?.length
+															)}
+														</td>
+														<td className="px-6 py-4 text-right">
+															<button
+																onClick={() => {
+																	if (!canUpdateUserPermissions) {
+																		requirePermission("CanUpdateUserPermissions");
+																		return;
+																	}
+																	const actorRoleRank = Number(currentUserRoleRank ?? Number.MAX_SAFE_INTEGER);
+																	const targetRoleRank = Number(row?.RoleRank ?? Number.MAX_SAFE_INTEGER);
+																	if (actorRoleRank > targetRoleRank) {
+																		deny("You can only edit permissions for users with the same role or lower.");
+																		return;
+																	}
+																	setEditingUser(row);
+																}}
+																className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary border border-transparent text-white text-xs font-bold rounded-md hover:bg-primary-hover transition-all shadow-sm"
+															>
+																<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+																</svg>
+																Edit
+															</button>
+														</td>
 												</tr>
 											))}
 											{filteredRows.length === 0 && (
 												<tr>
-													<td colSpan="5" className="px-6 py-10 text-center text-sm text-gray-500">
-														No permission records found.
+													<td colSpan="6" className="px-6 py-12 text-center text-sm text-gray-500 italic">
+														No permission records found. Try adjusting your search.
 													</td>
 												</tr>
 											)}
@@ -292,6 +385,15 @@ export default function Permissions({
 					</div>
 				</div>
 			</div>
+
+			<EditPermissionModal
+				show={!!editingUser}
+				onClose={() => setEditingUser(null)}
+				user={editingUser}
+				permissionGroups={permissionGroups}
+				onSave={updateUserPermissions}
+				isSaving={Boolean(editingUser && savingByUserId[editingUser.id])}
+			/>
 		</div>
 	);
 }

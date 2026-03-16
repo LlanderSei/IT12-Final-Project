@@ -505,11 +505,42 @@ class ReportsBaseController extends Controller {
       ])
       ->values();
 
+    $productLeftovers = DB::table('product_leftovers as pl')
+      ->join('product_leftover_snapshots as pls', 'pls.ID', '=', 'pl.ProductLeftoverID')
+      ->leftJoin('products as p', 'p.ID', '=', 'pl.ProductID')
+      ->whereBetween('pls.SnapshotTime', [$start, $end])
+      ->groupBy('pl.ProductID', 'p.ProductName')
+      ->selectRaw('pl.ProductID as product_id, COALESCE(p.ProductName, "Deleted Product") as product_name, SUM(pl.LeftoverQuantity) as units_left, SUM(pl.LeftoverQuantity * pl.PerUnitAmount) as total_amount')
+      ->orderByDesc('units_left')
+      ->get()
+      ->map(fn($row) => [
+        'productName' => $row->product_name,
+        'unitsLeft' => (int) $row->units_left,
+        'totalAmount' => round((float) $row->total_amount, 2),
+      ])
+      ->values();
+
+    $inventoryLeftovers = DB::table('inventory_leftovers as il')
+      ->join('inventory_leftover_snapshots as ils', 'ils.ID', '=', 'il.InventoryLeftoverID')
+      ->leftJoin('inventory as i', 'i.ID', '=', 'il.InventoryID')
+      ->whereBetween('ils.SnapshotTime', [$start, $end])
+      ->groupBy('il.InventoryID', 'i.ItemName')
+      ->selectRaw('il.InventoryID as inventory_id, COALESCE(i.ItemName, "Deleted Item") as item_name, SUM(il.LeftoverQuantity) as units_left')
+      ->orderByDesc('units_left')
+      ->get()
+      ->map(fn($row) => [
+        'itemName' => $row->item_name,
+        'unitsLeft' => (int) $row->units_left,
+      ])
+      ->values();
+
     return [
       'soldProducts' => $soldProducts,
       'mostShrinkedProducts' => $mostShrinkedProducts,
       'inventoryUsage' => $inventoryUsage,
       'categoryRevenueRanking' => $categoryRevenueRanking,
+      'productLeftovers' => $productLeftovers,
+      'inventoryLeftovers' => $inventoryLeftovers,
     ];
   }
 

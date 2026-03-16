@@ -3,11 +3,15 @@ import { router } from "@inertiajs/react";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import SecondaryButton from "@/Components/SecondaryButton";
+import PrimaryButton from "@/Components/PrimaryButton";
+import TextInput from "@/Components/TextInput";
 
 const PERMISSION_GROUP_MAX_ROLE_RANK = {
 	cashierLevel: 3,
 	clerkLevel: 4,
 	adminLevel: 2,
+	systemsLevel: 1,
 };
 
 const createEmptyPermissions = (permissionGroups = {}) => {
@@ -34,43 +38,58 @@ const showErrorToast = (message) => {
 
 const DEFAULT_ROLE_COLOR = "#6B7280";
 
-function PermissionChecklistColumn({
-	title,
-	columnKey,
-	permissions = [],
-	selectedPermissions = {},
-	onToggle,
-	disabled = false,
-}) {
+function PermissionGroupRow({ title, permissions, selectedPermissions, onToggle, searchQuery, disabled }) {
+	const [isOpen, setIsOpen] = useState(true);
+
+	const filteredPermissions = useMemo(() => {
+		if (!searchQuery) return permissions;
+		return permissions.filter(p => 
+			p.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			p.name.toLowerCase().includes(searchQuery.toLowerCase())
+		);
+	}, [permissions, searchQuery]);
+
+	if (filteredPermissions.length === 0 && searchQuery) return null;
+
 	return (
-		<div className="rounded-lg border border-gray-200 p-4">
-			<h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-			<div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-2">
-				{permissions.map((permission) => (
-					<label key={`${columnKey}-${permission.name}`} className="flex items-start gap-3 text-sm text-gray-700">
-						<input
-							type="checkbox"
-							className="mt-1 rounded border-gray-300 text-primary focus:ring-primary"
-							checked={Boolean(selectedPermissions[permission.name])}
-							disabled={disabled}
-							onChange={(e) => onToggle(permission.name, e.target.checked)}
-						/>
-						<span className="min-w-0">
-							<span className="block break-words font-medium text-gray-800">
-								{permission.label}
-							</span>
-							{permission.groupName && (
-								<span className="mt-0.5 block text-xs text-gray-500">
-									Group: {permission.groupName}
-								</span>
-							)}
-						</span>
-					</label>
-				))}
-				{permissions.length === 0 && (
-					<p className="text-xs italic text-gray-400">No permissions in this column.</p>
-				)}
-			</div>
+		<div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+			<button
+				type="button"
+				onClick={() => setIsOpen(!isOpen)}
+				className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+			>
+				<span className="font-semibold text-sm text-gray-700">{title} ({filteredPermissions.length})</span>
+				<svg
+					className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+			{isOpen && (
+				<div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white">
+					{filteredPermissions.map((permission) => (
+						<label 
+							key={permission.name} 
+							className={`flex items-start gap-3 p-2 rounded-md transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 cursor-pointer'}`}
+						>
+							<input
+								type="checkbox"
+								className="mt-1 rounded border-gray-300 text-primary focus:ring-primary"
+								checked={Boolean(selectedPermissions[permission.name])}
+								disabled={disabled}
+								onChange={(e) => onToggle(permission.name, e.target.checked)}
+							/>
+							<div className="flex flex-col">
+								<span className="text-sm font-medium text-gray-900">{permission.label}</span>
+								<span className="text-xs text-gray-500 font-mono">{permission.name}</span>
+							</div>
+						</label>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -87,6 +106,7 @@ export default function Roles({
 	const canDeleteRole = can("CanDeleteRole");
 	const canUpdateRoleOrder = can("CanUpdateRoleOrder");
 	const [searchQuery, setSearchQuery] = useState("");
+	const [permissionSearchQuery, setPermissionSearchQuery] = useState("");
 	const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
 	const [editingRole, setEditingRole] = useState(null);
 	const [deleteCandidate, setDeleteCandidate] = useState(null);
@@ -145,6 +165,7 @@ export default function Roles({
 			RoleColor: DEFAULT_ROLE_COLOR,
 			permissions: createEmptyPermissions(permissionGroups),
 		});
+		setPermissionSearchQuery("");
 		setErrors({});
 	};
 
@@ -168,6 +189,7 @@ export default function Roles({
 			RoleColor: role.RoleColor || DEFAULT_ROLE_COLOR,
 			permissions: { ...createEmptyPermissions(permissionGroups), ...(role.permissions || {}) },
 		});
+		setPermissionSearchQuery("");
 		setErrors({});
 		setIsRoleModalOpen(true);
 	};
@@ -284,7 +306,7 @@ export default function Roles({
 	};
 
 	return (
-		<div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+		<div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden text-gray-900">
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				<div className="mx-auto flex min-h-0 w-full flex-1 flex-col overflow-hidden">
 					<div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-white shadow-sm">
@@ -307,23 +329,23 @@ export default function Roles({
 								<button
 									type="button"
 									onClick={() => setSearchQuery("")}
-									className="shrink-0 rounded-md border border-primary bg-white px-3 py-2 text-xs font-medium text-primary shadow-sm hover:bg-primary-soft"
+									className="shrink-0 rounded-md border border-primary bg-white px-3 py-2 text-xs font-medium text-primary shadow-sm hover:bg-primary-soft transition-colors"
 								>
 									Reset Filters
 								</button>
 							</div>
 
-							<div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-200">
+							<div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-gray-200 custom-scrollbar">
 								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+									<thead className="sticky top-0 z-10 bg-gray-50 shadow-sm border-b">
 										<tr>
-											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Role</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Color</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Description</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Rank</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Users</th>
-											<th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Preset Permissions</th>
-											<th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+											<th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Role</th>
+											<th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Color</th>
+											<th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Description</th>
+											<th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Rank</th>
+											<th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Users</th>
+											<th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">Preset Permissions</th>
+											<th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-500">Actions</th>
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-gray-200 bg-white">
@@ -335,38 +357,45 @@ export default function Roles({
 												canManageRole(role) &&
 												Number(role.UsersCount || 0) === 0;
 											return (
-												<tr key={role.id} className="hover:bg-gray-50">
-													<td className="px-6 py-4 text-sm font-medium text-gray-900">
+												<tr key={role.id} className="hover:bg-gray-50 transition-colors">
+													<td className="px-6 py-4 text-sm font-semibold text-gray-900">
 														<div>{role.RoleName}</div>
 														{role.IsSystemOwner && (
-															<span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
-																System Locked
+															<span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+																Locked System Role
 															</span>
 														)}
 													</td>
-													<td className="px-6 py-4 text-sm text-gray-700">
+													<td className="px-6 py-4">
 														<div className="flex items-center gap-3">
 															<span
-																className="h-5 w-5 rounded-full border border-gray-200"
+																className="h-5 w-5 rounded-full border border-gray-200 shadow-sm"
 																style={{ backgroundColor: role.RoleColor || DEFAULT_ROLE_COLOR }}
 															/>
-															<span className="font-mono text-xs uppercase">
+															<span className="font-mono text-xs font-medium uppercase text-gray-600">
 																{role.RoleColor || DEFAULT_ROLE_COLOR}
 															</span>
 														</div>
 													</td>
-													<td className="px-6 py-4 text-sm text-gray-700">{role.RoleDescription || "-"}</td>
-													<td className="px-6 py-4 text-sm text-gray-700">#{role.RoleRank}</td>
-													<td className="px-6 py-4 text-sm text-gray-700">{role.UsersCount || 0}</td>
-													<td className="px-6 py-4 text-sm text-gray-700">{role.PresetPermissionCount || 0}</td>
-													<td className="px-6 py-4 text-right text-sm font-medium">
+													<td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate">{role.RoleDescription || "-"}</td>
+													<td className="px-6 py-4 text-center text-sm font-bold text-primary">#{role.RoleRank}</td>
+													<td className="px-6 py-4 text-center text-sm font-medium text-gray-700">{role.UsersCount || 0}</td>
+													<td className="px-6 py-4 text-center">
+														<span className="px-2 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
+															{role.PresetPermissionCount || 0}
+														</span>
+													</td>
+													<td className="px-6 py-4 text-right text-sm">
 														<div className="inline-flex items-center gap-2">
 															<button
 																type="button"
 																onClick={() => openEditModal(role)}
 																disabled={!canEdit}
-																className={canEdit ? "rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft" : "cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
+																className={canEdit ? "inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary border border-transparent text-white text-xs font-bold rounded-md hover:bg-primary-hover transition-all shadow-sm" : "cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-300 shadow-none"}
 															>
+																<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+																</svg>
 																Edit
 															</button>
 															<button
@@ -374,7 +403,7 @@ export default function Roles({
 																onClick={() => setDeleteCandidate(role)}
 																disabled={!canDelete}
 																title={getDeleteTooltip(role)}
-																className={canDelete ? "rounded border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50" : "cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
+																className={canDelete ? "rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all" : "cursor-not-allowed rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-300 shadow-none"}
 															>
 																Delete
 															</button>
@@ -385,8 +414,8 @@ export default function Roles({
 										})}
 										{filteredRoles.length === 0 && (
 											<tr>
-												<td colSpan="7" className="px-6 py-10 text-center text-sm text-gray-500">
-													No roles found.
+												<td colSpan="7" className="px-6 py-12 text-center text-sm text-gray-500 italic">
+													No roles found matching your criteria.
 												</td>
 											</tr>
 										)}
@@ -398,131 +427,177 @@ export default function Roles({
 				</div>
 			</div>
 
-			<div className="sticky bottom-0 z-10 w-full border-t border-gray-200 bg-white p-4">
-				<div className="mx-auto flex max-w-7xl gap-3 px-4 sm:px-6 lg:px-8">
-					<button
+			<div className="sticky bottom-0 z-10 w-full border-t border-gray-200 bg-white p-4 shadow-sm">
+				<div className="mx-auto flex max-w-7xl gap-4 px-4 sm:px-6 lg:px-8">
+					<PrimaryButton
 						type="button"
 						onClick={openAddModal}
 						disabled={!canCreateRole}
-						className="inline-flex flex-1 justify-center rounded-md border border-transparent bg-primary px-6 py-3 text-sm font-medium text-white shadow-sm hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+						className="flex-1 justify-center py-3 text-sm font-bold shadow-md"
 					>
-						Add Role
-					</button>
-					<button
+						Add New Role
+					</PrimaryButton>
+					<SecondaryButton
 						type="button"
 						onClick={openOrderModal}
 						disabled={!canUpdateRoleOrder || rolePresets.length <= 1}
-						className="inline-flex flex-1 justify-center rounded-md border border-primary bg-white px-6 py-3 text-sm font-medium text-primary shadow-sm hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-60"
+						className="flex-1 justify-center py-3 text-sm font-bold shadow-sm"
 					>
-						Manage Role Order
-					</button>
+						Manage Priorities
+					</SecondaryButton>
 				</div>
 			</div>
 
 			<Modal show={isRoleModalOpen} onClose={closeRoleModal} maxWidth="4xl">
 				<form onSubmit={submitRole} className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900">
-						{editingRole ? "Edit Role Preset" : "Add Role"}
-					</h3>
-					<p className="mt-2 text-sm text-gray-500">
-						{isEditingOwnerRole
-							? "Owner keeps its locked name, description, rank, and permissions. Only the badge color can be changed."
-							: "Role preset changes re-sync users currently assigned to that role."}
-					</p>
-					<div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+					<div className="flex items-center justify-between border-b pb-4 mb-6">
 						<div>
-							<label className="block text-sm font-medium text-gray-700" htmlFor="role-name">
-								Role Name
+							<h3 className="text-xl font-bold text-gray-900">
+								{editingRole ? "Configure Role Preset" : "Create New Role"}
+							</h3>
+							<p className="mt-1 text-sm text-gray-500">
+								{isEditingOwnerRole
+									? "The system-locked Owner role can only have its badge color customized."
+									: "Changes will automatically re-sync for all users assigned to this role."}
+							</p>
+						</div>
+						<button type="button" onClick={closeRoleModal} className="text-gray-400 hover:text-gray-500 transition-colors">
+							<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
+					</div>
+
+					<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+						<div className="lg:col-span-1">
+							<label className="block text-sm font-bold text-gray-700 mb-1.5" htmlFor="role-name">
+								Role Identifer
 							</label>
-							<input
+							<TextInput
 								id="role-name"
 								type="text"
+								placeholder="e.g. Supervisor, Manager"
 								value={form.RoleName}
 								onChange={(e) => setForm((prev) => ({ ...prev, RoleName: e.target.value }))}
 								disabled={isEditingOwnerRole}
-								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 sm:text-sm"
+								className="block w-full"
 							/>
-							{errors.RoleName && <p className="mt-2 text-sm text-red-600">{errors.RoleName}</p>}
+							{errors.RoleName && <p className="mt-2 text-xs font-semibold text-red-600">{errors.RoleName}</p>}
 						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700" htmlFor="role-description">
-								Role Description
+						<div className="lg:col-span-1">
+							<label className="block text-sm font-bold text-gray-700 mb-1.5" htmlFor="role-description">
+								Brief Description
 							</label>
-							<input
+							<TextInput
 								id="role-description"
+								placeholder="What are the responsibilities?"
 								type="text"
 								value={form.RoleDescription}
 								onChange={(e) => setForm((prev) => ({ ...prev, RoleDescription: e.target.value }))}
 								disabled={isEditingOwnerRole}
-								className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary disabled:cursor-not-allowed disabled:bg-gray-100 sm:text-sm"
+								className="block w-full"
 							/>
-							{errors.RoleDescription && <p className="mt-2 text-sm text-red-600">{errors.RoleDescription}</p>}
+							{errors.RoleDescription && <p className="mt-2 text-xs font-semibold text-red-600">{errors.RoleDescription}</p>}
 						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700" htmlFor="role-color">
-								Role Color
+						<div className="lg:col-span-1">
+							<label className="block text-sm font-bold text-gray-700 mb-1.5" htmlFor="role-color">
+								Theme Color
 							</label>
-							<div className="mt-1 flex items-center gap-3">
+							<div className="flex items-center gap-3">
 								<input
 									id="role-color"
 									type="color"
 									value={form.RoleColor}
 									onChange={(e) => setForm((prev) => ({ ...prev, RoleColor: e.target.value.toUpperCase() }))}
-									className="h-10 w-16 cursor-pointer rounded-md border border-gray-300 bg-white p-1 shadow-sm"
+									className="h-10 w-12 cursor-pointer rounded-md border border-gray-300 bg-white p-1 shadow-sm transition-transform hover:scale-105"
 								/>
-								<input
+								<TextInput
 									type="text"
 									value={form.RoleColor}
 									onChange={(e) => setForm((prev) => ({ ...prev, RoleColor: e.target.value.toUpperCase() }))}
-									className="block w-full rounded-md border-gray-300 font-mono uppercase shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
+									className="block w-full font-mono text-sm"
 									placeholder={DEFAULT_ROLE_COLOR}
 								/>
 							</div>
-							{errors.RoleColor && <p className="mt-2 text-sm text-red-600">{errors.RoleColor}</p>}
+							{errors.RoleColor && <p className="mt-2 text-xs font-semibold text-red-600">{errors.RoleColor}</p>}
 						</div>
 					</div>
-					{errors.permissions && <p className="mt-4 text-sm text-red-600">{errors.permissions}</p>}
-					<div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-						<PermissionChecklistColumn
-							title="Cashier-Level Permissions"
-							columnKey="cashierLevel"
-							permissions={permissionGroups.cashierLevel || []}
-							selectedPermissions={form.permissions}
-							disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.cashierLevel}
-							onToggle={togglePermission}
-						/>
-						<PermissionChecklistColumn
-							title="Clerk-Level Permissions"
-							columnKey="clerkLevel"
-							permissions={permissionGroups.clerkLevel || []}
-							selectedPermissions={form.permissions}
-							disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.clerkLevel}
-							onToggle={togglePermission}
-						/>
-						<PermissionChecklistColumn
-							title="Admin-Level Permissions"
-							columnKey="adminLevel"
-							permissions={permissionGroups.adminLevel || []}
-							selectedPermissions={form.permissions}
-							disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.adminLevel}
-							onToggle={togglePermission}
-						/>
+
+					<div className="mt-8 border-t pt-8">
+						<div className="flex items-center justify-between mb-6">
+							<div>
+								<h4 className="text-lg font-bold text-gray-900 border-l-4 border-primary pl-3">Preset Permissions</h4>
+								<p className="text-sm text-gray-500 mt-1">Select the default permissions for this role's members.</p>
+							</div>
+							<div className="relative w-full max-w-xs">
+								<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+									<svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+									</svg>
+								</div>
+								<TextInput
+									type="text"
+									className="block w-full pl-9 py-1.5 text-xs h-9"
+									placeholder="Quick search permissions..."
+									value={permissionSearchQuery}
+									onChange={(e) => setPermissionSearchQuery(e.target.value)}
+								/>
+							</div>
+						</div>
+
+						{errors.permissions && <p className="mb-4 text-sm font-bold text-red-600">{errors.permissions}</p>}
+						
+						<div className="max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar space-y-4">
+							<PermissionGroupRow
+								title="Cashier-Level Permissions"
+								permissions={permissionGroups.cashierLevel || []}
+								selectedPermissions={form.permissions}
+								disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.cashierLevel}
+								onToggle={togglePermission}
+								searchQuery={permissionSearchQuery}
+							/>
+							<PermissionGroupRow
+								title="Clerk-Level Permissions"
+								permissions={permissionGroups.clerkLevel || []}
+								selectedPermissions={form.permissions}
+								disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.clerkLevel}
+								onToggle={togglePermission}
+								searchQuery={permissionSearchQuery}
+							/>
+							<PermissionGroupRow
+								title="Administrator-Level Permissions"
+								permissions={permissionGroups.adminLevel || []}
+								selectedPermissions={form.permissions}
+								disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.adminLevel}
+								onToggle={togglePermission}
+								searchQuery={permissionSearchQuery}
+							/>
+							<PermissionGroupRow
+								title="Systems-Level Permissions"
+								permissions={permissionGroups.systemsLevel || []}
+								selectedPermissions={form.permissions}
+								disabled={isEditingOwnerRole || currentRank > PERMISSION_GROUP_MAX_ROLE_RANK.systemsLevel}
+								onToggle={togglePermission}
+								searchQuery={permissionSearchQuery}
+							/>
+						</div>
 					</div>
-					<div className="mt-6 flex justify-end gap-2">
-						<button
+
+					<div className="mt-8 flex justify-end gap-3 border-t pt-6">
+						<SecondaryButton
 							type="button"
 							onClick={closeRoleModal}
-							className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+							className="px-6 py-2.5 font-bold"
 						>
-							Cancel
-						</button>
-						<button
+							Discard Changes
+						</SecondaryButton>
+						<PrimaryButton
 							type="submit"
 							disabled={isSubmitting}
-							className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+							className="px-8 py-2.5 font-bold shadow-md"
 						>
-							{editingRole ? "Save Role" : "Add Role"}
-						</button>
+							{isSubmitting ? "Processing..." : editingRole ? "Update Role" : "Create Role"}
+						</PrimaryButton>
 					</div>
 				</form>
 			</Modal>
@@ -530,25 +605,33 @@ export default function Roles({
 			<Modal show={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)} maxWidth="md">
 				{deleteCandidate && (
 					<div className="p-6">
-						<h3 className="text-lg font-semibold text-gray-900">Delete Role</h3>
-						<p className="mt-3 text-sm text-gray-600">
-							Are you sure you want to delete "{deleteCandidate.RoleName}"? This action cannot be undone.
+						<div className="flex items-center gap-4 mb-4 text-red-600">
+							<div className="bg-red-100 p-2 rounded-full">
+								<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+								</svg>
+							</div>
+							<h3 className="text-xl font-bold text-gray-900">Confirm Role Deletion</h3>
+						</div>
+						<p className="text-sm text-gray-600 leading-relaxed">
+							Are you absolutely sure you want to delete the <span className="font-bold text-gray-900">"{deleteCandidate.RoleName}"</span> role? 
+							This action is irreversible and will remove the role configuration from the system.
 						</p>
-						<div className="mt-6 flex justify-end gap-2">
-							<button
+						<div className="mt-8 flex justify-end gap-3">
+							<SecondaryButton
 								type="button"
 								onClick={() => setDeleteCandidate(null)}
-								className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+								className="px-5 py-2 font-bold"
 							>
 								Cancel
-							</button>
+							</SecondaryButton>
 							<button
 								type="button"
 								onClick={confirmDelete}
 								disabled={isDeleting}
-								className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+								className="inline-flex items-center justify-center rounded-md border border-transparent bg-red-600 px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 transition-all font-bold"
 							>
-								Delete
+								{isDeleting ? "Deleting..." : "Confirm Delete"}
 							</button>
 						</div>
 					</div>
@@ -557,60 +640,80 @@ export default function Roles({
 
 			<Modal show={isOrderModalOpen} onClose={() => setIsOrderModalOpen(false)} maxWidth="lg">
 				<div className="p-6">
-					<h3 className="text-lg font-semibold text-gray-900">Manage Role Order</h3>
-					<p className="mt-2 text-sm text-gray-500">
-						Owner stays fixed at rank #1. The remaining roles will be renumbered in the order shown below.
-					</p>
-					<div className="mt-5 space-y-3">
+					<div className="flex items-center justify-between border-b pb-4 mb-6">
+						<div>
+							<h3 className="text-xl font-bold text-gray-900">Set Role Priorities</h3>
+							<p className="mt-1 text-sm text-gray-500">
+								Owner is permanent rank #1. Adjust priority to control management hierarchies.
+							</p>
+						</div>
+						<button type="button" onClick={() => setIsOrderModalOpen(false)} className="text-gray-400 hover:text-gray-500 transition-colors">
+							<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
+					</div>
+
+					<div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
 						{roleOrder.map((role, index) => {
 							const canMoveUp = index > 1 && !role.IsSystemOwner;
 							const canMoveDown = index < roleOrder.length - 1 && !role.IsSystemOwner;
 							return (
-								<div key={`role-order-${role.id}`} className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
-									<div>
-										<p className="text-sm font-medium text-gray-900">
-											#{role.IsSystemOwner ? 1 : index + 1} {role.RoleName}
-										</p>
-										<p className="text-xs text-gray-500">{role.RoleDescription || "No description."}</p>
+								<div key={`role-order-${role.id}`} className={`flex items-center justify-between rounded-lg border px-4 py-4 transition-all ${role.IsSystemOwner ? 'bg-gray-50 border-gray-300' : 'bg-white border-gray-200 hover:border-primary/30 shadow-sm'}`}>
+									<div className="flex items-center gap-4">
+										<div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${role.IsSystemOwner ? 'bg-gray-200 text-gray-600' : 'bg-primary/10 text-primary border border-primary/20'}`}>
+											#{role.IsSystemOwner ? 1 : index + 1}
+										</div>
+										<div>
+											<p className="text-sm font-bold text-gray-900">{role.RoleName}</p>
+											<p className="text-[10px] font-medium uppercase tracking-tight text-gray-400 truncate max-w-[150px]">{role.RoleDescription || "No description provided"}</p>
+										</div>
 									</div>
 									<div className="inline-flex gap-2">
 										<button
 											type="button"
 											onClick={() => moveRole(role.id, "up")}
 											disabled={!canMoveUp}
-											className={canMoveUp ? "rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft" : "cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
+											className={canMoveUp ? "rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 hover:text-primary hover:border-primary transition-all shadow-sm" : "opacity-0 pointer-events-none"}
+											title="Move Up"
 										>
-											Move Up
+											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+											</svg>
 										</button>
 										<button
 											type="button"
 											onClick={() => moveRole(role.id, "down")}
 											disabled={!canMoveDown}
-											className={canMoveDown ? "rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft" : "cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
+											className={canMoveDown ? "rounded-md border border-gray-300 bg-white p-1.5 text-gray-600 hover:text-primary hover:border-primary transition-all shadow-sm" : "opacity-0 pointer-events-none"}
+											title="Move Down"
 										>
-											Move Down
+											<svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+											</svg>
 										</button>
 									</div>
 								</div>
 							);
 						})}
 					</div>
-					<div className="mt-6 flex justify-end gap-2">
-						<button
+
+					<div className="mt-8 flex justify-end gap-3 border-t pt-6 font-bold">
+						<SecondaryButton
 							type="button"
 							onClick={() => setIsOrderModalOpen(false)}
-							className="rounded-md border border-primary bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+							className="px-6"
 						>
 							Cancel
-						</button>
-						<button
+						</SecondaryButton>
+						<PrimaryButton
 							type="button"
 							onClick={saveRoleOrder}
 							disabled={isSavingOrder}
-							className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+							className="px-8 shadow-md"
 						>
-							Save Order
-						</button>
+							{isSavingOrder ? "Applying..." : "Save Priority List"}
+						</PrimaryButton>
 					</div>
 				</div>
 			</Modal>

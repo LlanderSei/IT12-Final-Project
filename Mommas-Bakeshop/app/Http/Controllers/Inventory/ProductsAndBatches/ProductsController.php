@@ -25,7 +25,7 @@ class ProductsController extends Controller {
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
-      'Price' => 'required|numeric|min:0',
+      'Price' => 'required|numeric|min:0|max:9999999.99',
       'ProductImage' => 'nullable|string', // Accept Base64 data URL
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
@@ -60,7 +60,7 @@ class ProductsController extends Controller {
       'ProductName' => 'required|string|max:255',
       'ProductDescription' => 'nullable|string',
       'CategoryID' => 'required|exists:categories,ID',
-      'Price' => 'required|numeric|min:0',
+      'Price' => 'required|numeric|min:0|max:9999999.99',
       'ProductImage' => 'nullable|string', // Accept Base64 data URL
       'RemoveProductImage' => 'nullable|boolean',
       'LowStockThreshold' => 'nullable|integer|min:0',

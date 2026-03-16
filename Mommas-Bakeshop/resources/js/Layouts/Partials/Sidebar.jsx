@@ -19,6 +19,7 @@ import {
 	Croissant,
 	Sun,
 	Moon,
+	Settings,
 } from "lucide-react";
 
 const Icon = ({ name, size = 20, style }) => {
@@ -34,6 +35,7 @@ const Icon = ({ name, size = 20, style }) => {
 		users: Users,
 		audits: FileText,
 		logout: LogOut,
+		settings: Settings,
 	};
 
 	const LucideIcon = icons[name];
@@ -234,7 +236,7 @@ const NAV_STRUCTURE = [
 			{
 				id: "application.settings",
 				label: "Settings",
-				icon: "audits", // Temporarily use audits icon or find a better one
+				icon: "settings",
 				href: route("application.settings"),
 				requiredPermissions: ["CanUpdateImageHosting"],
 			},
