@@ -284,6 +284,18 @@ export default function FullBreakdown({ fullBreakdownData = {}, canExport = fals
 					unitsUsed: numberFmt(row.unitsUsed),
 				})),
 			);
+
+			appendTable(
+				"Inventory Leftovers",
+				[
+					{ key: "itemName", label: "Item Name" },
+					{ key: "unitsLeft", label: "Units Left" },
+				],
+				(tables.inventoryLeftovers || []).map((row) => ({
+					...row,
+					unitsLeft: numberFmt(row.unitsLeft),
+				})),
+			);
 		}
 
 		if (enabledSections.shrinkagesLosses !== false) {
@@ -330,6 +342,20 @@ export default function FullBreakdown({ fullBreakdownData = {}, canExport = fals
 				(tables.categoryRevenueRanking || []).map((row) => ({
 					...row,
 					revenue: currency(row.revenue),
+				})),
+			);
+
+			appendTable(
+				"Product Leftovers",
+				[
+					{ key: "productName", label: "Product Name" },
+					{ key: "unitsLeft", label: "Units Left" },
+					{ key: "totalAmount", label: "Total Amount" },
+				],
+				(tables.productLeftovers || []).map((row) => ({
+					...row,
+					unitsLeft: numberFmt(row.unitsLeft),
+					totalAmount: currency(row.totalAmount),
 				})),
 			);
 		}
@@ -481,14 +507,25 @@ export default function FullBreakdown({ fullBreakdownData = {}, canExport = fals
 							/>
 						)}
 						{enabledSections.revenue !== false && (
-							<DataTable
-								title="Category Revenue Ranking"
-								headers={[
-									{ key: "categoryName", label: "Category" },
-									{ key: "revenue", label: "Revenue", render: currency },
-								]}
-								rows={tables.categoryRevenueRanking || []}
-							/>
+							<>
+								<DataTable
+									title="Category Revenue Ranking"
+									headers={[
+										{ key: "categoryName", label: "Category" },
+										{ key: "revenue", label: "Revenue", render: currency },
+									]}
+									rows={tables.categoryRevenueRanking || []}
+								/>
+								<DataTable
+									title="Product Leftovers"
+									headers={[
+										{ key: "productName", label: "Product Name" },
+										{ key: "unitsLeft", label: "Units Left", render: numberFmt },
+										{ key: "totalAmount", label: "Total Amount", render: currency },
+									]}
+									rows={tables.productLeftovers || []}
+								/>
+							</>
 						)}
 					</div>
 				</div>
@@ -508,7 +545,7 @@ export default function FullBreakdown({ fullBreakdownData = {}, canExport = fals
 							icon={ArrowUpFromLine}
 						/>
 					</div>
-					<div className="min-w-0">
+					<div className="min-w-0 space-y-4">
 						<DataTable
 							title="Inventory Usage"
 							headers={[
@@ -516,6 +553,14 @@ export default function FullBreakdown({ fullBreakdownData = {}, canExport = fals
 								{ key: "unitsUsed", label: "Units Used", render: numberFmt },
 							]}
 							rows={tables.inventoryUsage || []}
+						/>
+						<DataTable
+							title="Inventory Leftovers"
+							headers={[
+								{ key: "itemName", label: "Item Name" },
+								{ key: "unitsLeft", label: "Units Left", render: numberFmt },
+							]}
+							rows={tables.inventoryLeftovers || []}
 						/>
 					</div>
 				</div>

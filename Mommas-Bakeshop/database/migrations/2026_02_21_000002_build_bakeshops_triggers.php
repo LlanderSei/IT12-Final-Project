@@ -107,9 +107,11 @@ return new class extends Migration {
 					DECLARE snapshot_user_id BIGINT;
 					DECLARE old_line_amount DECIMAL(14, 2);
 					DECLARE new_line_amount DECIMAL(14, 2);
+					DECLARE quantity_delta BIGINT;
 
 					SET old_line_amount = ROUND(OLD.LeftoverQuantity * OLD.PerUnitAmount, 2);
 					SET new_line_amount = ROUND(NEW.LeftoverQuantity * NEW.PerUnitAmount, 2);
+					SET quantity_delta = CAST(NEW.LeftoverQuantity AS SIGNED) - CAST(OLD.LeftoverQuantity AS SIGNED);
 
 					SELECT TotalProducts, TotalLeftovers, TotalAmount, UserID
 					INTO old_total_products, old_total_leftovers, old_total_amount, snapshot_user_id
@@ -118,7 +120,7 @@ return new class extends Migration {
 
 					UPDATE product_leftover_snapshots
 					SET
-						TotalLeftovers = TotalLeftovers + (NEW.LeftoverQuantity - OLD.LeftoverQuantity),
+						TotalLeftovers = GREATEST(0, TotalLeftovers + quantity_delta),
 						TotalAmount = ROUND(TotalAmount + (new_line_amount - old_line_amount), 2)
 					WHERE ID = NEW.ProductLeftoverID;
 				END
@@ -562,15 +564,18 @@ return new class extends Migration {
 					DECLARE old_total_items BIGINT;
 					DECLARE old_total_leftovers BIGINT;
 					DECLARE snapshot_user_id BIGINT;
+					DECLARE quantity_delta BIGINT;
 
 					SELECT TotalItems, TotalLeftovers, UserID
 					INTO old_total_items, old_total_leftovers, snapshot_user_id
 					FROM inventory_leftover_snapshots
 					WHERE ID = NEW.InventoryLeftoverID;
 
+					SET quantity_delta = CAST(NEW.LeftoverQuantity AS SIGNED) - CAST(OLD.LeftoverQuantity AS SIGNED);
+
 					UPDATE inventory_leftover_snapshots
 					SET
-						TotalLeftovers = TotalLeftovers + (NEW.LeftoverQuantity - OLD.LeftoverQuantity)
+						TotalLeftovers = GREATEST(0, TotalLeftovers + quantity_delta)
 					WHERE ID = NEW.InventoryLeftoverID;
 				END
 			');
