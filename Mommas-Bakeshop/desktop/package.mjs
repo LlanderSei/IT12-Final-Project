@@ -15,11 +15,17 @@ const outputDir = path.join('dist-electron', `${mode}-${timestamp}`);
 const runtimeRoot = path.join(projectRoot, 'desktop', 'runtime');
 const phpBinary = path.join(runtimeRoot, 'php', 'php.exe');
 const mysqlBinary = path.join(runtimeRoot, 'mysql', 'bin', 'mysqld.exe');
+const isRemoteMode =
+	String(process.env.DESKTOP_MODE || '').toLowerCase() === 'remote' ||
+	Boolean(process.env.DESKTOP_APP_URL);
 
 const verifyRuntime = async () => {
     if (String(process.env.DESKTOP_SKIP_RUNTIME_CHECK || 'false').toLowerCase() === 'true') {
         return;
     }
+	if (isRemoteMode) {
+		return;
+	}
 
     try {
         await access(phpBinary, fsConstants.X_OK);

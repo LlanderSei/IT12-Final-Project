@@ -1,6 +1,8 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { DesktopProcessManager } from "./process-manager.mjs";
 import { getDesktopConfig } from "./config.mjs";
 
@@ -10,6 +12,9 @@ const __dirname = path.dirname(__filename);
 let mainWindow = null;
 let splashWindow = null;
 const processManager = new DesktopProcessManager();
+const isRemoteMode = () =>
+	String(process.env.DESKTOP_MODE || "").toLowerCase() === "remote" ||
+	Boolean(process.env.DESKTOP_APP_URL);
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {
@@ -17,6 +22,13 @@ if (!singleInstanceLock) {
 }
 
 const createWindow = async () => {
+	if (!process.env.DESKTOP_CONFIG_PATH) {
+		process.env.DESKTOP_CONFIG_PATH = path.join(
+			app.getPath("userData"),
+			"desktop-config.json",
+		);
+	}
+
 	if (process.env.DESKTOP_ALLOW_SYSTEM_PHP === undefined) {
 		process.env.DESKTOP_ALLOW_SYSTEM_PHP = app.isPackaged ? "false" : "true";
 	}
@@ -27,8 +39,16 @@ const createWindow = async () => {
 		process.env.DESKTOP_MANAGED_MYSQL = app.isPackaged ? "true" : "false";
 	}
 
+	await ensureRemoteConfigReady(app.isPackaged);
+
+	if (app.isPackaged && !isRemoteMode()) {
+		throw new Error(
+			"Remote mode is required in packaged builds. Set DESKTOP_APP_URL or DESKTOP_MODE=remote.",
+		);
+	}
+
 	const config = getDesktopConfig();
-	if (process.cwd() !== config.projectRoot) {
+	if (!isRemoteMode() && existsSync(config.projectRoot) && process.cwd() !== config.projectRoot) {
 		process.chdir(config.projectRoot);
 	}
 
@@ -41,9 +61,22 @@ const createWindow = async () => {
 		}
 	});
 
-	await processManager.prepareRuntime();
-	const serverUrl = await processManager.startBackend();
-	const health = await processManager.waitForHealth();
+	let serverUrl = "";
+	if (!isRemoteMode()) {
+		await processManager.prepareRuntime();
+		serverUrl = await processManager.startBackend();
+	} else {
+		serverUrl = process.env.DESKTOP_APP_URL || "";
+		processManager.onProgress("Connecting to server...", 40);
+	}
+	if (!serverUrl) {
+		throw new Error("DESKTOP_APP_URL is required in remote mode.");
+	}
+
+	const shouldSkipHealth =
+		String(process.env.DESKTOP_SKIP_HEALTH_CHECK || "false").toLowerCase() ===
+		"true";
+	const health = shouldSkipHealth ? { ready: true } : await processManager.waitForHealth();
 
 	if (!health?.ready) {
 		const failureSummary = Array.isArray(health?.errors) ? health.errors.join("\n") : "Desktop health endpoint did not report a ready application.";
@@ -178,3 +211,51 @@ const createSplashWindow = async () => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const ensureRemoteConfigReady = async (forcePrompt = false) => {
+	if (!forcePrompt && !isRemoteMode()) {
+		return;
+	}
+
+	const configPath = process.env.DESKTOP_CONFIG_PATH;
+	if (!configPath) {
+		return;
+	}
+
+	await ensureConfigFile(configPath);
+
+	getDesktopConfig(); // Ensure JSON/env config is loaded before we check.
+	if (process.env.DESKTOP_APP_URL) {
+		return;
+	}
+
+	const choice = await dialog.showMessageBox({
+		type: "warning",
+		title: "Server Configuration Required",
+		message: "Momma's Bakeshop needs a server address to continue.",
+		detail: "Set DESKTOP_APP_URL in the desktop-config.json file.",
+		buttons: ["Open Config Folder", "Quit"],
+		defaultId: 0,
+		cancelId: 1,
+	});
+
+	if (choice.response === 0) {
+		shell.showItemInFolder(configPath);
+	}
+
+	throw new Error("Missing DESKTOP_APP_URL in desktop-config.json.");
+};
+
+const ensureConfigFile = async (configPath) => {
+	if (existsSync(configPath)) {
+		return;
+	}
+
+	const folder = path.dirname(configPath);
+	await mkdir(folder, { recursive: true });
+	const template = {
+		DESKTOP_APP_URL: "https://your-server.example.com",
+		DESKTOP_SKIP_HEALTH_CHECK: "false",
+	};
+	await writeFile(configPath, JSON.stringify(template, null, 2) + "\n", "utf8");
+};

@@ -43,33 +43,14 @@
     "build": {
         "appId": "com.mommasbakeshop.desktop",
         "productName": "Momma's Bakeshop",
-        "asar": false,
+        "asar": true,
         "directories": {
             "output": "dist-electron"
         },
         "files": [
-            "app/**/*",
-            "artisan",
-            "bootstrap/**/*",
-            "composer.json",
-            "composer.lock",
-            ".env.example",
-            "config/**/*",
-            "database/**/*",
             "desktop/**/*",
             "!desktop/runtime/**",
-            "package.json",
-            "public/**/*",
-            "resources/views/**/*",
-            "routes/**/*",
-            "storage/framework/views/**/*",
-            "vendor/**/*"
-        ],
-        "extraResources": [
-            {
-                "from": "desktop/runtime",
-                "to": "runtime"
-            }
+            "package.json"
         ],
         "extraMetadata": {
             "main": "desktop/main.mjs"

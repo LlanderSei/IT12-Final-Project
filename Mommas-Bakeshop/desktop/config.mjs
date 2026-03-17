@@ -8,9 +8,43 @@ const defaultProjectRoot = path.resolve(__dirname, "..");
 const packagedProjectRoot = process.resourcesPath
 	? path.join(process.resourcesPath, "app")
 	: defaultProjectRoot;
-const projectRoot =
-	process.env.DESKTOP_APP_ROOT ||
-	(existsSync(packagedProjectRoot) ? packagedProjectRoot : defaultProjectRoot);
+const isRemoteMode =
+	String(process.env.DESKTOP_MODE || "").toLowerCase() === "remote" ||
+	Boolean(process.env.DESKTOP_APP_URL);
+const projectRoot = isRemoteMode
+	? process.env.DESKTOP_APP_ROOT || process.cwd()
+	: process.env.DESKTOP_APP_ROOT ||
+		(existsSync(packagedProjectRoot) ? packagedProjectRoot : defaultProjectRoot);
+
+const loadJsonConfig = () => {
+	const configPath =
+		process.env.DESKTOP_CONFIG_PATH ||
+		path.join(projectRoot, "storage", "app", "private", "desktop-config.json");
+	if (!existsSync(configPath)) {
+		return;
+	}
+
+	try {
+		const raw = readFileSync(configPath, "utf8");
+		const data = JSON.parse(raw);
+		if (data && typeof data === "object") {
+			for (const [key, value] of Object.entries(data)) {
+				if (
+					value === undefined ||
+					value === null ||
+					Object.prototype.hasOwnProperty.call(process.env, key)
+				) {
+					continue;
+				}
+				process.env[key] = String(value);
+			}
+		}
+	} catch {
+		// Ignore invalid JSON; environment variables still take precedence.
+	}
+};
+
+let envLoaded = false;
 
 const loadDotEnv = () => {
 	const envPath = path.join(projectRoot, ".env");
@@ -49,9 +83,17 @@ const loadDotEnv = () => {
 	}
 };
 
-loadDotEnv();
+const ensureEnvLoaded = () => {
+	if (envLoaded) {
+		return;
+	}
+	loadJsonConfig();
+	loadDotEnv();
+	envLoaded = true;
+};
 
 export const getDesktopConfig = () => {
+	ensureEnvLoaded();
 	const defaultHost = process.env.DESKTOP_HOST || "127.0.0.1";
 	const defaultPort = Number.parseInt(process.env.DESKTOP_PORT || "8123", 10);
 	const healthPath = process.env.DESKTOP_HEALTH_PATH || "/desktop/health";
@@ -115,11 +157,13 @@ export const getDesktopConfig = () => {
 };
 
 export const getServerUrl = () => {
+	ensureEnvLoaded();
 	const config = getDesktopConfig();
 	return `http://${config.host}:${config.port}`;
 };
 
 export const getHealthUrl = () => {
+	ensureEnvLoaded();
 	const config = getDesktopConfig();
 	return `${getServerUrl()}${config.healthPath}`;
 };
