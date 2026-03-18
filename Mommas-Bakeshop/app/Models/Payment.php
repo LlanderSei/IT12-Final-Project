@@ -59,9 +59,25 @@ class Payment extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $values = $this->auditCurrentValues($data);
+    $saleLabel = $this->auditSaleLabel($values['SalesID'] ?? null);
+    $method = trim((string) ($values['PaymentMethod'] ?? 'payment'));
+    $paidAmount = $this->auditFormatMoney($values['PaidAmount'] ?? 0);
+
+    return match ($event) {
+      'created' => "Payment recorded for {$saleLabel}: {$paidAmount} via {$method}",
+      'deleted' => "Payment removed from {$saleLabel}",
+      default => isset($oldValues['PaymentStatus'], $values['PaymentStatus']) && (string) $oldValues['PaymentStatus'] !== (string) $values['PaymentStatus']
+        ? "Payment status updated for {$saleLabel} from {$oldValues['PaymentStatus']} to {$values['PaymentStatus']}"
+        : "Payment details updated for {$saleLabel}",
+    };
+  }
+
   // Relationships
   public function sale() {
     return $this->belongsTo(Sale::class, 'SalesID');
   }
 }
-

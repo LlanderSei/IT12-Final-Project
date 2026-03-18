@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useForm, usePage } from "@inertiajs/react";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import { Pencil, Trash2 } from "lucide-react";
 
 const toRankNumber = (value) => {
 	const rank = Number(value);
@@ -473,8 +474,9 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 																onClick={() => openEditModal(user)}
 																disabled={!canEditTarget(user)}
 																title={getEditTooltip(user)}
-																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+																className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
 															>
+																<Pencil className="h-3.5 w-3.5" />
 																Edit
 															</button>
 															<button
@@ -484,10 +486,11 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 																title={getDeleteTooltip(user)}
 																className={
 																	canDelete
-																		? "rounded border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-																		: "rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300 cursor-not-allowed"
+																		? "inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+																		: "inline-flex items-center gap-1.5 rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300 cursor-not-allowed"
 																}
 															>
+																<Trash2 className="h-3.5 w-3.5" />
 																Delete
 															</button>
 														</div>

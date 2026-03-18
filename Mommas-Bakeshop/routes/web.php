@@ -21,8 +21,9 @@ use App\Http\Controllers\PointOfSale\CustomerController;
 use App\Http\Controllers\PointOfSale\JobOrders\JobOrdersController;
 use App\Http\Controllers\PointOfSale\JobOrders\PendingJobOrdersController;
 use App\Http\Controllers\PointOfSale\JobOrders\JobOrdersHistoryController;
+use App\Http\Controllers\PointOfSale\JobOrders\PendingPaymentsController as JobOrderPendingPaymentsController;
 use App\Http\Controllers\PointOfSale\SaleHistory\SalesController;
-use App\Http\Controllers\PointOfSale\SaleHistory\PendingPaymentsController;
+use App\Http\Controllers\PointOfSale\SaleHistory\PendingPaymentsController as SaleHistoryPendingPaymentsController;
 use App\Http\Controllers\Inventory\InventoryLevels\InventoryController as InventoryLevelsController;
 use App\Http\Controllers\Inventory\InventoryLevels\StockInController;
 use App\Http\Controllers\Inventory\InventoryLevels\StockOutController;
@@ -68,17 +69,17 @@ Route::middleware('auth')->group(function () {
   Route::get('/pos/job-orders/history', [JobOrdersHistoryController::class, 'index'])
     ->middleware('permission:CanViewJobOrdersHistory')
     ->name('pos.job-orders.history');
+  Route::get('/pos/job-orders/pending-payments', [JobOrderPendingPaymentsController::class, 'index'])
+    ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistoryPendingPayments'])
+    ->name('pos.job-orders.pending-payments');
   Route::get('/pos/sale-history', [SalesController::class, 'index'])
     ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistorySales'])
     ->name('pos.sale-history');
-  Route::get('/pos/sale-history/pending-payments', [PendingPaymentsController::class, 'index'])
-    ->middleware(['permission:CanViewSalesHistory', 'permission:CanViewSalesHistoryPendingPayments'])
-    ->name('pos.sale-history.pending');
   Route::get('/pos/customers', [CustomerController::class, 'customers'])->middleware('permission:CanViewCustomers')->name('pos.customers');
   Route::post('/pos/customers', [CustomerController::class, 'storeCustomer'])->middleware(['permission:CanCreateCustomer', 'maintenance.lock'])->name('pos.customers.store');
   Route::put('/pos/customers/{id}', [CustomerController::class, 'updateCustomer'])->middleware(['permission:CanUpdateCustomer', 'maintenance.lock'])->name('pos.customers.update');
   Route::delete('/pos/customers/{id}', [CustomerController::class, 'destroyCustomer'])->middleware(['permission:CanDeleteCustomer', 'maintenance.lock'])->name('pos.customers.destroy');
-  Route::post('/pos/sale-history/payments', [PendingPaymentsController::class, 'recordSalePayment'])->middleware(['permission:CanRecordSalePayment', 'maintenance.lock'])->name('pos.sale-history.payments.store');
+  Route::post('/pos/sale-history/payments', [SaleHistoryPendingPaymentsController::class, 'recordSalePayment'])->middleware(['permission:CanRecordSalePayment', 'maintenance.lock'])->name('pos.sale-history.payments.store');
   Route::post('/pos/checkout/walk-in', [CashierController::class, 'checkoutWalkIn'])->middleware(['permission:CanProcessSalesWalkIn', 'maintenance.lock'])->name('pos.checkout.walk-in');
   Route::post('/pos/job-orders', [JobOrdersController::class, 'storeJobOrder'])->middleware(['permission:CanCreateJobOrders', 'maintenance.lock'])->name('pos.job-orders.store');
   Route::post('/pos/job-orders/{id}/deliver', [JobOrdersController::class, 'deliverJobOrder'])->middleware(['permission:CanProcessSalesJobOrders', 'maintenance.lock'])->name('pos.job-orders.deliver');
@@ -217,5 +218,4 @@ Route::middleware('auth')->group(function () {
 
 
 require __DIR__ . '/auth.php';
-
 

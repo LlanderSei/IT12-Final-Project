@@ -42,6 +42,25 @@ class StockOut extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $values = $this->auditCurrentValues($data);
+    $itemName = ($values['ItemType'] ?? '') === 'Inventory'
+      ? $this->auditInventoryName($values['InventoryID'] ?? null)
+      : $this->auditProductName($values['ProductID'] ?? null);
+    $quantity = $this->auditFormatQuantity($values['QuantityRemoved'] ?? 0);
+    $detailId = $values['StockOutDetailsID'] ?? null;
+    $reason = $detailId ? optional(StockOutDetail::query()->find($detailId))->Reason : null;
+    $context = $reason ? " due to {$reason}" : '';
+    $stockOutLabel = 'Stock-Out #' . ($detailId ?? 'record');
+
+    return match ($event) {
+      'created' => "{$quantity} units reduced from stock for {$itemName}{$context} via {$stockOutLabel}",
+      'deleted' => "Stock-out line removed for {$itemName} from {$stockOutLabel}",
+      default => "Stock-out line updated for {$itemName} on {$stockOutLabel}",
+    };
+  }
+
   protected $casts = [
     'QuantityRemoved' => 'integer',
     'SubAmount' => 'decimal:2',

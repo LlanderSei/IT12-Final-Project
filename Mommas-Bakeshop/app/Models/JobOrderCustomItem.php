@@ -45,6 +45,20 @@ class JobOrderCustomItem extends Model implements Auditable {
 		return $data;
 	}
 
+	protected function auditReadableSummary(array $data): ?string {
+		$event = strtolower((string) ($data['event'] ?? 'updated'));
+		$values = $this->auditCurrentValues($data);
+		$jobOrderLabel = $this->auditJobOrderLabel($values['JobOrderID'] ?? null);
+		$description = trim((string) ($values['CustomOrderDescription'] ?? 'Custom item'));
+		$quantity = $this->auditFormatQuantity($values['Quantity'] ?? 0);
+
+		return match ($event) {
+			'created' => "Custom item added to {$jobOrderLabel} - {$description} x{$quantity}",
+			'deleted' => "Custom item removed from {$jobOrderLabel} - {$description} x{$quantity}",
+			default => "{$jobOrderLabel} custom item updated: {$description}",
+		};
+	}
+
 	public function jobOrder() {
 		return $this->belongsTo(JobOrder::class, 'JobOrderID');
 	}

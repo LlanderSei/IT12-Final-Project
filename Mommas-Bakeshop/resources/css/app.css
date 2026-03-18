@@ -38,6 +38,9 @@
 	--color-text: var(--color-lightmode-text);
 	--color-text-muted: var(--color-lightmode-text-muted);
 	--color-border: var(--color-lightmode-border);
+	--scrollbar-thumb: rgb(var(--color-primary) / 0.82);
+	--scrollbar-thumb-hover: rgb(var(--color-primary-hover) / 0.92);
+	--scrollbar-track: rgb(var(--color-primary-soft) / 0.55);
 }
 
 html.theme-dark {
@@ -59,6 +62,43 @@ body,
 #app {
 	background: var(--color-app-bg);
 	color: var(--color-text);
+}
+
+html {
+	scrollbar-width: thin;
+	scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+	background: var(--scrollbar-track);
+	border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+	border-radius: 9999px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+	min-height: 32px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover);
+	background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+	background: transparent;
 }
 
 html.theme-dark .bg-white {

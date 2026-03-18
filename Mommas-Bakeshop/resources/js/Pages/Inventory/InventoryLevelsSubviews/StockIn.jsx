@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
+import { Eye, Pencil } from "lucide-react";
 
 function toComparableDate(value) {
 	if (!value) return null;
@@ -390,16 +391,18 @@ export default function StockIn({ stockIns, onEdit, onHeaderMetaChange, canEdit 
 										<button
 											type="button"
 											onClick={() => setSelectedRecord(record)}
-											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+											className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
 										>
+											<Eye className="h-3.5 w-3.5" />
 											View
 										</button>
 										{canEdit ? (
 											<button
 												type="button"
 												onClick={() => onEdit?.(record)}
-												className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+												className="inline-flex items-center gap-1.5 rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
 											>
+												<Pencil className="h-3.5 w-3.5" />
 												Edit
 											</button>
 										) : (

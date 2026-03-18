@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Head, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import CashierTabs from "./CashierTabs";
 import Modal from "@/Components/Modal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -229,8 +229,6 @@ export default function Customers({ customers = [] }) {
 		>
 			<Head title="Customers" />
 
-			<CashierTabs />
-
 			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
 				<div className="mx-auto flex-1 flex flex-col overflow-hidden min-h-0 w-full">
 					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
@@ -357,24 +355,27 @@ export default function Customers({ customers = [] }) {
 															<button
 																type="button"
 																onClick={() => setSelectedCustomer(customer)}
-																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+																className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
 															>
+																<Eye className="h-3.5 w-3.5" />
 																View
 															</button>
 															<button
 																type="button"
 																onClick={() => openEditModal(customer)}
 																disabled={!canUpdateCustomer}
-																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
+																className="inline-flex items-center gap-1.5 rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
 															>
+																<Pencil className="h-3.5 w-3.5" />
 																Edit
 															</button>
 															<button
 																type="button"
 																onClick={() => openDeleteModal(customer)}
 																disabled={!canDeleteCustomer || Number(customer.SalesRecords || 0) > 0}
-																className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+																className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
 															>
+																<Trash2 className="h-3.5 w-3.5" />
 																Delete
 															</button>
 														</div>

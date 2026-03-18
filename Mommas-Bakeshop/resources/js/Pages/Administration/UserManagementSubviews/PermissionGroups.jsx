@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import { Pencil, Trash2 } from "lucide-react";
 
 const showErrorToast = (message) => {
 	if (typeof window === "undefined") return;
@@ -186,8 +187,9 @@ export default function PermissionGroups({ rows = [], onHeaderMetaChange }) {
 																type="button"
 																onClick={() => openEditModal(row)}
 																disabled={!canUpdate}
-																className={canUpdate ? "rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft" : "cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
+																className={canUpdate ? "inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover" : "inline-flex items-center gap-1.5 cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
 															>
+																<Pencil className="h-3.5 w-3.5" />
 																Edit
 															</button>
 															<button
@@ -195,8 +197,9 @@ export default function PermissionGroups({ rows = [], onHeaderMetaChange }) {
 																onClick={() => setDeleteCandidate(row)}
 																disabled={!deletable}
 																title={getDeleteTooltip(row)}
-																className={deletable ? "rounded border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50" : "cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
+																className={deletable ? "inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700" : "inline-flex items-center gap-1.5 cursor-not-allowed rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-300"}
 															>
+																<Trash2 className="h-3.5 w-3.5" />
 																Delete
 															</button>
 														</div>

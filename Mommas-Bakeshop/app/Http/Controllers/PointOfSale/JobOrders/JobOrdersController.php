@@ -176,27 +176,12 @@ class JobOrdersController extends Controller {
         'paymentSelection' => 'required|in:pay_now,pay_later',
         'paymentType' => 'nullable|in:full,partial',
         'paidAmount' => 'nullable|numeric|min:0',
-        'paymentMethod' => 'nullable|string|max:255',
+        'paymentMethod' => $this->paymentMethodValidationRule(true),
         'additionalDetails' => 'nullable|string|max:1000',
         'dueDate' => 'nullable|date|after_or_equal:today',
       ]);
 
-      $paymentSelection = $payload['paymentSelection'];
-      $paymentType = $payload['paymentType'] ?? 'full';
-
-      if ($paymentSelection === 'pay_later' && empty($payload['dueDate'] ?? null)) {
-        throw ValidationException::withMessages([
-          'dueDate' => 'Due date is required when payment is set to Pay Later.',
-        ]);
-      }
-
-      if ($paymentSelection === 'pay_now' && $paymentType === 'partial' && empty($payload['dueDate'] ?? null)) {
-        throw ValidationException::withMessages([
-          'dueDate' => 'Due date is required for partial payments.',
-        ]);
-      }
-
-      DB::transaction(function () use ($payload, $paymentSelection, $paymentType, $id, $request) {
+      DB::transaction(function () use ($payload, $id, $request) {
         $jobOrder = JobOrder::with([
           'items',
           'customItems',
@@ -216,30 +201,23 @@ class JobOrdersController extends Controller {
         $products = $this->assertAndLockProducts($groupedItems);
 
         $totalAmount = (float) $jobOrder->TotalAmount;
-        $paidAmount = 0.0;
-        $paymentStatus = 'Unpaid';
+        $paymentDetails = $this->normalizeSalePaymentInput($payload, $totalAmount, true);
+        if ($paymentDetails['remainingAmount'] > 0 && empty($payload['dueDate'] ?? null)) {
+          throw ValidationException::withMessages([
+            'dueDate' => 'Due date is required whenever a balance remains.',
+          ]);
+        }
+
+        $paidAmount = $paymentDetails['appliedAmount'];
+        $paymentStatus = $paymentDetails['paymentStatus'];
         $paymentReceiptNumber = null;
         $partialReceiptNumber = null;
 
-        if ($paymentSelection === 'pay_now') {
-          if ($paymentType === 'partial') {
-            $paidAmount = round((float) ($payload['paidAmount'] ?? 0), 2);
-            if ($paidAmount <= 0 || $paidAmount >= $totalAmount) {
-              throw ValidationException::withMessages([
-                'paidAmount' => 'Partial payment must be greater than 0 and less than total amount.',
-              ]);
-            }
-            $paymentStatus = 'Partially Paid';
-            $partialReceiptNumber = $this->generateReceiptNumber();
-          } else {
-            $paidAmount = round((float) ($payload['paidAmount'] ?? $totalAmount), 2);
-            if ($paidAmount < $totalAmount) {
-              throw ValidationException::withMessages([
-                'paidAmount' => 'Paid amount must be greater than or equal to total amount.',
-              ]);
-            }
-            $paymentStatus = 'Paid';
+        if ($paymentDetails['paymentSelection'] === 'pay_now') {
+          if ($paymentDetails['effectivePaymentType'] === 'full') {
             $paymentReceiptNumber = $this->generateReceiptNumber();
+          } else {
+            $partialReceiptNumber = $this->generateReceiptNumber();
           }
         }
 
@@ -269,14 +247,14 @@ class JobOrdersController extends Controller {
 
         $invoiceNumber = $this->generateInvoiceNumber();
         $dueDate = $payload['dueDate'] ?? null;
-        $finalDueDate = $paymentStatus === 'Paid' ? null : $dueDate;
+        $finalDueDate = $paymentDetails['remainingAmount'] > 0 ? $dueDate : null;
 
         Payment::create([
           'SalesID' => $sale->ID,
-          'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
+          'PaymentMethod' => $paymentDetails['paymentMethod'],
           'PaidAmount' => $paidAmount,
           'TotalAmount' => $totalAmount,
-          'Change' => max(0, round($paidAmount - $totalAmount, 2)),
+          'Change' => $paymentDetails['change'],
           'PaymentStatus' => $paymentStatus,
           'InvoiceNumber' => $invoiceNumber,
           'InvoiceIssuedAt' => now(),
@@ -287,13 +265,15 @@ class JobOrdersController extends Controller {
           'DateAdded' => now(),
         ]);
 
-        if ($paymentSelection === 'pay_now' && $paymentType === 'partial') {
+        if ($paymentDetails['paymentSelection'] === 'pay_now' && $paymentDetails['effectivePaymentType'] === 'partial') {
           PartialPayment::create([
             'SalesID' => $sale->ID,
             'PaidAmount' => $paidAmount,
+            'TenderedAmount' => $paymentDetails['tenderedAmount'],
+            'Change' => $paymentDetails['change'],
             'ReceiptNumber' => $partialReceiptNumber,
             'ReceiptIssuedAt' => $partialReceiptNumber ? now() : null,
-            'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
+            'PaymentMethod' => $paymentDetails['paymentMethod'],
             'AdditionalDetails' => $payload['additionalDetails'] ?? null,
             'DateAdded' => now(),
           ]);
@@ -341,7 +321,7 @@ class JobOrdersController extends Controller {
 
   protected function renderJobOrders(Request $request, ?string $forcedTab = null) {
     $requestedTab = $forcedTab ?? $request->route('tab');
-    $initialTab = in_array($requestedTab, ['Job Orders', 'Pending Job Orders', 'Job Orders History'], true)
+    $initialTab = in_array($requestedTab, ['Job Orders', 'Pending Job Orders', 'Pending Payments', 'Job Orders History'], true)
       ? $requestedTab
       : 'Job Orders';
 
@@ -367,10 +347,27 @@ class JobOrdersController extends Controller {
       ->filter(fn ($jobOrder) => in_array(($jobOrder['Status'] ?? ''), ['Delivered', 'Cancelled'], true))
       ->values();
 
+    $pendingSales = Sale::with([
+      'customer',
+      'user:id,FullName',
+      'payment',
+      'soldProducts.product:ID,ProductName',
+      'partialPayments',
+      'jobOrder.customItems',
+    ])
+      ->where('SaleType', 'JobOrder')
+      ->orderByDesc('DateAdded')
+      ->get()
+      ->filter(function ($sale) {
+        return optional($sale->payment)->PaymentStatus !== 'Paid';
+      })
+      ->values();
+
     return Inertia::render('PointOfSale/JobOrdersTabs', [
       'initialTab' => $initialTab,
       'jobOrders' => $jobOrders,
       'pendingJobOrders' => $pendingJobOrders,
+      'pendingSales' => $pendingSales,
       'historyJobOrders' => $historyJobOrders,
       'products' => Product::with('category')
         ->orderBy('ProductName')

@@ -6,6 +6,7 @@ import Modal from "@/Components/Modal";
 import SecondaryButton from "@/Components/SecondaryButton";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
+import { Pencil } from "lucide-react";
 
 function PermissionGroupRow({ title, permissions, userPermissions, onToggle, searchQuery }) {
 	const [isOpen, setIsOpen] = useState(true);
@@ -360,11 +361,9 @@ export default function Permissions({
 																	}
 																	setEditingUser(row);
 																}}
-																className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary border border-transparent text-white text-xs font-bold rounded-md hover:bg-primary-hover transition-all shadow-sm"
+																className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover transition-all shadow-sm"
 															>
-																<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-																</svg>
+																<Pencil className="h-3.5 w-3.5" />
 																Edit
 															</button>
 														</td>

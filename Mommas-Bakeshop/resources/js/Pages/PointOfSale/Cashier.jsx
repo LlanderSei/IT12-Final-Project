@@ -2,12 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Head, useForm, usePage } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
-import CashierTabs from "./CashierTabs";
 import usePermissions from "@/hooks/usePermissions";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
-export default function CashSale({ products = [], categories = [] }) {
+export default function Cashier({ products = [], categories = [] }) {
 	const { can, requirePermission } = usePermissions();
 	const { auth } = usePage().props;
 	const canProcessWalkIn = can("CanProcessSalesWalkIn");
@@ -312,8 +311,7 @@ export default function CashSale({ products = [], categories = [] }) {
 			}
 			disableScroll={true}
 		>
-			<Head title="Cash Sale" />
-			<CashierTabs />
+			<Head title="Cashier" />
 
 			<div className="flex-1 p-4 md:p-6 min-h-0">
 				<div className="h-full min-h-0 flex flex-col">

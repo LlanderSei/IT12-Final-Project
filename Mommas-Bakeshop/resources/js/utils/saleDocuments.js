@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getReceiptAmountReceived } from "./paymentFlow";
 
 export const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -70,6 +71,8 @@ function partialPaymentRows(sale) {
 	return (sale.partial_payments || []).map((payment) => [
 		payment.ReceiptNumber || "-",
 		currency(payment.PaidAmount),
+		payment.TenderedAmount != null ? currency(payment.TenderedAmount) : "-",
+		payment.Change != null ? currency(payment.Change) : "-",
 		payment.PaymentMethod || "-",
 		formatDateTime(payment.DateAdded),
 	]);
@@ -147,7 +150,7 @@ export function exportInvoicePdf(sale) {
 	if (paymentRows.length > 0) {
 		autoTable(doc, {
 			startY: cursorY + 8,
-			head: [["Receipt No.", "Amount", "Method", "Date"]],
+			head: [["Receipt No.", "Applied", "Tendered", "Change", "Method", "Date"]],
 			body: paymentRows,
 			styles: { fontSize: 9, cellPadding: 3 },
 			headStyles: { fillColor: [31, 41, 55] },
@@ -168,6 +171,9 @@ export function exportReceiptPdf(sale, receiptPayment = null) {
 	}
 
 	const paidAmount = isInitialReceipt
+		? getReceiptAmountReceived(sale.payment)
+		: getReceiptAmountReceived(receiptPayment);
+	const appliedAmount = isInitialReceipt
 		? Number(sale.payment?.PaidAmount || 0)
 		: Number(receiptPayment?.PaidAmount || 0);
 	const paidAt = isInitialReceipt
@@ -194,9 +200,16 @@ export function exportReceiptPdf(sale, receiptPayment = null) {
 	);
 	doc.text(`Amount Received: ${currency(paidAmount)}`, 14, 76);
 	doc.text(`Balance After Payment: ${currency(balanceAfterPayment)}`, 105, 76);
+	if ((isInitialReceipt ? sale.payment?.Change : receiptPayment?.Change) != null) {
+		doc.text(
+			`Change: ${currency(isInitialReceipt ? sale.payment?.Change : receiptPayment?.Change)}`,
+			14,
+			82,
+		);
+	}
 
 	autoTable(doc, {
-		startY: 86,
+		startY: 90,
 		head: [["Item", "Qty", "Price", "Subtotal"]],
 		body: invoiceRows(sale),
 		styles: { fontSize: 9, cellPadding: 3 },
@@ -206,7 +219,14 @@ export function exportReceiptPdf(sale, receiptPayment = null) {
 	let cursorY = doc.lastAutoTable.finalY + 8;
 	doc.setFont("helvetica", "bold");
 	doc.text(`Sale Total: ${currency(sale.totalAmount)}`, 14, cursorY);
-	doc.text(`Paid This Receipt: ${currency(paidAmount)}`, 105, cursorY);
+	doc.text(`Applied This Receipt: ${currency(appliedAmount)}`, 105, cursorY);
+	cursorY += 6;
+	doc.text(`Amount Received: ${currency(paidAmount)}`, 14, cursorY);
+	doc.text(
+		`Change: ${currency(isInitialReceipt ? sale.payment?.Change : receiptPayment?.Change)}`,
+		105,
+		cursorY,
+	);
 	cursorY += 6;
 	doc.text(`Paid To Date: ${currency(cumulativePaid)}`, 14, cursorY);
 	doc.text(`Remaining Balance: ${currency(balanceAfterPayment)}`, 105, cursorY);

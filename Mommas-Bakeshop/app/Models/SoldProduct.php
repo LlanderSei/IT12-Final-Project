@@ -47,6 +47,23 @@ class SoldProduct extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $values = $this->auditCurrentValues($data);
+    $saleLabel = $this->auditSaleLabel($values['SalesID'] ?? null);
+    $productName = $this->auditProductName($values['ProductID'] ?? null);
+    $quantity = $this->auditFormatQuantity($values['Quantity'] ?? 0);
+
+    return match ($event) {
+      'created' => "Item added to {$saleLabel} - {$productName} x{$quantity}",
+      'deleted' => "Item removed from {$saleLabel} - {$productName} x{$quantity}",
+      default => array_key_exists('Quantity', $oldValues) && array_key_exists('Quantity', $values) && (string) $oldValues['Quantity'] !== (string) $values['Quantity']
+        ? "{$saleLabel} updated: {$productName} quantity changed from {$this->auditFormatQuantity($oldValues['Quantity'])} to {$quantity}"
+        : "{$saleLabel} item updated: {$productName}",
+    };
+  }
+
   // Relationships
   public function sale() {
     return $this->belongsTo(Sale::class, 'SalesID');

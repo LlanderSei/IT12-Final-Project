@@ -4,6 +4,8 @@ import Modal from "@/Components/Modal";
 import usePermissions from "@/hooks/usePermissions";
 import { exportJobOrderPdf } from "@/utils/saleDocuments";
 import { formatCountLabel } from "@/utils/countLabel";
+import { Eye, Printer, Truck, XCircle } from "lucide-react";
+import { computePaymentFlow, PAYMENT_METHODS } from "@/utils/paymentFlow";
 import {
 	countOverdueDeliveries,
 	getDeliveryTimestamp,
@@ -38,6 +40,7 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 	});
 	const [currentPage, setCurrentPage] = useState(1);
 	const [itemsPerPage, setItemsPerPage] = useState(25);
+	const [deliverSubmitAttempted, setDeliverSubmitAttempted] = useState(false);
 
 	const deliverForm = useForm({
 		paymentSelection: "pay_later",
@@ -55,9 +58,26 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 		return Number(deliverTarget.TotalAmount || 0);
 	}, [deliverTarget]);
 
+	const deliverPaymentState = useMemo(
+		() =>
+			computePaymentFlow({
+				paymentSelection: deliverForm.data.paymentSelection,
+				paymentMethod: deliverForm.data.paymentMethod,
+				paidAmount: deliverForm.data.paidAmount,
+				amountDue: totalAmount,
+			}),
+		[
+			deliverForm.data.paymentSelection,
+			deliverForm.data.paymentMethod,
+			deliverForm.data.paidAmount,
+			totalAmount,
+		],
+	);
+
 	const openDeliverModal = (jobOrder) => {
 		if (!requirePermission("CanProcessSalesJobOrders")) return;
 		setDeliverTarget(jobOrder);
+		setDeliverSubmitAttempted(false);
 		deliverForm.setData({
 			paymentSelection: "pay_later",
 			paymentType: "full",
@@ -71,21 +91,31 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 
 	const closeDeliverModal = () => {
 		setDeliverTarget(null);
+		setDeliverSubmitAttempted(false);
 	};
 
 	const submitDeliver = (e) => {
 		e.preventDefault();
 		if (!deliverTarget) return;
 		if (!requirePermission("CanProcessSalesJobOrders")) return;
+		setDeliverSubmitAttempted(true);
+		if (
+			deliverForm.data.paymentSelection === "pay_now" &&
+			deliverPaymentState.amountError
+		) {
+			return;
+		}
 
 		deliverForm.transform((data) => ({
 			...data,
+			paymentType:
+				data.paymentSelection === "pay_now"
+					? deliverPaymentState.effectivePaymentType
+					: data.paymentType,
+			paymentMethod:
+				data.paymentSelection === "pay_now" ? data.paymentMethod : null,
 			paidAmount:
-				data.paymentSelection === "pay_now" && data.paymentType === "partial"
-					? Number(data.paidAmount)
-					: data.paymentSelection === "pay_now"
-						? Number(totalAmount)
-						: null,
+				data.paymentSelection === "pay_now" ? Number(data.paidAmount) : null,
 		}));
 		deliverForm.post(route("pos.job-orders.deliver", deliverTarget.ID), {
 			preserveScroll: true,
@@ -355,8 +385,9 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 												<button
 													type="button"
 													onClick={() => setSelectedJobOrder(row)}
-													className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+													className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
 												>
+													<Eye size={14} />
 													View
 												</button>
 												<button
@@ -365,22 +396,25 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 														if (!requirePermission("CanPrintJobOrders")) return;
 														exportJobOrderPdf(row);
 													}}
-													className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+													className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
 												>
+													<Printer size={14} />
 													Print Invoice
 												</button>
 												<button
 													type="button"
 													onClick={() => openDeliverModal(row)}
-													className="rounded bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-hover"
+													className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
 												>
+													<Truck size={14} />
 													Mark Delivered
 												</button>
 												<button
 													type="button"
 													onClick={() => openCancelModal(row)}
-													className="rounded border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+													className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
 												>
+													<XCircle size={14} />
 													Cancel
 												</button>
 											</div>
@@ -634,9 +668,9 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 						<h3 className="text-lg font-semibold text-gray-900 mb-4">
 							Deliver Job Order #{deliverTarget.ID}
 						</h3>
-						<div className="space-y-4">
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-								<div>
+					<div className="space-y-4">
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
 										Payment Selection
 									</label>
@@ -654,99 +688,127 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 										<option value="pay_now">Pay Now</option>
 									</select>
 								</div>
-								{deliverForm.data.paymentSelection === "pay_now" && (
-									<div>
-										<label className="block text-sm font-medium text-gray-700 mb-1">
-											Payment Type
-										</label>
-										<select
-											value={deliverForm.data.paymentType}
-											onChange={(e) =>
-												deliverForm.setData("paymentType", e.target.value)
-											}
-											className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-										>
-											<option value="full">Full Payment</option>
-											<option value="partial">Partial Payment</option>
-										</select>
-									</div>
-								)}
-							</div>
-
-							{deliverForm.data.paymentSelection === "pay_now" &&
-								deliverForm.data.paymentType === "partial" && (
-									<div>
-										<label className="block text-sm font-medium text-gray-700 mb-1">
-											Amount Paid
-										</label>
-										<input
-											type="number"
-											step="0.01"
-											min="0"
-											value={deliverForm.data.paidAmount}
-											onChange={(e) =>
-												deliverForm.setData("paidAmount", e.target.value)
-											}
-											className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-										/>
-										{deliverForm.errors.paidAmount && (
-											<p className="mt-1 text-sm text-red-600">
-												{deliverForm.errors.paidAmount}
-											</p>
-										)}
-									</div>
-								)}
-
-							{(deliverForm.data.paymentSelection === "pay_later" ||
-								(deliverForm.data.paymentSelection === "pay_now" &&
-									deliverForm.data.paymentType === "partial")) && (
-									<div>
-										<label className="block text-sm font-medium text-gray-700 mb-1">
-											Due Date
-										</label>
-										<input
-											type="date"
-											value={deliverForm.data.dueDate}
-											onChange={(e) =>
-												deliverForm.setData("dueDate", e.target.value)
-											}
-											className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
-										/>
-										{deliverForm.errors.dueDate && (
-											<p className="mt-1 text-sm text-red-600">
-												{deliverForm.errors.dueDate}
-											</p>
-										)}
-									</div>
-								)}
-
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+							{deliverForm.data.paymentSelection === "pay_now" && (
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Payment Method
+										Payment Type
 									</label>
 									<select
-										value={deliverForm.data.paymentMethod}
+										value={deliverForm.data.paymentType}
 										onChange={(e) =>
-											deliverForm.setData("paymentMethod", e.target.value)
+											deliverForm.setData("paymentType", e.target.value)
 										}
 										className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
 									>
-										<option value="Cash">Cash</option>
-										<option value="GCash">GCash</option>
-										<option value="Bank Transfer">Bank Transfer</option>
-										<option value="Card">Card</option>
+										<option value="full">Full Payment</option>
+										<option value="partial">Partial Payment</option>
 									</select>
+									<p className="mt-1 text-xs text-gray-500">
+										Recorded as{" "}
+										{deliverPaymentState.effectivePaymentType === "full"
+											? "Full Payment"
+											: "Partial Payment"}
+										.
+									</p>
+								</div>
+							)}
+						</div>
+
+						{deliverForm.data.paymentSelection === "pay_now" && (
+							<>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">
+											Payment Method
+										</label>
+										<select
+											value={deliverForm.data.paymentMethod}
+											onChange={(e) =>
+												deliverForm.setData("paymentMethod", e.target.value)
+											}
+											className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+										>
+											{PAYMENT_METHODS.map((method) => (
+												<option key={method} value={method}>
+													{method}
+												</option>
+											))}
+										</select>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">
+											Total Amount
+										</label>
+										<div className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50">
+											{currency(totalAmount)}
+										</div>
+									</div>
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Total Amount
+										Amount Paid
 									</label>
-									<div className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50">
-										{currency(totalAmount)}
-									</div>
+									<input
+										type="number"
+										step="0.01"
+										min="0"
+										value={deliverForm.data.paidAmount}
+										onChange={(e) =>
+											deliverForm.setData("paidAmount", e.target.value)
+										}
+										className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+									/>
+									<p className="mt-1 text-xs text-gray-500">
+										Applied: {currency(deliverPaymentState.appliedAmount)}
+										{deliverPaymentState.remainingAmount > 0
+											? ` • Remaining: ${currency(deliverPaymentState.remainingAmount)}`
+											: ""}
+									</p>
+									{deliverSubmitAttempted &&
+										deliverPaymentState.amountError && (
+											<p className="mt-1 text-sm text-red-600">
+												{deliverPaymentState.amountError}
+											</p>
+										)}
+									{deliverForm.errors.paidAmount && (
+										<p className="mt-1 text-sm text-red-600">
+											{deliverForm.errors.paidAmount}
+										</p>
+									)}
 								</div>
+								{deliverForm.data.paymentMethod === "Cash" && (
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">
+											Change
+										</label>
+										<div className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50">
+											{currency(deliverPaymentState.change)}
+										</div>
+									</div>
+								)}
+							</>
+						)}
+						{(deliverForm.data.paymentSelection === "pay_later" ||
+							deliverPaymentState.requiresDueDate) && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Due Date
+								</label>
+								<input
+									type="date"
+									value={deliverForm.data.dueDate}
+									onChange={(e) =>
+										deliverForm.setData("dueDate", e.target.value)
+									}
+									className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-primary focus:border-primary"
+								/>
+								{deliverForm.errors.dueDate && (
+									<p className="mt-1 text-sm text-red-600">
+										{deliverForm.errors.dueDate}
+									</p>
+								)}
 							</div>
+						)}
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">
 									Additional Details

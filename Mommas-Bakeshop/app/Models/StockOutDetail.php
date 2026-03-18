@@ -45,6 +45,19 @@ class StockOutDetail extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $values = $this->auditCurrentValues($data);
+    $staffName = $this->auditUserName($values['UserID'] ?? null);
+    $reason = trim((string) ($values['Reason'] ?? 'stock removal'));
+
+    return match ($event) {
+      'created' => "Stock-out recorded by Staff: {$staffName} due to {$reason}",
+      'deleted' => "Stock-out record removed for {$reason}",
+      default => "Stock-out details updated for {$reason}",
+    };
+  }
+
   public function user() {
     return $this->belongsTo(User::class, 'UserID');
   }

@@ -53,10 +53,11 @@ class HandleInertiaRequests extends Middleware {
       ->all();
     $recentAudits = collect();
     $overdueJobOrdersCount = 0;
+    $pendingJobOrdersCount = 0;
     $noStockInventoryCount = 0;
     $noStockProductsCount = 0;
     $unconfirmedShrinkageCount = 0;
-    $overduePendingPaymentsCount = 0;
+    $pendingPaymentsCount = 0;
     if ($user) {
       $recentAudits = Audit::query()
         ->where('UserID', $user->id)
@@ -64,6 +65,10 @@ class HandleInertiaRequests extends Middleware {
         ->orderByDesc('DateAdded')
         ->limit(20)
         ->get(['ID', 'TableEdited', 'ReadableChanges', 'Action', 'Source', 'DateAdded']);
+
+      $pendingJobOrdersCount = JobOrder::query()
+        ->where('Status', 'Pending')
+        ->count();
 
       $overdueJobOrdersCount = JobOrder::query()
         ->where('Status', 'Pending')
@@ -87,12 +92,10 @@ class HandleInertiaRequests extends Middleware {
         })
         ->count();
 
-      $overduePendingPaymentsCount = Payment::query()
-        ->whereNotNull('PaymentDueDate')
+      $pendingPaymentsCount = Payment::query()
         ->where(function ($query) {
           $query->whereNull('PaymentStatus')->orWhere('PaymentStatus', '!=', 'Paid');
         })
-        ->where('PaymentDueDate', '<', now()->startOfDay())
         ->count();
     }
 
@@ -136,10 +139,11 @@ class HandleInertiaRequests extends Middleware {
         'recentMaintenanceOperations' => $recentMaintenanceOperations,
       ],
       'overdueJobOrdersCount' => $overdueJobOrdersCount,
+      'pendingJobOrdersCount' => $pendingJobOrdersCount,
       'noStockInventoryCount' => $noStockInventoryCount,
       'noStockProductsCount' => $noStockProductsCount,
       'unconfirmedShrinkageCount' => $unconfirmedShrinkageCount,
-      'overduePendingPaymentsCount' => $overduePendingPaymentsCount,
+      'pendingPaymentsCount' => $pendingPaymentsCount,
     ];
   }
 }

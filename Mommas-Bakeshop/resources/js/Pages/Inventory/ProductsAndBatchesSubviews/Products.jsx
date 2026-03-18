@@ -9,6 +9,7 @@ import {
 	PRODUCTS_BATCHES_FOOTER_ACTIONS,
 } from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
+import { Pencil } from "lucide-react";
 
 export default function Products({
 	products,
@@ -728,8 +729,9 @@ export default function Products({
 													<button
 														onClick={() => openEditModal(product)}
 														disabled={!canUpdateProduct}
-														className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+														className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
 													>
+														<Pencil className="h-3.5 w-3.5" />
 														Edit
 													</button>
 												</td>

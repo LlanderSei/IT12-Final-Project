@@ -45,6 +45,20 @@ class ShrinkedProduct extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $values = $this->auditCurrentValues($data);
+    $productName = $this->auditProductName($values['ProductID'] ?? null);
+    $quantity = $this->auditFormatQuantity($values['Quantity'] ?? 0);
+    $shrinkageLabel = 'Shrinkage #' . ($values['ShrinkageID'] ?? 'record');
+
+    return match ($event) {
+      'created' => "{$quantity} units recorded as shrinkage for {$productName} on {$shrinkageLabel}",
+      'deleted' => "Shrinkage line removed for {$productName} from {$shrinkageLabel}",
+      default => "Shrinkage line updated for {$productName} on {$shrinkageLabel}",
+    };
+  }
+
   // Relationships
   public function shrinkage() {
     return $this->belongsTo(Shrinkage::class, 'ShrinkageID');

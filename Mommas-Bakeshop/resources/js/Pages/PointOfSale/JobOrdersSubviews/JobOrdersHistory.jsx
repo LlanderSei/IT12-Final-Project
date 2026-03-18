@@ -4,6 +4,7 @@ import { exportJobOrderPdf } from "@/utils/saleDocuments";
 import usePermissions from "@/hooks/usePermissions";
 import { formatCountLabel } from "@/utils/countLabel";
 import { getDeliveryTimestamp } from "@/utils/jobOrders";
+import { Eye, Printer } from "lucide-react";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -248,8 +249,9 @@ export default function JobOrdersHistory({ rows = [], onHeaderMetaChange }) {
 											<button
 												type="button"
 												onClick={() => setSelectedJobOrder(row)}
-												className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+												className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover"
 											>
+												<Eye size={14} />
 												View
 											</button>
 											<button
@@ -258,8 +260,9 @@ export default function JobOrdersHistory({ rows = [], onHeaderMetaChange }) {
 													if (!requirePermission("CanPrintJobOrders")) return;
 													exportJobOrderPdf(row);
 												}}
-												className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+												className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
 											>
+												<Printer size={14} />
 												Print Summary
 											</button>
 										</div>

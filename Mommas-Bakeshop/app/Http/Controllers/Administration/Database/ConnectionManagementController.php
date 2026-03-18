@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Administration\Database;
 use App\Jobs\InitializeRemoteDatabaseJob;
 use App\Jobs\SwitchDatabaseTargetJob;
 use App\Services\DatabaseBackupService;
+use App\Services\AuditTrailService;
 use App\Services\DatabaseConnectionManager;
 use App\Services\SystemOperationService;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,7 @@ class ConnectionManagementController extends DatabaseBaseController {
     return $this->renderDatabaseTabs($request, $service, $connectionManager, $operationService, 'Connection Management');
   }
 
-  public function saveConnectionSettings(Request $request, DatabaseConnectionManager $connectionManager, SystemOperationService $operationService): RedirectResponse {
+  public function saveConnectionSettings(Request $request, DatabaseConnectionManager $connectionManager, SystemOperationService $operationService, AuditTrailService $auditTrail): RedirectResponse {
     if ($response = $this->rejectIfBackgroundOperationInProgress($operationService)) {
       return $response;
     }
@@ -35,20 +36,64 @@ class ConnectionManagementController extends DatabaseBaseController {
     ]);
 
     try {
+      $previous = $connectionManager->remoteFormDefaults();
       $connectionManager->saveRemoteConfig($validated);
+      $auditTrail->record(
+        $request->user(),
+        'DatabaseConnections',
+        'Updated',
+        sprintf(
+          'Remote database settings updated for %s:%s / %s',
+          $validated['host'],
+          $validated['port'],
+          $validated['database'],
+        ),
+        [
+          'host' => $validated['host'],
+          'port' => (string) $validated['port'],
+          'database' => $validated['database'],
+          'username' => $validated['username'],
+          'password' => trim((string) ($validated['password'] ?? '')) !== '' ? '[updated]' : '[unchanged]',
+        ],
+        [
+          'host' => $previous['host'] ?? null,
+          'port' => $previous['port'] ?? null,
+          'database' => $previous['database'] ?? null,
+          'username' => $previous['username'] ?? null,
+          'password' => !empty($previous['hasSavedPassword']) ? '[saved]' : '[none]',
+        ],
+      );
       return redirect()->back()->with('success', 'Remote MySQL settings saved.');
     } catch (Throwable $exception) {
       return redirect()->back()->with('error', $exception->getMessage());
     }
   }
 
-  public function testConnection(DatabaseConnectionManager $connectionManager, SystemOperationService $operationService): RedirectResponse {
+  public function testConnection(Request $request, DatabaseConnectionManager $connectionManager, SystemOperationService $operationService, AuditTrailService $auditTrail): RedirectResponse {
     if ($response = $this->rejectIfBackgroundOperationInProgress($operationService)) {
       return $response;
     }
 
     try {
       $result = $connectionManager->testSavedRemoteConnection();
+      $auditTrail->record(
+        $request->user(),
+        'DatabaseConnections',
+        'Recorded',
+        sprintf(
+          'Remote database connection tested for %s:%s / %s: %s',
+          $result['host'] ?? data_get($connectionManager->remoteFormDefaults(), 'host', 'remote host'),
+          $result['port'] ?? data_get($connectionManager->remoteFormDefaults(), 'port', '3306'),
+          $result['database'] ?? data_get($connectionManager->remoteFormDefaults(), 'database', 'remote database'),
+          ($result['reachable'] ?? false) ? 'reachable' : 'failed',
+        ),
+        [
+          'state' => $result['state'] ?? null,
+          'reachable' => (bool) ($result['reachable'] ?? false),
+          'message' => $result['message'] ?? null,
+          'serverVersion' => $result['serverVersion'] ?? null,
+        ],
+      );
 
       $message = $result['message']
         . (!empty($result['serverVersion']) ? ' Server version: ' . $result['serverVersion'] : '');

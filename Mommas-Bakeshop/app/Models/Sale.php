@@ -47,6 +47,23 @@ class Sale extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $values = $this->auditCurrentValues($data);
+    $saleLabel = $this->auditSaleLabel($values['ID'] ?? $this->ID);
+    $staffName = $this->auditUserName($values['UserID'] ?? null);
+    $customerName = $this->auditCustomerName($values['CustomerID'] ?? null);
+    $saleType = strtolower((string) ($values['SaleType'] ?? 'sale'));
+
+    return match ($event) {
+      'created' => $saleType === 'walkin' || $customerName === 'Walk-in customer'
+        ? "New walk-in sale recorded by Staff: {$staffName}"
+        : ucfirst($saleType) . " sale recorded for {$customerName} by Staff: {$staffName}",
+      'deleted' => "{$saleLabel} removed.",
+      default => "{$saleLabel} updated.",
+    };
+  }
+
   // Relationships
   public function user() {
     return $this->belongsTo(User::class, 'UserID');
