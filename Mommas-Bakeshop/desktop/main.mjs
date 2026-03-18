@@ -1,10 +1,20 @@
 import { app, BrowserWindow, dialog } from "electron";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DesktopProcessManager } from "./process-manager.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Ensure Electron caches are created in a writable local path on Windows.
+const desktopLocalDataRoot = path.join(
+	process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"),
+	"MommasBakeshopDesktop",
+);
+app.setPath("userData", path.join(desktopLocalDataRoot, "user-data"));
+app.setPath("cache", path.join(desktopLocalDataRoot, "cache"));
+app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
 
 let mainWindow = null;
 const processManager = new DesktopProcessManager();
