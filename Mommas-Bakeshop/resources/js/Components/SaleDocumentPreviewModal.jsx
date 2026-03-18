@@ -8,6 +8,7 @@ import {
 	getCustomOrderLines,
 	getSoldLines,
 } from "@/utils/saleDocuments";
+import { getReceiptAmountReceived } from "@/utils/paymentFlow";
 
 export default function SaleDocumentPreviewModal({
 	show = false,
@@ -20,6 +21,7 @@ export default function SaleDocumentPreviewModal({
 	if (!sale) return null;
 
 	const isInvoice = type === "invoice";
+	const isJobOrderInvoice = isInvoice && sale.SaleType === "JobOrder";
 	const lines = [
 		...getSoldLines(sale).map((line) => ({
 			label: line.product?.ProductName || "-",
@@ -47,7 +49,8 @@ export default function SaleDocumentPreviewModal({
 			sale.DateAdded;
 	const paidThisDocument = isInvoice
 		? Number(sale.paidAmount || 0)
-		: Number(receiptPayment?.PaidAmount || sale.payment?.PaidAmount || 0);
+		: getReceiptAmountReceived(receiptPayment || sale.payment);
+	const partialPayments = sale.partial_payments || [];
 
 	const handleExport = () => {
 		if (!canExport) return;
@@ -121,6 +124,14 @@ export default function SaleDocumentPreviewModal({
 							{receiptPayment?.PaymentMethod || sale.payment?.PaymentMethod || "-"}
 						</span>
 					</div>
+					{!isInvoice && (
+						<div>
+							<span className="font-semibold text-gray-700">Change:</span>{" "}
+							<span className="text-gray-900">
+								{currency(receiptPayment?.Change ?? sale.payment?.Change ?? 0)}
+							</span>
+						</div>
+					)}
 					<div>
 						<span className="font-semibold text-gray-700">Due Date:</span>{" "}
 						<span className="text-gray-900">
@@ -213,6 +224,70 @@ export default function SaleDocumentPreviewModal({
 						</p>
 					</div>
 				</div>
+
+				{isJobOrderInvoice && partialPayments.length > 0 && (
+					<div className="mt-5 rounded-lg border border-gray-200">
+						<div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+							<h4 className="text-sm font-semibold text-gray-700">
+								Partial Payments
+							</h4>
+						</div>
+						<div className="max-h-56 overflow-y-auto">
+							<table className="min-w-full text-sm">
+								<thead className="bg-gray-50">
+									<tr>
+										<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Receipt No.
+										</th>
+										<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Applied
+										</th>
+										<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Tendered
+										</th>
+										<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Change
+										</th>
+										<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Method
+										</th>
+										<th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+											Date
+										</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-gray-200 bg-white">
+									{partialPayments.map((payment) => (
+										<tr key={`preview-partial-${payment.ID}`}>
+											<td className="px-3 py-2 text-gray-700">
+												{payment.ReceiptNumber || "-"}
+											</td>
+											<td className="px-3 py-2 text-gray-900">
+												{currency(payment.PaidAmount)}
+											</td>
+											<td className="px-3 py-2 text-gray-700">
+												{payment.TenderedAmount != null
+													? currency(payment.TenderedAmount)
+													: "-"}
+											</td>
+											<td className="px-3 py-2 text-gray-700">
+												{payment.Change != null
+													? currency(payment.Change)
+													: "-"}
+											</td>
+											<td className="px-3 py-2 text-gray-700">
+												{payment.PaymentMethod || "-"}
+											</td>
+											<td className="px-3 py-2 text-gray-700">
+												{formatDateTime(payment.DateAdded)}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				)}
 
 				<div className="mt-6 flex justify-end">
 					<button

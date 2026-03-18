@@ -52,6 +52,23 @@ class JobOrder extends Model implements Auditable {
 		return $data;
 	}
 
+	protected function auditReadableSummary(array $data): ?string {
+		$event = strtolower((string) ($data['event'] ?? 'updated'));
+		$oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+		$values = $this->auditCurrentValues($data);
+		$jobOrderLabel = $this->auditJobOrderLabel($values['ID'] ?? $this->ID);
+		$customerName = $this->auditCustomerName($values['CustomerID'] ?? null);
+		$staffName = $this->auditUserName($values['UserID'] ?? null);
+
+		return match ($event) {
+			'created' => "{$jobOrderLabel} recorded for {$customerName} by Staff: {$staffName}",
+			'deleted' => "{$jobOrderLabel} removed for {$customerName}",
+			default => isset($oldValues['Status'], $values['Status']) && (string) $oldValues['Status'] !== (string) $values['Status']
+				? "{$jobOrderLabel} status updated from {$oldValues['Status']} to {$values['Status']} for {$customerName}"
+				: "{$jobOrderLabel} updated for {$customerName}",
+		};
+	}
+
 	public function user() {
 		return $this->belongsTo(User::class, 'UserID');
 	}

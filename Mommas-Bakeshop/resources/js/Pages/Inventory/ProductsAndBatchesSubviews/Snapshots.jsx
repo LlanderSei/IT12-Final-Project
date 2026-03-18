@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Modal from "@/Components/Modal";
 import { formatCountLabel } from "@/utils/countLabel";
+import { Eye } from "lucide-react";
 
 export default function Snapshots({
 	snapshots = [],
@@ -186,8 +187,9 @@ export default function Snapshots({
 											type="button"
 											onClick={() => setSelectedSnapshot(snapshot)}
 											disabled={!canViewDetails}
-											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+											className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
 										>
+											<Eye className="h-3.5 w-3.5" />
 											View
 											</button>
 										</td>

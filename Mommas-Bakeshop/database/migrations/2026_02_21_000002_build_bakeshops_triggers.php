@@ -13,13 +13,16 @@ return new class extends Migration {
 				DECLARE old_product_quantity BIGINT;
 				DECLARE old_total_produced BIGINT;
 				DECLARE batch_user_id BIGINT;
+				DECLARE product_name VARCHAR(255);
+				DECLARE batch_description VARCHAR(255);
 
-				SELECT Quantity INTO old_product_quantity
+				SELECT Quantity, ProductName
+				INTO old_product_quantity, product_name
 				FROM products
 				WHERE ID = NEW.ProductID;
 
-				SELECT TotalProductsProduced, UserID
-				INTO old_total_produced, batch_user_id
+				SELECT TotalProductsProduced, UserID, BatchDescription
+				INTO old_total_produced, batch_user_id, batch_description
 				FROM production_batch_details
 				WHERE ID = NEW.BatchDetailsID;
 
@@ -37,7 +40,7 @@ return new class extends Migration {
 					"products",
 					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity, "}"),
 					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity + NEW.QuantityProduced, "}"),
-					CONCAT("Trigger UpdateTotalProductsProduced added ", NEW.QuantityProduced, " to products.ID=", NEW.ProductID),
+					CONCAT(NEW.QuantityProduced, " units added to stock for ", COALESCE(product_name, CONCAT("Product #", NEW.ProductID)), " from production batch ", COALESCE(batch_description, CONCAT("#", NEW.BatchDetailsID))),
 					"Update Quantity",
 					"Trigger",
 					NOW()
@@ -49,7 +52,7 @@ return new class extends Migration {
 					"production_batch_details",
 					CONCAT("{\"ID\":", NEW.BatchDetailsID, ",\"TotalProductsProduced\":", old_total_produced, "}"),
 					CONCAT("{\"ID\":", NEW.BatchDetailsID, ",\"TotalProductsProduced\":", old_total_produced + NEW.QuantityProduced, "}"),
-					CONCAT("Trigger UpdateTotalProductsProduced increased TotalProductsProduced by ", NEW.QuantityProduced, " for production_batch_details.ID=", NEW.BatchDetailsID),
+					CONCAT("Production batch total updated by ", NEW.QuantityProduced, " for ", COALESCE(batch_description, CONCAT("Batch #", NEW.BatchDetailsID))),
 					"Update TotalProductsProduced",
 					"Trigger",
 					NOW()
@@ -67,6 +70,7 @@ return new class extends Migration {
 					DECLARE old_total_amount DECIMAL(12, 2);
 					DECLARE snapshot_user_id BIGINT;
 					DECLARE line_amount DECIMAL(14, 2);
+					DECLARE product_name VARCHAR(255);
 
 					SET line_amount = ROUND(NEW.LeftoverQuantity * NEW.PerUnitAmount, 2);
 
@@ -74,6 +78,11 @@ return new class extends Migration {
 					INTO old_total_products, old_total_leftovers, old_total_amount, snapshot_user_id
 					FROM product_leftover_snapshots
 					WHERE ID = NEW.ProductLeftoverID;
+
+					SELECT ProductName
+					INTO product_name
+					FROM products
+					WHERE ID = NEW.ProductID;
 
 					UPDATE product_leftover_snapshots
 					SET
@@ -88,7 +97,7 @@ return new class extends Migration {
 						"product_leftover_snapshots",
 						CONCAT("{\"ID\":", NEW.ProductLeftoverID, ",\"TotalProducts\":", old_total_products, ",\"TotalLeftovers\":", old_total_leftovers, ",\"TotalAmount\":", old_total_amount, "}"),
 						CONCAT("{\"ID\":", NEW.ProductLeftoverID, ",\"TotalProducts\":", old_total_products + 1, ",\"TotalLeftovers\":", old_total_leftovers + NEW.LeftoverQuantity, ",\"TotalAmount\":", ROUND(old_total_amount + line_amount, 2), "}"),
-						CONCAT("Trigger UpdateProductLeftoverSnapshotOnInsert updated product_leftover_snapshots.ID=", NEW.ProductLeftoverID),
+						CONCAT("End-of-day snapshot updated for ", COALESCE(product_name, CONCAT("Product #", NEW.ProductID))),
 						"Update Snapshot Totals",
 						"Trigger",
 						NOW()
@@ -111,7 +120,7 @@ return new class extends Migration {
 
 					SET old_line_amount = ROUND(OLD.LeftoverQuantity * OLD.PerUnitAmount, 2);
 					SET new_line_amount = ROUND(NEW.LeftoverQuantity * NEW.PerUnitAmount, 2);
-					SET quantity_delta = CAST(NEW.LeftoverQuantity AS SIGNED) - CAST(OLD.LeftoverQuantity AS SIGNED);
+					SET quantity_delta = CAST(CAST(NEW.LeftoverQuantity AS SIGNED) - CAST(OLD.LeftoverQuantity AS SIGNED) AS SIGNED);
 
 					SELECT TotalProducts, TotalLeftovers, TotalAmount, UserID
 					INTO old_total_products, old_total_leftovers, old_total_amount, snapshot_user_id
@@ -120,7 +129,7 @@ return new class extends Migration {
 
 					UPDATE product_leftover_snapshots
 					SET
-						TotalLeftovers = GREATEST(0, TotalLeftovers + quantity_delta),
+						TotalLeftovers = GREATEST(0, CAST(CAST(TotalLeftovers AS SIGNED) + quantity_delta AS SIGNED)),
 						TotalAmount = ROUND(TotalAmount + (new_line_amount - old_line_amount), 2)
 					WHERE ID = NEW.ProductLeftoverID;
 				END
@@ -220,7 +229,7 @@ return new class extends Migration {
 					"payments",
 					CONCAT("{\"SalesID\":", NEW.SalesID, ",\"PaymentStatus\":\"", old_status, "\",\"TotalPaid\":", IFNULL(total_paid - NEW.PaidAmount, 0), "}"),
 					CONCAT("{\"SalesID\":", NEW.SalesID, ",\"PaymentStatus\":\"", new_status, "\",\"TotalPaid\":", total_paid, "}"),
-					CONCAT("Trigger UpdatePaymentStatus set payments.PaymentStatus to ", new_status, " for SalesID=", NEW.SalesID),
+					CONCAT("Payment status updated to ", new_status, " for Sale #", NEW.SalesID, " after recording a payment"),
 					"Update PaymentStatus",
 					"Trigger",
 					NOW()
@@ -235,8 +244,10 @@ return new class extends Migration {
 			BEGIN
 				DECLARE old_product_quantity BIGINT;
 				DECLARE sale_user_id BIGINT;
+				DECLARE product_name VARCHAR(255);
 
-				SELECT Quantity INTO old_product_quantity
+				SELECT Quantity, ProductName
+				INTO old_product_quantity, product_name
 				FROM products
 				WHERE ID = NEW.ProductID;
 
@@ -254,7 +265,7 @@ return new class extends Migration {
 					"products",
 					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity, "}"),
 					CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_product_quantity - NEW.Quantity, "}"),
-					CONCAT("Trigger UpdateProductQuantitiesOnSale deducted ", NEW.Quantity, " from products.ID=", NEW.ProductID),
+					CONCAT("Stock reduced by ", NEW.Quantity, " for ", COALESCE(product_name, CONCAT("Product #", NEW.ProductID)), " due to Sale #", NEW.SalesID),
 					"Update Quantity",
 					"Trigger",
 					NOW()
@@ -269,13 +280,15 @@ return new class extends Migration {
 			BEGIN
 				DECLARE old_quantity BIGINT;
 				DECLARE stock_in_user_id BIGINT;
+				DECLARE item_name VARCHAR(255);
 
 				SELECT UserID INTO stock_in_user_id
 				FROM stock_in_details
 				WHERE ID = NEW.StockInDetailsID;
 
 				IF NEW.ItemType = "Inventory" THEN
-					SELECT Quantity INTO old_quantity
+					SELECT Quantity, ItemName
+					INTO old_quantity, item_name
 					FROM inventory
 					WHERE ID = NEW.InventoryID;
 
@@ -289,13 +302,14 @@ return new class extends Migration {
 						"inventory",
 						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity, "}"),
 						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity + NEW.QuantityAdded, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockIn added ", NEW.QuantityAdded, " to inventory.ID=", NEW.InventoryID),
+						CONCAT(NEW.QuantityAdded, " units added to stock for ", COALESCE(item_name, CONCAT("Inventory Item #", NEW.InventoryID)), " via Stock-In #", NEW.StockInDetailsID),
 						"Update Quantity",
 						"Trigger",
 						NOW()
 					);
 				ELSEIF NEW.ItemType = "Product" THEN
-					SELECT Quantity INTO old_quantity
+					SELECT Quantity, ProductName
+					INTO old_quantity, item_name
 					FROM products
 					WHERE ID = NEW.ProductID;
 
@@ -309,7 +323,7 @@ return new class extends Migration {
 						"products",
 						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity, "}"),
 						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity + NEW.QuantityAdded, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockIn added ", NEW.QuantityAdded, " to products.ID=", NEW.ProductID),
+						CONCAT(NEW.QuantityAdded, " units added to stock for ", COALESCE(item_name, CONCAT("Product #", NEW.ProductID)), " via Stock-In #", NEW.StockInDetailsID),
 						"Update Quantity",
 						"Trigger",
 						NOW()
@@ -325,13 +339,17 @@ return new class extends Migration {
 			BEGIN
 				DECLARE old_quantity BIGINT;
 				DECLARE stock_out_user_id BIGINT;
+				DECLARE item_name VARCHAR(255);
+				DECLARE stock_out_reason VARCHAR(255);
 
-				SELECT UserID INTO stock_out_user_id
+				SELECT UserID, Reason
+				INTO stock_out_user_id, stock_out_reason
 				FROM stock_out_details
 				WHERE ID = NEW.StockOutDetailsID;
 
 				IF NEW.ItemType = "Inventory" THEN
-					SELECT Quantity INTO old_quantity
+					SELECT Quantity, ItemName
+					INTO old_quantity, item_name
 					FROM inventory
 					WHERE ID = NEW.InventoryID;
 
@@ -345,13 +363,14 @@ return new class extends Migration {
 						"inventory",
 						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity, "}"),
 						CONCAT("{\"ID\":", NEW.InventoryID, ",\"Quantity\":", old_quantity - NEW.QuantityRemoved, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockOut deducted ", NEW.QuantityRemoved, " from inventory.ID=", NEW.InventoryID),
+						CONCAT("Stock reduced by ", NEW.QuantityRemoved, " for ", COALESCE(item_name, CONCAT("Inventory Item #", NEW.InventoryID)), " due to ", COALESCE(stock_out_reason, "stock-out"), " on Stock-Out #", NEW.StockOutDetailsID),
 						"Update Quantity",
 						"Trigger",
 						NOW()
 					);
 				ELSEIF NEW.ItemType = "Product" THEN
-					SELECT Quantity INTO old_quantity
+					SELECT Quantity, ProductName
+					INTO old_quantity, item_name
 					FROM products
 					WHERE ID = NEW.ProductID;
 
@@ -365,7 +384,7 @@ return new class extends Migration {
 						"products",
 						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity, "}"),
 						CONCAT("{\"ID\":", NEW.ProductID, ",\"Quantity\":", old_quantity - NEW.QuantityRemoved, "}"),
-						CONCAT("Trigger TriggerUpdateStockQuantitiesOnStockOut deducted ", NEW.QuantityRemoved, " from products.ID=", NEW.ProductID),
+						CONCAT("Stock reduced by ", NEW.QuantityRemoved, " for ", COALESCE(item_name, CONCAT("Product #", NEW.ProductID)), " due to ", COALESCE(stock_out_reason, "stock-out"), " on Stock-Out #", NEW.StockOutDetailsID),
 						"Update Quantity",
 						"Trigger",
 						NOW()
@@ -530,11 +549,17 @@ return new class extends Migration {
 					DECLARE old_total_items BIGINT;
 					DECLARE old_total_leftovers BIGINT;
 					DECLARE snapshot_user_id BIGINT;
+					DECLARE item_name VARCHAR(255);
 
 					SELECT TotalItems, TotalLeftovers, UserID
 					INTO old_total_items, old_total_leftovers, snapshot_user_id
 					FROM inventory_leftover_snapshots
 					WHERE ID = NEW.InventoryLeftoverID;
+
+					SELECT ItemName
+					INTO item_name
+					FROM inventory
+					WHERE ID = NEW.InventoryID;
 
 					UPDATE inventory_leftover_snapshots
 					SET
@@ -548,7 +573,7 @@ return new class extends Migration {
 						"inventory_leftover_snapshots",
 						CONCAT("{\"ID\":", NEW.InventoryLeftoverID, ",\"TotalItems\":", old_total_items, ",\"TotalLeftovers\":", old_total_leftovers, "}"),
 						CONCAT("{\"ID\":", NEW.InventoryLeftoverID, ",\"TotalItems\":", old_total_items + 1, ",\"TotalLeftovers\":", old_total_leftovers + NEW.LeftoverQuantity, "}"),
-						CONCAT("Trigger UpdateInventoryLeftoverSnapshotOnInsert updated inventory_leftover_snapshots.ID=", NEW.InventoryLeftoverID),
+						CONCAT("End-of-day snapshot updated for ", COALESCE(item_name, CONCAT("Inventory Item #", NEW.InventoryID))),
 						"Update Snapshot Totals",
 						"Trigger",
 						NOW()
@@ -571,11 +596,11 @@ return new class extends Migration {
 					FROM inventory_leftover_snapshots
 					WHERE ID = NEW.InventoryLeftoverID;
 
-					SET quantity_delta = CAST(NEW.LeftoverQuantity AS SIGNED) - CAST(OLD.LeftoverQuantity AS SIGNED);
+					SET quantity_delta = CAST(CAST(NEW.LeftoverQuantity AS SIGNED) - CAST(OLD.LeftoverQuantity AS SIGNED) AS SIGNED);
 
 					UPDATE inventory_leftover_snapshots
 					SET
-						TotalLeftovers = GREATEST(0, TotalLeftovers + quantity_delta)
+						TotalLeftovers = GREATEST(0, CAST(CAST(TotalLeftovers AS SIGNED) + quantity_delta AS SIGNED))
 					WHERE ID = NEW.InventoryLeftoverID;
 				END
 			');

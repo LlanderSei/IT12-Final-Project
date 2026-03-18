@@ -53,6 +53,21 @@ class StockInDetail extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $values = $this->auditCurrentValues($data);
+    $staffName = $this->auditUserName($values['UserID'] ?? null);
+    $supplier = trim((string) ($values['Supplier'] ?? ''));
+    $source = trim((string) ($values['Source'] ?? ''));
+    $context = $supplier !== '' ? $supplier : ($source !== '' ? $source : 'stock intake');
+
+    return match ($event) {
+      'created' => "Stock-in recorded by Staff: {$staffName} from {$context}",
+      'deleted' => "Stock-in record removed from {$context}",
+      default => "Stock-in details updated for {$context}",
+    };
+  }
+
   public function user() {
     return $this->belongsTo(User::class, 'UserID');
   }

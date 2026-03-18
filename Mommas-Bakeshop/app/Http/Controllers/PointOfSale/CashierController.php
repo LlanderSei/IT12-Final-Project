@@ -21,7 +21,7 @@ class CashierController extends Controller {
   use HandlesShrinkage;
 
   public function cashSale() {
-    return Inertia::render('PointOfSale/CashSale', [
+    return Inertia::render('PointOfSale/Cashier', [
       'products' => Product::with('category')
         ->orderBy('ProductName')
         ->get()
@@ -79,13 +79,14 @@ class CashierController extends Controller {
         }
 
         $finalPaid = $paidAmount === null ? $totalAmount : (float)$paidAmount;
+        $appliedPaidAmount = min($finalPaid, $totalAmount);
 
         $receiptNumber = $this->generateReceiptNumber();
 
         Payment::create([
           'SalesID' => $sale->ID,
           'PaymentMethod' => $payload['paymentMethod'] ?? 'Cash',
-          'PaidAmount' => $finalPaid,
+          'PaidAmount' => $appliedPaidAmount,
           'TotalAmount' => $totalAmount,
           'Change' => max(0, $finalPaid - $totalAmount),
           'PaymentStatus' => 'Paid',

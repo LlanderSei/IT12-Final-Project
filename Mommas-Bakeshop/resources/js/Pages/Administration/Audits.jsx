@@ -1,9 +1,12 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head } from "@inertiajs/react";
+import { Head, usePage } from "@inertiajs/react";
 import { formatCountLabel } from "@/utils/countLabel";
+import { Eye } from "lucide-react";
 
 export default function Audits({ audits = [] }) {
+	const { auth } = usePage().props;
+	const isOwnerView = String(auth?.user?.role || "").toLowerCase() === "owner";
 	const [searchQuery, setSearchQuery] = useState("");
 	const [actionFilter, setActionFilter] = useState("all");
 	const [tableFilter, setTableFilter] = useState("all");
@@ -78,14 +81,14 @@ export default function Audits({ audits = [] }) {
 				audit.user?.FullName?.toLowerCase().includes(searchLower) ||
 				audit.TableEdited?.toLowerCase().includes(searchLower) ||
 				audit.Action?.toLowerCase().includes(searchLower) ||
-				audit.Source?.toLowerCase().includes(searchLower) ||
+				(!isOwnerView && audit.Source?.toLowerCase().includes(searchLower)) ||
 				audit.PreviousChanges?.toLowerCase().includes(searchLower) ||
 				audit.SavedChanges?.toLowerCase().includes(searchLower) ||
 				audit.ReadableChanges?.toLowerCase().includes(searchLower) ||
 				new Date(audit.DateAdded).toLocaleString().toLowerCase().includes(searchLower);
 			const matchesAction = actionFilter === "all" || audit.Action === actionFilter;
 			const matchesTable = tableFilter === "all" || audit.TableEdited === tableFilter;
-			const matchesSource = sourceFilter === "all" || audit.Source === sourceFilter;
+			const matchesSource = isOwnerView || sourceFilter === "all" || audit.Source === sourceFilter;
 			const matchesDate = isInDateRange(audit.DateAdded);
 
 			return matchesSearch && matchesAction && matchesTable && matchesSource && matchesDate;
@@ -105,7 +108,7 @@ export default function Audits({ audits = [] }) {
 		});
 
 		return filtered;
-	}, [audits, searchQuery, actionFilter, tableFilter, sourceFilter, dateRangeFilter, sortConfig]);
+	}, [audits, searchQuery, actionFilter, tableFilter, sourceFilter, dateRangeFilter, sortConfig, isOwnerView]);
 
 	const requestSort = (key) => {
 		let direction = "asc";
@@ -123,7 +126,9 @@ export default function Audits({ audits = [] }) {
 		setSearchQuery("");
 		setActionFilter("all");
 		setTableFilter("all");
-		setSourceFilter("all");
+		if (!isOwnerView) {
+			setSourceFilter("all");
+		}
 		setDateRangeFilter("all");
 		setSortConfig({ key: "DateAdded", direction: "desc" });
 	};
@@ -208,7 +213,7 @@ export default function Audits({ audits = [] }) {
 										<input
 											type="text"
 											className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
-											placeholder="Search audits by user, action, table, source, or change..."
+											placeholder={`Search audits by user, action, table, ${isOwnerView ? "or change" : "source, or change"}...`}
 											value={searchQuery}
 											onChange={(e) => setSearchQuery(e.target.value)}
 										/>
@@ -229,12 +234,14 @@ export default function Audits({ audits = [] }) {
 															<option key={tableName} value={tableName}>{tableName}</option>
 														))}
 													</select>
-													<select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
-														<option value="all">All Sources</option>
-														{sourceOptions.map((source) => (
-															<option key={source} value={source}>{source}</option>
-														))}
-													</select>
+													{!isOwnerView && (
+														<select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
+															<option value="all">All Sources</option>
+															{sourceOptions.map((source) => (
+																<option key={source} value={source}>{source}</option>
+															))}
+														</select>
+													)}
 													<select value={dateRangeFilter} onChange={(e) => setDateRangeFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
 														<option value="all">All Dates</option>
 														<option value="today">Today</option>
@@ -271,9 +278,11 @@ export default function Audits({ audits = [] }) {
 													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Action")}>
 														<div className="flex items-center">Action{sortConfig.key === "Action" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
 													</th>
-													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Source")}>
-														<div className="flex items-center">Source{sortConfig.key === "Source" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
-													</th>
+													{!isOwnerView && (
+														<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("Source")}>
+															<div className="flex items-center">Source{sortConfig.key === "Source" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
+														</th>
+													)}
 													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Summary</th>
 													<th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => requestSort("DateAdded")}>
 														<div className="flex items-center">Date Added{sortConfig.key === "DateAdded" && <span className="ml-1 text-[10px] text-gray-400">{sortConfig.direction.toUpperCase()}</span>}</div>
@@ -291,7 +300,7 @@ export default function Audits({ audits = [] }) {
 																{audit.Action}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{audit.Source || "Application"}</td>
+														{!isOwnerView && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{audit.Source || "Application"}</td>}
 														<td className="px-6 py-4 text-sm text-gray-700 max-w-md">
 															<div className="truncate">{audit.ReadableChanges || formatChanges(audit.SavedChanges) || "No summary"}</div>
 														</td>
@@ -300,8 +309,9 @@ export default function Audits({ audits = [] }) {
 															<button
 																type="button"
 																onClick={() => setSelectedAudit(audit)}
-																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+																className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
 															>
+																<Eye className="h-3.5 w-3.5" />
 																View
 															</button>
 														</td>
@@ -309,7 +319,7 @@ export default function Audits({ audits = [] }) {
 												))}
 												{filteredAudits.length === 0 && (
 													<tr>
-														<td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+														<td colSpan={isOwnerView ? 6 : 7} className="px-6 py-4 text-center text-sm text-gray-500">
 															No audit records found.
 														</td>
 													</tr>
@@ -403,7 +413,7 @@ export default function Audits({ audits = [] }) {
 									<div><span className="font-semibold text-gray-700">User:</span> <span className="text-gray-900">{selectedAudit.user?.FullName || "Unknown User"}</span></div>
 									<div><span className="font-semibold text-gray-700">Action:</span> <span className="text-gray-900">{selectedAudit.Action}</span></div>
 									<div><span className="font-semibold text-gray-700">Table:</span> <span className="text-gray-900">{selectedAudit.TableEdited}</span></div>
-									<div><span className="font-semibold text-gray-700">Source:</span> <span className="text-gray-900">{selectedAudit.Source || "Application"}</span></div>
+									{!isOwnerView && <div><span className="font-semibold text-gray-700">Source:</span> <span className="text-gray-900">{selectedAudit.Source || "Application"}</span></div>}
 									<div className="md:col-span-2"><span className="font-semibold text-gray-700">Date:</span> <span className="text-gray-900">{new Date(selectedAudit.DateAdded).toLocaleString()}</span></div>
 								</div>
 								<div className="mt-4 space-y-3">
@@ -433,6 +443,3 @@ export default function Audits({ audits = [] }) {
 		</AuthenticatedLayout>
 	);
 }
-
-
-

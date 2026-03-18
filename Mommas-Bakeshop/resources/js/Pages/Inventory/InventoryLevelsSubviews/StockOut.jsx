@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { formatCountLabel } from "@/utils/countLabel";
+import { Pencil } from "lucide-react";
 
 function toComparableDate(value) {
 	if (!value) return null;
@@ -333,8 +334,9 @@ export default function StockOut({ stockOuts, onEdit, onHeaderMetaChange, canEdi
 										<button
 											type="button"
 											onClick={() => onEdit?.(record)}
-											className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+											className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
 										>
+											<Pencil className="h-3.5 w-3.5" />
 											Edit
 										</button>
 									) : (
@@ -424,5 +426,4 @@ export default function StockOut({ stockOuts, onEdit, onHeaderMetaChange, canEdi
 		</div>
 	);
 }
-
 

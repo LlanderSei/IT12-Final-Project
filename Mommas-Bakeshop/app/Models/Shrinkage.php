@@ -49,6 +49,22 @@ class Shrinkage extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $values = $this->auditCurrentValues($data);
+    $staffName = $this->auditUserName($values['UserID'] ?? null);
+    $reason = trim((string) ($values['Reason'] ?? 'shrinkage'));
+
+    return match ($event) {
+      'created' => "Shrinkage recorded by Staff: {$staffName} due to {$reason}",
+      'deleted' => "Shrinkage record removed for {$reason}",
+      default => isset($oldValues['VerificationStatus'], $values['VerificationStatus']) && (string) $oldValues['VerificationStatus'] !== (string) $values['VerificationStatus']
+        ? "Shrinkage verification updated from {$oldValues['VerificationStatus']} to {$values['VerificationStatus']}"
+        : "Shrinkage details updated for {$reason}",
+    };
+  }
+
   // Relationships
   public function user() {
     return $this->belongsTo(User::class, 'UserID');

@@ -6,6 +6,7 @@ import Modal from "@/Components/Modal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
+import { CheckCircle2, Eye, Minus, Pencil, Plus, Trash2 } from "lucide-react";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -600,8 +601,9 @@ export default function ShrinkageHistory({
 															<button
 																type="button"
 																onClick={() => setSelectedShrinkage(record)}
-																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+																className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
 															>
+																<Eye className="h-3.5 w-3.5" />
 																View
 															</button>
 															{isPending && (
@@ -609,8 +611,9 @@ export default function ShrinkageHistory({
 																	type="button"
 																	onClick={() => openVerifyModal(record)}
 																	disabled={!canVerifyShrinkage}
-																	className="rounded border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+																	className="inline-flex items-center gap-1.5 rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
 																>
+																	<CheckCircle2 className="h-3.5 w-3.5" />
 																	Confirm Shrinkage
 																</button>
 															)}
@@ -618,8 +621,9 @@ export default function ShrinkageHistory({
 																type="button"
 																onClick={() => openEditModal(record)}
 																disabled={!canUpdateShrinkage || !isPending}
-																className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
+																className="inline-flex items-center gap-1.5 rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
 															>
+																<Pencil className="h-3.5 w-3.5" />
 																Edit
 															</button>
 															<button
@@ -630,8 +634,9 @@ export default function ShrinkageHistory({
 																		: requirePermission("CanDeleteShrinkageRecord")
 																}
 																disabled={!canDeleteShrinkage || !isPending}
-																className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+																className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
 															>
+																<Trash2 className="h-3.5 w-3.5" />
 																Delete
 															</button>
 														</div>
@@ -904,9 +909,9 @@ export default function ShrinkageHistory({
 															<button
 																type="button"
 																onClick={() => adjustLineQuantity(item.index, -1)}
-																className="h-8 w-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+																className="inline-flex h-8 w-8 items-center justify-center rounded border border-primary text-primary hover:bg-primary-soft"
 															>
-																-
+																<Minus className="h-3.5 w-3.5" />
 															</button>
 															<input
 																type="number"
@@ -919,9 +924,9 @@ export default function ShrinkageHistory({
 															<button
 																type="button"
 																onClick={() => adjustLineQuantity(item.index, 1)}
-																className="h-8 w-8 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+																className="inline-flex h-8 w-8 items-center justify-center rounded border border-primary text-primary hover:bg-primary-soft"
 															>
-																+
+																<Plus className="h-3.5 w-3.5" />
 															</button>
 														</div>
 													</td>
@@ -931,8 +936,9 @@ export default function ShrinkageHistory({
 														<button
 															type="button"
 															onClick={() => removeLine(item.index)}
-															className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+															className="inline-flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
 														>
+															<Trash2 className="h-3.5 w-3.5" />
 															Remove
 														</button>
 													</td>

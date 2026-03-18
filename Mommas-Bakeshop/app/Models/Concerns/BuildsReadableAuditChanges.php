@@ -2,8 +2,29 @@
 
 namespace App\Models\Concerns;
 
+use App\Models\Category;
+use App\Models\Customer;
+use App\Models\Inventory;
+use App\Models\JobOrder;
+use App\Models\Permission;
+use App\Models\PermissionGroup;
+use App\Models\Product;
+use App\Models\ProductionBatchDetail;
+use App\Models\Role;
+use App\Models\Sale;
+use App\Models\StockInDetail;
+use App\Models\StockOutDetail;
+use App\Models\User;
+
 trait BuildsReadableAuditChanges {
   protected function buildReadableChanges(array $data): ?string {
+    if (method_exists($this, 'auditReadableSummary')) {
+      $summary = $this->auditReadableSummary($data);
+      if (is_string($summary) && trim($summary) !== '') {
+        return $summary;
+      }
+    }
+
     $event = strtolower((string) ($data['event'] ?? 'updated'));
     $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
     $newValues = is_array($data['new_values'] ?? null) ? $data['new_values'] : [];
@@ -41,7 +62,7 @@ trait BuildsReadableAuditChanges {
           $changes[] = sprintf(
             '%s set to %s',
             $this->auditFieldLabel($key, $config['labels']),
-            $this->stringifyAuditValue($newValue)
+            $this->resolveAuditDisplayValue($key, $newValue, $data)
           );
         }
         continue;
@@ -52,7 +73,7 @@ trait BuildsReadableAuditChanges {
           $changes[] = sprintf(
             '%s was %s',
             $this->auditFieldLabel($key, $config['labels']),
-            $this->stringifyAuditValue($oldValue)
+            $this->resolveAuditDisplayValue($key, $oldValue, $data)
           );
         }
         continue;
@@ -61,12 +82,12 @@ trait BuildsReadableAuditChanges {
       $changes[] = sprintf(
         '%s changed from %s to %s',
         $this->auditFieldLabel($key, $config['labels']),
-        $this->stringifyAuditValue($oldValue),
-        $this->stringifyAuditValue($newValue)
+        $this->resolveAuditDisplayValue($key, $oldValue, $data),
+        $this->resolveAuditDisplayValue($key, $newValue, $data)
       );
     }
 
-    $entity = $config['entity'];
+    $entity = strtolower($config['entity']);
     $action = $this->auditActionVerb($event);
 
     if (count($changes) === 0) {
@@ -81,11 +102,11 @@ trait BuildsReadableAuditChanges {
 
   protected function stringifyAuditValue($value): string {
     if ($value === null) {
-      return 'null';
+      return 'none';
     }
 
     if (is_bool($value)) {
-      return $value ? 'true' : 'false';
+      return $value ? 'yes' : 'no';
     }
 
     if (is_scalar($value)) {
@@ -99,11 +120,137 @@ trait BuildsReadableAuditChanges {
 
   protected function auditActionVerb(string $event): string {
     return match ($event) {
-      'created' => 'Created',
+      'created' => 'Recorded',
       'updated' => 'Updated',
-      'deleted' => 'Deleted',
+      'deleted' => 'Removed',
       default => ucfirst($event),
     };
+  }
+
+  protected function resolveAuditDisplayValue(string $key, $value, array $data = []): string {
+    $resolved = $this->auditResolvedValue($key, $value, $data);
+    return $this->stringifyAuditValue($resolved);
+  }
+
+  protected function auditResolvedValue(string $key, $value, array $data = []) {
+    if ($value === null || $value === '') {
+      return match ($key) {
+        'CustomerID' => 'Walk-in customer',
+        'UserID' => 'Unknown staff',
+        default => null,
+      };
+    }
+
+    return match ($key) {
+      'UserID' => $this->auditUserName($value),
+      'CustomerID' => $this->auditCustomerName($value),
+      'ProductID' => $this->auditProductName($value),
+      'CategoryID' => $this->auditLookupName(Category::class, $value, 'CategoryName', "Category #{$value}"),
+      'InventoryID' => $this->auditInventoryName($value),
+      'SalesID' => $this->auditSaleLabel($value),
+      'JobOrderID' => $this->auditJobOrderLabel($value),
+      'BatchDetailsID' => $this->auditLookupName(ProductionBatchDetail::class, $value, 'BatchDescription', "Production Batch #{$value}"),
+      'StockInDetailsID' => $this->auditLookupName(StockInDetail::class, $value, 'ID', "Stock-In #{$value}", fn ($detail) => "Stock-In #{$detail->ID}"),
+      'StockOutDetailsID' => $this->auditLookupName(StockOutDetail::class, $value, 'ID', "Stock-Out #{$value}", fn ($detail) => "Stock-Out #{$detail->ID}"),
+      'RoleID' => $this->auditLookupName(Role::class, $value, 'RoleName', "Role #{$value}"),
+      'PermissionID' => $this->auditLookupName(Permission::class, $value, 'PermissionName', "Permission #{$value}"),
+      'PermissionGroupID' => $this->auditLookupName(PermissionGroup::class, $value, 'GroupName', "Permission Group #{$value}"),
+      default => $value,
+    };
+  }
+
+  protected function auditCurrentValues(array $data): array {
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $newValues = is_array($data['new_values'] ?? null) ? $data['new_values'] : [];
+
+    return array_merge($oldValues, $newValues);
+  }
+
+  protected function auditUserName($userId): string {
+    return $this->auditLookupName(User::class, $userId, 'FullName', 'Unknown staff');
+  }
+
+  protected function auditCustomerName($customerId): string {
+    if ($customerId === null || $customerId === '') {
+      return 'Walk-in customer';
+    }
+
+    return $this->auditLookupName(Customer::class, $customerId, 'CustomerName', "Customer #{$customerId}");
+  }
+
+  protected function auditProductName($productId): string {
+    return $this->auditLookupName(Product::class, $productId, 'ProductName', "Product #{$productId}");
+  }
+
+  protected function auditInventoryName($inventoryId): string {
+    return $this->auditLookupName(Inventory::class, $inventoryId, 'ItemName', "Inventory Item #{$inventoryId}");
+  }
+
+  protected function auditSaleLabel($saleId): string {
+    if ($saleId === null || $saleId === '') {
+      return 'sale';
+    }
+
+    return $this->auditLookupName(Sale::class, $saleId, 'ID', "Sale #{$saleId}", fn ($sale) => "Sale #{$sale->ID}");
+  }
+
+  protected function auditJobOrderLabel($jobOrderId): string {
+    if ($jobOrderId === null || $jobOrderId === '') {
+      return 'job order';
+    }
+
+    return $this->auditLookupName(JobOrder::class, $jobOrderId, 'ID', "Job Order #{$jobOrderId}", fn ($jobOrder) => "Job Order #{$jobOrder->ID}");
+  }
+
+  protected function auditLookupName(string $modelClass, $id, string $column, string $fallback, ?callable $formatter = null): string {
+    if ($id === null || $id === '') {
+      return $fallback;
+    }
+
+    $record = $modelClass::query()->find($id);
+    if (!$record) {
+      return $fallback;
+    }
+
+    if ($formatter) {
+      return (string) $formatter($record);
+    }
+
+    $value = $record->{$column} ?? null;
+    return is_string($value) && trim($value) !== '' ? trim($value) : $fallback;
+  }
+
+  protected function auditChangedKeys(array $data): array {
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $newValues = is_array($data['new_values'] ?? null) ? $data['new_values'] : [];
+    $keys = array_values(array_unique(array_merge(array_keys($oldValues), array_keys($newValues))));
+
+    return array_values(array_filter($keys, function ($key) use ($oldValues, $newValues) {
+      $hasOld = array_key_exists($key, $oldValues);
+      $hasNew = array_key_exists($key, $newValues);
+
+      if ($hasOld && $hasNew) {
+        return $oldValues[$key] !== $newValues[$key];
+      }
+
+      return $hasOld || $hasNew;
+    }));
+  }
+
+  protected function auditFormatQuantity($value): string {
+    if ($value === null || $value === '') {
+      return '0';
+    }
+
+    return is_numeric($value) ? number_format((float) $value, 0, '.', '') : (string) $value;
+  }
+
+  protected function auditFormatMoney($value): string {
+    if (!is_numeric($value)) {
+      return 'P0.00';
+    }
+
+    return 'P' . number_format((float) $value, 2);
   }
 
   protected function auditFieldLabel(string $key, array $labels): string {
@@ -277,6 +424,7 @@ trait BuildsReadableAuditChanges {
         'entity' => 'Sale',
         'priority_keys' => ['UserID', 'CustomerID', 'SaleType', 'TotalAmount'],
         'labels' => [
+          'UserID' => 'Staff',
           'SaleType' => 'Sale Type',
           'TotalAmount' => 'Total Amount',
         ],
@@ -315,6 +463,7 @@ trait BuildsReadableAuditChanges {
         'entity' => 'Stock-In Detail',
         'priority_keys' => ['UserID', 'Supplier', 'PurchaseDate', 'TotalQuantity', 'TotalAmount', 'Source'],
         'labels' => [
+          'UserID' => 'Staff',
           'Supplier' => 'Supplier',
           'PurchaseDate' => 'Purchase Date',
           'TotalQuantity' => 'Total Quantity',
@@ -338,6 +487,7 @@ trait BuildsReadableAuditChanges {
         'entity' => 'Stock-Out Detail',
         'priority_keys' => ['UserID', 'TotalQuantity', 'Reason'],
         'labels' => [
+          'UserID' => 'Staff',
           'TotalQuantity' => 'Total Quantity',
           'Reason' => 'Reason',
         ],
@@ -355,6 +505,7 @@ trait BuildsReadableAuditChanges {
         'entity' => 'Shrinkage Record',
         'priority_keys' => ['UserID', 'Reason', 'Quantity', 'TotalAmount'],
         'labels' => [
+          'UserID' => 'Staff',
           'Reason' => 'Reason',
           'TotalAmount' => 'Total Amount',
         ],
@@ -372,6 +523,63 @@ trait BuildsReadableAuditChanges {
         'labels' => [
           'PricePerUnit' => 'Price Per Unit',
           'SubAmount' => 'Subtotal',
+        ],
+      ],
+      'JobOrder' => [
+        'entity' => 'Job Order',
+        'priority_keys' => ['UserID', 'CustomerID', 'SalesID', 'Status', 'DeliveryAt', 'TotalAmount'],
+        'labels' => [
+          'UserID' => 'Staff',
+          'Status' => 'Status',
+          'DeliveryAt' => 'Delivery Time',
+          'Notes' => 'Notes',
+          'TotalAmount' => 'Total Amount',
+        ],
+      ],
+      'JobOrderItem' => [
+        'entity' => 'Job Order Item',
+        'priority_keys' => ['JobOrderID', 'ProductID', 'Quantity', 'PricePerUnit', 'SubAmount'],
+        'labels' => [
+          'PricePerUnit' => 'Price Per Unit',
+          'SubAmount' => 'Subtotal',
+        ],
+      ],
+      'JobOrderCustomItem' => [
+        'entity' => 'Job Order Custom Item',
+        'priority_keys' => ['JobOrderID', 'CustomOrderDescription', 'Quantity', 'PricePerUnit'],
+        'labels' => [
+          'CustomOrderDescription' => 'Custom Item',
+          'PricePerUnit' => 'Price Per Unit',
+        ],
+      ],
+      'ProductLeftover' => [
+        'entity' => 'Product Leftover',
+        'priority_keys' => ['ProductLeftoverID', 'ProductID', 'LeftoverQuantity', 'PerUnitAmount'],
+        'labels' => [
+          'ProductLeftoverID' => 'Snapshot',
+          'LeftoverQuantity' => 'Leftover Quantity',
+          'PerUnitAmount' => 'Unit Amount',
+        ],
+      ],
+      'ProductLeftoverSnapshot' => [
+        'entity' => 'Product Snapshot',
+        'priority_keys' => ['UserID', 'TotalProducts', 'TotalLeftovers', 'TotalAmount', 'SnapshotTime'],
+        'labels' => [
+          'UserID' => 'Staff',
+          'TotalProducts' => 'Total Products',
+          'TotalLeftovers' => 'Total Leftovers',
+          'TotalAmount' => 'Total Amount',
+          'SnapshotTime' => 'Snapshot Time',
+        ],
+      ],
+      'InventoryLeftoverSnapshot' => [
+        'entity' => 'Inventory Snapshot',
+        'priority_keys' => ['UserID', 'TotalItems', 'TotalLeftovers', 'SnapshotTime'],
+        'labels' => [
+          'UserID' => 'Staff',
+          'TotalItems' => 'Total Items',
+          'TotalLeftovers' => 'Total Leftovers',
+          'SnapshotTime' => 'Snapshot Time',
         ],
       ],
     ];

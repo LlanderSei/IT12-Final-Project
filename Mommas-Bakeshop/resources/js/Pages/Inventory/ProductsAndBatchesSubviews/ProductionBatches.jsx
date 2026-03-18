@@ -8,6 +8,7 @@ import {
 	PRODUCTS_BATCHES_FOOTER_ACTIONS,
 } from "@/utils/productsAndBatchesFooterActions";
 import usePermissions from "@/hooks/usePermissions";
+import { Pencil, Trash2 } from "lucide-react";
 
 const BATCH_DRAFT_KEY = "inventory.production_batch_draft.v1";
 
@@ -640,8 +641,9 @@ export default function ProductionBatches({
 														<button
 															type="button"
 															onClick={() => openEditBatchDraft(batch)}
-															className="rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft"
+															className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
 														>
+															<Pencil className="h-3.5 w-3.5" />
 															Edit
 														</button>
 													) : (
@@ -795,8 +797,8 @@ export default function ProductionBatches({
 												<div className="font-medium">{line.ItemName}</div>
 												<div>Qty: {line.QuantityProduced}</div>
 												<div className="mt-1 flex gap-2">
-													<button type="button" onClick={() => beginEditLine(line)} className="text-xs text-blue-600">Edit</button>
-													<button type="button" onClick={() => requestRemoveLine(line.key)} className="text-xs text-red-600">Delete</button>
+													<button type="button" onClick={() => beginEditLine(line)} className="inline-flex items-center gap-1 rounded border border-primary px-2 py-1 text-xs font-medium text-primary hover:bg-primary-soft"><Pencil className="h-3.5 w-3.5" />Edit</button>
+													<button type="button" onClick={() => requestRemoveLine(line.key)} className="inline-flex items-center gap-1 rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700"><Trash2 className="h-3.5 w-3.5" />Delete</button>
 												</div>
 											</div>
 										))}

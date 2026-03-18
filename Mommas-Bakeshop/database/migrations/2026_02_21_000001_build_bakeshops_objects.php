@@ -136,7 +136,7 @@ return new class extends Migration {
 		Schema::create('payments', function (Blueprint $table) {
 			$table->id('ID');
 			$table->foreignId('SalesID')->constrained('sales', 'ID')->onDelete('cascade');
-			$table->string('PaymentMethod')->default('Cash');
+			$table->string('PaymentMethod')->nullable();
 			$table->decimal('PaidAmount', 10, 2);
 			$table->decimal('TotalAmount', 10, 2);
 			$table->decimal('Change', 10, 2);
@@ -154,6 +154,8 @@ return new class extends Migration {
 			$table->id('ID');
 			$table->foreignId('SalesID')->references('ID')->on('sales')->onDelete('cascade');
 			$table->decimal('PaidAmount', 10, 2);
+			$table->decimal('TenderedAmount', 10, 2)->nullable();
+			$table->decimal('Change', 10, 2)->nullable();
 			$table->string('ReceiptNumber')->nullable()->unique();
 			$table->timestamp('ReceiptIssuedAt')->nullable();
 			$table->text('PaymentMethod');

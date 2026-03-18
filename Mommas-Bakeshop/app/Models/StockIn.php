@@ -48,6 +48,22 @@ class StockIn extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $values = $this->auditCurrentValues($data);
+    $itemName = ($values['ItemType'] ?? '') === 'Inventory'
+      ? $this->auditInventoryName($values['InventoryID'] ?? null)
+      : $this->auditProductName($values['ProductID'] ?? null);
+    $quantity = $this->auditFormatQuantity($values['QuantityAdded'] ?? 0);
+    $stockInLabel = 'Stock-In #' . ($values['StockInDetailsID'] ?? 'record');
+
+    return match ($event) {
+      'created' => "{$quantity} units added to stock for {$itemName} via {$stockInLabel}",
+      'deleted' => "Stock-in line removed for {$itemName} from {$stockInLabel}",
+      default => "Stock-in line updated for {$itemName} on {$stockInLabel}",
+    };
+  }
+
   // Relationships
   public function inventory() {
     return $this->belongsTo(Inventory::class, 'InventoryID');

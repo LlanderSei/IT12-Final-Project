@@ -1,4 +1,5 @@
 import React from "react";
+import { CheckCircle2, Download, RotateCcw } from "lucide-react";
 
 const formatDateTime = (value) => {
 	if (!value) return "-";
@@ -215,8 +216,9 @@ export default function Backups({
 														!canDownload ||
 														backup.BackupStatus !== "Completed"
 													}
-													className="rounded-md border border-primary bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+													className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
 												>
+													<Download className="h-3.5 w-3.5" />
 													Download
 												</button>
 												<button
@@ -227,8 +229,9 @@ export default function Backups({
 														!canVerify ||
 														backup.BackupStatus !== "Completed"
 													}
-													className="rounded-md border border-primary bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+													className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
 												>
+													<CheckCircle2 className="h-3.5 w-3.5" />
 													Verify
 												</button>
 												<button
@@ -240,8 +243,9 @@ export default function Backups({
 														backup.BackupStatus !== "Completed" ||
 														Boolean(backup.RestorePreviewError)
 													}
-													className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+													className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-white px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
 												>
+													<RotateCcw className="h-3.5 w-3.5" />
 													Restore
 												</button>
 											</div>

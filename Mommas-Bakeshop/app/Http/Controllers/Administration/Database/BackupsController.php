@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Administration\Database;
 use App\Jobs\RestoreBackupJob;
 use App\Jobs\VerifyBackupJob;
 use App\Models\DatabaseBackup;
+use App\Services\AuditTrailService;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseConnectionManager;
 use App\Services\SystemOperationService;
@@ -115,12 +116,28 @@ class BackupsController extends DatabaseBaseController {
     }
   }
 
-  public function download(int $id, DatabaseBackupService $service) {
+  public function download(int $id, DatabaseBackupService $service, AuditTrailService $auditTrail) {
     $backup = DatabaseBackup::query()->findOrFail($id);
 
     if ($backup->BackupStatus !== 'Completed') {
       throw new RuntimeException('Only completed backups can be downloaded.');
     }
+
+    $auditTrail->record(
+      auth()->user(),
+      'DatabaseBackups',
+      'Recorded',
+      sprintf(
+        'Backup file downloaded: %s',
+        $backup->FileName ?: "Backup #{$backup->ID}"
+      ),
+      [
+        'backupId' => (int) $backup->ID,
+        'backupType' => $backup->BackupType,
+        'fileName' => $backup->FileName,
+        'status' => $backup->BackupStatus,
+      ],
+    );
 
     return $service->downloadResponse($backup);
   }

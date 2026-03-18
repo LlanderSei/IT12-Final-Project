@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, router, usePage } from "@inertiajs/react";
 import usePermissions from "@/hooks/usePermissions";
 import Modal from "@/Components/Modal";
-import { countOverdueDeliveries } from "@/utils/jobOrders";
 import {
 	ChevronLeft,
 	ChevronDown,
@@ -94,6 +93,7 @@ const NAV_STRUCTURE = [
 				activeRoutes: [
 					"pos.job-orders",
 					"pos.job-orders.pending",
+					"pos.job-orders.pending-payments",
 					"pos.job-orders.history",
 				],
 				label: "Job Orders",
@@ -102,19 +102,19 @@ const NAV_STRUCTURE = [
 				requiredPermissions: [
 					"CanViewJobOrders",
 					"CanViewPendingJobOrders",
+					"CanViewSalesHistoryPendingPayments",
 					"CanViewJobOrdersHistory",
 				],
 			},
 			{
 				id: "pos.sale-history",
-				activeRoutes: ["pos.sale-history", "pos.sale-history.pending"],
-				label: "Sale History",
+				activeRoutes: ["pos.sale-history"],
+				label: "Sales History",
 				icon: "saleHistory",
 				href: route("pos.sale-history"),
 				requiredPermissions: [
 					"CanViewSalesHistory",
 					"CanViewSalesHistorySales",
-					"CanViewSalesHistoryPendingPayments",
 				],
 			},
 			{
@@ -255,10 +255,15 @@ const Sidebar = () => {
 		if (!requiredPermissions.length) return true;
 		return canAny(requiredPermissions);
 	};
+	const canViewPendingPayments =
+		can("CanViewSalesHistory") && can("CanViewSalesHistoryPendingPayments");
 	const canViewSalesHistoryNav =
-		can("CanViewSalesHistory") &&
-		(can("CanViewSalesHistorySales") ||
-			can("CanViewSalesHistoryPendingPayments"));
+		can("CanViewSalesHistory") && can("CanViewSalesHistorySales");
+	const canViewJobOrdersNav =
+		canViewPendingPayments ||
+		can("CanViewJobOrders") ||
+		can("CanViewPendingJobOrders") ||
+		can("CanViewJobOrdersHistory");
 	const canViewReportsOverview = can("CanViewReportsOverview");
 	const canViewReportsFullBreakdown = can("CanViewReportsFullBreakdown");
 	const canViewReportsNav =
@@ -292,21 +297,22 @@ const Sidebar = () => {
 	const pendingJobOrders = Array.isArray(pageProps?.pendingJobOrders)
 		? pageProps.pendingJobOrders
 		: [];
-	const sharedOverdueCount = Number(pageProps?.overdueJobOrdersCount || 0);
+	const sharedPendingJobOrdersCount = Number(pageProps?.pendingJobOrdersCount || 0);
+	const pendingPaymentsCount = Number(pageProps?.pendingPaymentsCount || 0);
 	const noStockInventoryCount = Number(pageProps?.noStockInventoryCount || 0);
 	const noStockProductsCount = Number(pageProps?.noStockProductsCount || 0);
 	const unconfirmedShrinkageCount = Number(
 		pageProps?.unconfirmedShrinkageCount || 0,
 	);
-	const overduePendingPaymentsCount = Number(
-		pageProps?.overduePendingPaymentsCount || 0,
-	);
-	const overdueJobOrdersCount = useMemo(() => {
+	const totalPendingJobOrdersCount = useMemo(() => {
 		if (pendingJobOrders.length > 0) {
-			return countOverdueDeliveries(pendingJobOrders);
+			return pendingJobOrders.length;
 		}
-		return Number.isFinite(sharedOverdueCount) ? sharedOverdueCount : 0;
-	}, [pendingJobOrders, sharedOverdueCount]);
+		return Number.isFinite(sharedPendingJobOrdersCount)
+			? sharedPendingJobOrdersCount
+			: 0;
+	}, [pendingJobOrders, sharedPendingJobOrdersCount]);
+	const jobOrdersBadgeCount = totalPendingJobOrdersCount + pendingPaymentsCount;
 
 	const [isExpanded, setIsExpanded] = useState(() => {
 		if (typeof window === "undefined") return true;
@@ -385,13 +391,54 @@ const Sidebar = () => {
 				height: "100vh",
 				transition:
 					"width 0.3s cubic-bezier(0.4,0,0.2,1), min-width 0.3s cubic-bezier(0.4,0,0.2,1)",
-				overflow: "hidden",
+				overflow: "visible",
 				fontFamily: "'Inter', sans-serif",
 				zIndex: 20,
 				flexShrink: 0,
+				position: "relative",
 			}}
 		>
 			{/* ── Header ── */}
+			<button
+				type="button"
+				onClick={() => setIsExpanded((prev) => !prev)}
+				title={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+				aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+				style={{
+					position: "absolute",
+					top: "50%",
+					right: 0,
+					transform: `translate(50%, -50%) ${
+						isExpanded ? "rotate(0deg)" : "rotate(180deg)"
+					}`,
+					width: "32px",
+					height: "32px",
+					borderRadius: "9999px",
+					border: "1px solid var(--color-border)",
+					backgroundColor: "var(--color-surface)",
+					color: "var(--color-text-muted)",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+					cursor: "pointer",
+					boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
+					transition:
+						"transform 0.3s cubic-bezier(0.4,0,0.2,1), background-color 0.2s, color 0.2s, box-shadow 0.2s",
+					zIndex: 30,
+				}}
+				onMouseEnter={(e) => {
+					e.currentTarget.style.backgroundColor = "rgb(var(--color-primary-soft))";
+					e.currentTarget.style.color = "var(--color-primary-hex)";
+					e.currentTarget.style.boxShadow = "0 10px 28px rgba(15, 23, 42, 0.18)";
+				}}
+				onMouseLeave={(e) => {
+					e.currentTarget.style.backgroundColor = "var(--color-surface)";
+					e.currentTarget.style.color = "var(--color-text-muted)";
+					e.currentTarget.style.boxShadow = "0 8px 24px rgba(15, 23, 42, 0.12)";
+				}}
+			>
+				<ChevronLeft size={18} strokeWidth={2} />
+			</button>
 			<div
 				style={{
 					height: "70px",
@@ -444,35 +491,6 @@ const Sidebar = () => {
 							<span>Momma's</span>
 							<span>Bakeshop</span>
 						</span>
-
-						{/* Collapse chevron */}
-						<button
-							onClick={() => setIsExpanded(false)}
-							title="Collapse sidebar"
-							style={{
-								background: "none",
-								border: "none",
-								cursor: "pointer",
-								padding: "4px",
-								borderRadius: "6px",
-								color: "var(--color-text-muted)",
-								display: "flex",
-								alignItems: "center",
-								transition: "background 0.2s, color 0.2s",
-							}}
-							onMouseEnter={(e) => {
-								e.currentTarget.style.backgroundColor =
-									"rgba(156,163,175,0.15)";
-								e.currentTarget.style.color = "var(--color-primary-hex)";
-							}}
-							onMouseLeave={(e) => {
-								e.currentTarget.style.backgroundColor = "transparent";
-								e.currentTarget.style.color = "var(--color-text-muted)";
-							}}
-						>
-							{/* Left-arrow chevron */}
-							<ChevronLeft size={18} strokeWidth={2} />
-						</button>
 					</>
 				)}
 			</div>
@@ -658,6 +676,9 @@ const Sidebar = () => {
 			>
 				{NAV_STRUCTURE.map((section) => {
 					const visibleItems = (section.items || []).filter((item) => {
+						if (item.id === "pos.job-orders") {
+							return canViewJobOrdersNav;
+						}
 						if (item.id === "pos.sale-history") {
 							return canViewSalesHistoryNav;
 						}
@@ -731,11 +752,11 @@ const Sidebar = () => {
 											route().current(routeName + ".*"),
 									);
 									const resolvedHref =
-										item.id === "pos.sale-history" &&
-										can("CanViewSalesHistory") &&
-										!can("CanViewSalesHistorySales") &&
-										can("CanViewSalesHistoryPendingPayments")
-											? route("pos.sale-history.pending")
+										item.id === "pos.job-orders" &&
+										canViewPendingPayments &&
+										!can("CanViewJobOrders") &&
+										!can("CanViewPendingJobOrders")
+											? route("pos.job-orders.pending-payments")
 											: item.id === "admin.reports" &&
 												  !canViewReportsOverview &&
 												  canViewReportsFullBreakdown
@@ -789,7 +810,7 @@ const Sidebar = () => {
 
 									const enrichedItem = (() => {
 										if (item.id === "pos.job-orders") {
-											return { ...item, badgeCount: overdueJobOrdersCount };
+											return { ...item, badgeCount: jobOrdersBadgeCount };
 										}
 										if (item.id === "inventory.levels") {
 											return { ...item, badgeCount: noStockInventoryCount };
@@ -799,12 +820,6 @@ const Sidebar = () => {
 										}
 										if (item.id === "inventory.products") {
 											return { ...item, badgeCount: noStockProductsCount };
-										}
-										if (item.id === "pos.sale-history") {
-											return {
-												...item,
-												badgeCount: overduePendingPaymentsCount,
-											};
 										}
 										return item;
 									})();

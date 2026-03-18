@@ -24,7 +24,7 @@ class PendingPaymentsController extends Controller {
       'SalesID' => 'required|integer|exists:sales,ID',
       'paymentType' => 'required|in:partial,full',
       'PaidAmount' => 'required|numeric|min:0.01',
-      'PaymentMethod' => 'required|string|max:255',
+      'PaymentMethod' => $this->paymentMethodValidationRule(),
       'AdditionalDetails' => 'nullable|string|max:1000',
     ]);
 
@@ -57,22 +57,24 @@ class PendingPaymentsController extends Controller {
         ]);
       }
 
-      $requestedAmount = round((float)$payload['PaidAmount'], 2);
-      $paidAmount = $payload['paymentType'] === 'full' ? $amountLeft : $requestedAmount;
+      $paymentDetails = $this->normalizeSalePaymentInput([
+        'paymentSelection' => 'pay_now',
+        'paymentType' => $payload['paymentType'],
+        'paymentMethod' => $payload['PaymentMethod'],
+        'paidAmount' => $payload['PaidAmount'],
+      ], $amountLeft);
 
-      if ($payload['paymentType'] === 'partial' && $requestedAmount >= $amountLeft) {
-        throw ValidationException::withMessages([
-          'PaidAmount' => 'Partial payment must be less than the remaining balance.',
-        ]);
-      }
+      $paidAmount = $paymentDetails['appliedAmount'];
 
       $receiptNumber = $this->generateReceiptNumber();
       PartialPayment::create([
         'SalesID' => $sale->ID,
         'PaidAmount' => $paidAmount,
+        'TenderedAmount' => $paymentDetails['tenderedAmount'],
+        'Change' => $paymentDetails['change'],
         'ReceiptNumber' => $receiptNumber,
         'ReceiptIssuedAt' => now(),
-        'PaymentMethod' => $payload['PaymentMethod'],
+        'PaymentMethod' => $paymentDetails['paymentMethod'],
         'AdditionalDetails' => $payload['AdditionalDetails'] ?? null,
         'DateAdded' => now(),
       ]);
@@ -80,7 +82,7 @@ class PendingPaymentsController extends Controller {
       $latestTotalPaid = (float)PartialPayment::where('SalesID', $sale->ID)->sum('PaidAmount');
       $payment->update([
         'PaidAmount' => $latestTotalPaid,
-        'Change' => max(0, round($latestTotalPaid - $totalAmount, 2)),
+        'Change' => $paymentDetails['change'],
         'PaymentStatus' => $latestTotalPaid >= $totalAmount ? 'Paid' : 'Partially Paid',
         'PaymentDueDate' => $latestTotalPaid >= $totalAmount ? null : $payment->PaymentDueDate,
       ]);

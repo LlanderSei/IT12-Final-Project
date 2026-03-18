@@ -8,28 +8,10 @@ use Inertia\Inertia;
 
 trait HandlesSaleHistory {
   protected function renderSaleHistory(Request $request, string $initialTab) {
-    $tab = in_array($initialTab, ['Sales', 'Pending Payments'], true)
-      ? $initialTab
-      : 'Sales';
-
     $user = $request->user();
     $canViewBase = $user?->hasPermission('CanViewSalesHistory') ?? false;
     $canViewSales = $canViewBase && ($user?->hasPermission('CanViewSalesHistorySales') ?? false);
-    $canViewPending = $canViewBase && ($user?->hasPermission('CanViewSalesHistoryPendingPayments') ?? false);
-
-    if ($tab === 'Sales' && !$canViewSales) {
-      if ($canViewPending) {
-        return redirect()->route('pos.sale-history.pending');
-      }
-
-      abort(403);
-    }
-
-    if ($tab === 'Pending Payments' && !$canViewPending) {
-      if ($canViewSales) {
-        return redirect()->route('pos.sale-history');
-      }
-
+    if (!$canViewSales) {
       abort(403);
     }
 
@@ -44,16 +26,8 @@ trait HandlesSaleHistory {
       ->orderByDesc('DateAdded')
       ->get();
 
-    $pendingSales = $sales
-      ->filter(function ($sale) {
-        return optional($sale->payment)->PaymentStatus !== 'Paid';
-      })
-      ->values();
-
-    return Inertia::render('PointOfSale/SaleHistoryTabs', [
-      'initialTab' => $tab,
+    return Inertia::render('PointOfSale/SalesHistory', [
       'sales' => $sales,
-      'pendingSales' => $pendingSales,
     ]);
   }
 }

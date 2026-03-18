@@ -50,6 +50,27 @@ class Inventory extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $values = $this->auditCurrentValues($data);
+    $itemName = trim((string) ($values['ItemName'] ?? $oldValues['ItemName'] ?? 'Inventory item'));
+
+    if ($event === 'created') {
+      return "New inventory item recorded: {$itemName}";
+    }
+
+    if ($event === 'deleted') {
+      return "Inventory item removed: {$itemName}";
+    }
+
+    if (isset($oldValues['Quantity'], $values['Quantity']) && count($this->auditChangedKeys($data)) === 1 && (string) $oldValues['Quantity'] !== (string) $values['Quantity']) {
+      return "Stock level updated for {$itemName} from {$this->auditFormatQuantity($oldValues['Quantity'])} to {$this->auditFormatQuantity($values['Quantity'])}";
+    }
+
+    return "Inventory details updated for {$itemName}";
+  }
+
   // Relationships
   public function stockIns() {
     return $this->hasMany(StockIn::class, 'InventoryID');

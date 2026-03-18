@@ -47,6 +47,27 @@ class Product extends Model implements Auditable {
     return $data;
   }
 
+  protected function auditReadableSummary(array $data): ?string {
+    $event = strtolower((string) ($data['event'] ?? 'updated'));
+    $oldValues = is_array($data['old_values'] ?? null) ? $data['old_values'] : [];
+    $values = $this->auditCurrentValues($data);
+    $productName = trim((string) ($values['ProductName'] ?? $oldValues['ProductName'] ?? 'Product'));
+
+    if ($event === 'created') {
+      return "New product recorded: {$productName}";
+    }
+
+    if ($event === 'deleted') {
+      return "Product removed: {$productName}";
+    }
+
+    if (isset($oldValues['Quantity'], $values['Quantity']) && count($this->auditChangedKeys($data)) === 1 && (string) $oldValues['Quantity'] !== (string) $values['Quantity']) {
+      return "Stock level updated for {$productName} from {$this->auditFormatQuantity($oldValues['Quantity'])} to {$this->auditFormatQuantity($values['Quantity'])}";
+    }
+
+    return "Product details updated for {$productName}";
+  }
+
   protected $casts = [
     'DateAdded' => 'datetime',
     'DateModified' => 'datetime',

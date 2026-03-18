@@ -6,6 +6,7 @@ import usePermissions from "@/hooks/usePermissions";
 import SecondaryButton from "@/Components/SecondaryButton";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
+import { Pencil, Trash2 } from "lucide-react";
 
 const PERMISSION_GROUP_MAX_ROLE_RANK = {
 	cashierLevel: 3,
@@ -391,11 +392,9 @@ export default function Roles({
 																type="button"
 																onClick={() => openEditModal(role)}
 																disabled={!canEdit}
-																className={canEdit ? "inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary border border-transparent text-white text-xs font-bold rounded-md hover:bg-primary-hover transition-all shadow-sm" : "cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-300 shadow-none"}
+																className={canEdit ? "inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-hover transition-all shadow-sm" : "inline-flex items-center gap-1.5 cursor-not-allowed rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-300 shadow-none"}
 															>
-																<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-																</svg>
+																<Pencil className="h-3.5 w-3.5" />
 																Edit
 															</button>
 															<button
@@ -403,8 +402,9 @@ export default function Roles({
 																onClick={() => setDeleteCandidate(role)}
 																disabled={!canDelete}
 																title={getDeleteTooltip(role)}
-																className={canDelete ? "rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-all" : "cursor-not-allowed rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-300 shadow-none"}
+																className={canDelete ? "inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-red-700 transition-all" : "inline-flex items-center gap-1.5 cursor-not-allowed rounded-md border border-gray-100 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-300 shadow-none"}
 															>
+																<Trash2 className="h-3.5 w-3.5" />
 																Delete
 															</button>
 														</div>

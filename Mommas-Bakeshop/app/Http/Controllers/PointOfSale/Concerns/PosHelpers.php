@@ -9,6 +9,77 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 trait PosHelpers {
+  protected function supportedPaymentMethods(): array {
+    return ['Cash', 'GCash', 'Bank Transfer', 'Card'];
+  }
+
+  protected function paymentMethodValidationRule(bool $nullable = false): array {
+    $allowed = implode(',', $this->supportedPaymentMethods());
+    return [$nullable ? 'nullable' : 'required', "in:$allowed"];
+  }
+
+  protected function normalizeSalePaymentInput(array $payload, float $amountDue, bool $allowPayLater = false): array {
+    $amountDue = round((float) $amountDue, 2);
+
+    if ($allowPayLater && ($payload['paymentSelection'] ?? null) === 'pay_later') {
+      return [
+        'paymentSelection' => 'pay_later',
+        'paymentMethod' => null,
+        'enteredAmount' => 0.0,
+        'appliedAmount' => 0.0,
+        'tenderedAmount' => null,
+        'change' => 0.0,
+        'remainingAmount' => $amountDue,
+        'effectivePaymentType' => 'partial',
+        'paymentStatus' => 'Unpaid',
+      ];
+    }
+
+    $paymentMethod = trim((string) ($payload['paymentMethod'] ?? ''));
+    if ($paymentMethod === '') {
+      throw ValidationException::withMessages([
+        'paymentMethod' => 'Payment method is required.',
+      ]);
+    }
+
+    if (!in_array($paymentMethod, $this->supportedPaymentMethods(), true)) {
+      throw ValidationException::withMessages([
+        'paymentMethod' => 'Selected payment method is invalid.',
+      ]);
+    }
+
+    $enteredAmount = round((float) ($payload['paidAmount'] ?? 0), 2);
+    if ($enteredAmount <= 0) {
+      throw ValidationException::withMessages([
+        'paidAmount' => 'Amount paid must be greater than 0.',
+      ]);
+    }
+
+    $isCash = $paymentMethod === 'Cash';
+    if (!$isCash && $enteredAmount > $amountDue) {
+      throw ValidationException::withMessages([
+        'paidAmount' => 'Amount paid cannot exceed the remaining balance for non-cash payments.',
+      ]);
+    }
+
+    $appliedAmount = $isCash ? min($enteredAmount, $amountDue) : $enteredAmount;
+    $change = $isCash ? max(0, round($enteredAmount - $amountDue, 2)) : 0.0;
+    $remainingAmount = max(0, round($amountDue - $appliedAmount, 2));
+    $effectivePaymentType = $remainingAmount <= 0 ? 'full' : 'partial';
+
+    return [
+      'paymentSelection' => 'pay_now',
+      'paymentMethod' => $paymentMethod,
+      'enteredAmount' => $enteredAmount,
+      'appliedAmount' => $appliedAmount,
+      'tenderedAmount' => $isCash ? $enteredAmount : null,
+      'change' => $change,
+      'remainingAmount' => $remainingAmount,
+      'effectivePaymentType' => $effectivePaymentType,
+      'paymentStatus' => $effectivePaymentType === 'full' ? 'Paid' : 'Partially Paid',
+    ];
+  }
+
   protected function calculateCartTotals(array $items): array {
     $groupedItems = collect($items)
       ->groupBy('ProductID')
