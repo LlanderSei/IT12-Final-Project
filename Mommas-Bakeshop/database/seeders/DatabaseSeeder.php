@@ -50,5 +50,6 @@ class DatabaseSeeder extends Seeder {
 		$this->call(RolePermissionSeeder::class);
 		// $this->call(BakeshopCatalogSeeder::class);
 		// $this->call(InventoryCatalogSeeder::class);
+		// $this->call(BusinessHoursCycleSeeder::class);
 	}
 }

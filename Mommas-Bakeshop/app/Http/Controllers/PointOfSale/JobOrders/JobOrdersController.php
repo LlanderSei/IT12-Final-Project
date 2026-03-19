@@ -62,6 +62,15 @@ class JobOrdersController extends Controller {
         ]);
       }
 
+      if (
+        $payload['customerMode'] === 'existing' &&
+        !Customer::query()->notArchived()->whereKey((int) ($payload['CustomerID'] ?? 0))->exists()
+      ) {
+        throw ValidationException::withMessages([
+          'CustomerID' => 'Selected customer is no longer available.',
+        ]);
+      }
+
       if ($payload['customerMode'] === 'new') {
         $requiredFields = ['CustomerName', 'CustomerType', 'ContactDetails', 'Address'];
         foreach ($requiredFields as $field) {
@@ -87,7 +96,7 @@ class JobOrdersController extends Controller {
       $products = [];
       if (!empty($groupedItems)) {
         $productIDs = array_map('intval', array_keys($groupedItems));
-        $products = Product::whereIn('ID', $productIDs)->get()->keyBy('ID');
+        $products = Product::query()->notArchived()->whereIn('ID', $productIDs)->get()->keyBy('ID');
         if ($products->count() !== count($productIDs)) {
           throw ValidationException::withMessages([
             'items' => 'One or more selected products are invalid.',
@@ -198,7 +207,7 @@ class JobOrdersController extends Controller {
           ->map(fn ($rows) => (int) $rows->sum('Quantity'))
           ->all();
 
-        $products = $this->assertAndLockProducts($groupedItems);
+        $products = $this->assertAndLockProducts($groupedItems, false);
 
         $totalAmount = (float) $jobOrder->TotalAmount;
         $paymentDetails = $this->normalizeSalePaymentInput($payload, $totalAmount, true);
@@ -369,7 +378,7 @@ class JobOrdersController extends Controller {
       'pendingJobOrders' => $pendingJobOrders,
       'pendingSales' => $pendingSales,
       'historyJobOrders' => $historyJobOrders,
-      'products' => Product::with('category')
+      'products' => Product::query()->notArchived()->with('category')
         ->orderBy('ProductName')
         ->get()
         ->map(function ($product) {
@@ -378,7 +387,7 @@ class JobOrdersController extends Controller {
         })
         ->values(),
       'categories' => Category::orderBy('CategoryName')->get(),
-      'customers' => Customer::orderBy('CustomerName')->get(),
+      'customers' => Customer::query()->notArchived()->orderBy('CustomerName')->get(),
     ]);
   }
 

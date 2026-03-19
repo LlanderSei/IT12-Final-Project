@@ -43,7 +43,7 @@ class InventoryController extends Controller {
   }
 
   public function update(Request $request, $id) {
-    $item = Inventory::findOrFail($id);
+    $item = Inventory::query()->notArchived()->findOrFail($id);
 
     $data = $request->validate([
       'ItemName' => 'required|string|max:255',
@@ -68,10 +68,29 @@ class InventoryController extends Controller {
   }
 
   public function destroy($id) {
-    $item = Inventory::findOrFail($id);
-    $item->delete();
+    $item = Inventory::query()->notArchived()->findOrFail($id);
+    $item->update([
+      'IsArchived' => true,
+      'ArchivedAt' => now(),
+      'ArchivedByUserID' => auth()->id(),
+      'ArchiveReason' => request('ArchiveReason') ?: null,
+      'DateModified' => now(),
+    ]);
 
-    return redirect()->back()->with('success', 'Inventory item deleted successfully.');
+    return redirect()->back()->with('success', 'Inventory item archived successfully.');
+  }
+
+  public function restore($id) {
+    $item = Inventory::query()->onlyArchived()->findOrFail($id);
+    $item->update([
+      'IsArchived' => false,
+      'ArchivedAt' => null,
+      'ArchivedByUserID' => null,
+      'ArchiveReason' => null,
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->back()->with('success', 'Inventory item restored successfully.');
   }
 
   protected function renderInventoryTabs(Request $request, ?string $forcedTab = null) {
@@ -172,8 +191,8 @@ class InventoryController extends Controller {
       });
 
     return Inertia::render('Inventory/InventoryLevelsTabs', [
-      'inventory' => Inventory::orderBy('ItemName', 'asc')->get(),
-      'products' => Product::with('category')->orderBy('ProductName', 'asc')->get(),
+      'inventory' => Inventory::query()->notArchived()->orderBy('ItemName', 'asc')->get(),
+      'products' => Product::query()->notArchived()->with('category')->orderBy('ProductName', 'asc')->get(),
       'categories' => Category::orderBy('CategoryName', 'asc')->get(),
       'stockIns' => $stockIns,
       'stockOuts' => $stockOuts,

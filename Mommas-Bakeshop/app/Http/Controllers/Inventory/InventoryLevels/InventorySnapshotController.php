@@ -39,6 +39,7 @@ class InventorySnapshotController extends InventoryController {
       ]);
 
       $items = Inventory::query()
+        ->notArchived()
         ->where('Quantity', '>', 0)
         ->orderBy('ItemName', 'asc')
         ->get(['ID', 'Quantity']);

@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\BuildsReadableAuditChanges;
+use App\Models\Concerns\HasArchiveState;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
 class Product extends Model implements Auditable {
-  use AuditableTrait, BuildsReadableAuditChanges;
+  use AuditableTrait, BuildsReadableAuditChanges, HasArchiveState;
 
   protected $table = 'products';
   protected $primaryKey = 'ID';
@@ -25,6 +26,10 @@ class Product extends Model implements Auditable {
     'LowStockThreshold',
     'DateAdded',
     'DateModified',
+    'IsArchived',
+    'ArchivedAt',
+    'ArchivedByUserID',
+    'ArchiveReason',
   ];
 
   protected $auditEvents = [
@@ -61,6 +66,17 @@ class Product extends Model implements Auditable {
       return "Product removed: {$productName}";
     }
 
+    if (($oldValues['IsArchived'] ?? null) !== ($values['IsArchived'] ?? null)) {
+      $reason = trim((string) ($values['ArchiveReason'] ?? ''));
+      if (!empty($values['IsArchived'])) {
+        return $reason !== ''
+          ? "Product archived: {$productName} ({$reason})"
+          : "Product archived: {$productName}";
+      }
+
+      return "Product restored: {$productName}";
+    }
+
     if (isset($oldValues['Quantity'], $values['Quantity']) && count($this->auditChangedKeys($data)) === 1 && (string) $oldValues['Quantity'] !== (string) $values['Quantity']) {
       return "Stock level updated for {$productName} from {$this->auditFormatQuantity($oldValues['Quantity'])} to {$this->auditFormatQuantity($values['Quantity'])}";
     }
@@ -71,6 +87,8 @@ class Product extends Model implements Auditable {
   protected $casts = [
     'DateAdded' => 'datetime',
     'DateModified' => 'datetime',
+    'IsArchived' => 'boolean',
+    'ArchivedAt' => 'datetime',
   ];
 
   // Relationships

@@ -110,7 +110,7 @@ trait HandlesShrinkage {
     }
 
     $productIDs = array_map('intval', array_keys($grouped));
-    $products = Product::whereIn('ID', $productIDs)->lockForUpdate()->get()->keyBy('ID');
+    $products = Product::query()->notArchived()->whereIn('ID', $productIDs)->lockForUpdate()->get()->keyBy('ID');
 
     if ($products->count() !== count($productIDs)) {
       throw ValidationException::withMessages([

@@ -16,6 +16,10 @@ return new class extends Migration {
 			$table->text('Address');
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
+			$table->boolean('IsArchived')->default(false);
+			$table->timestamp('ArchivedAt')->nullable();
+			$table->foreignId('ArchivedByUserID')->nullable()->constrained('users', 'id')->nullOnDelete();
+			$table->text('ArchiveReason')->nullable();
 		});
 
 		Schema::create('permission_groups', function (Blueprint $table) {
@@ -87,6 +91,10 @@ return new class extends Migration {
 			$table->unsignedBigInteger('Quantity');
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
+			$table->boolean('IsArchived')->default(false);
+			$table->timestamp('ArchivedAt')->nullable();
+			$table->foreignId('ArchivedByUserID')->nullable()->constrained('users', 'id')->nullOnDelete();
+			$table->text('ArchiveReason')->nullable();
 		});
 
 		Schema::create('production_batch_details', function (Blueprint $table) {
@@ -230,6 +238,10 @@ return new class extends Migration {
 			$table->unsignedBigInteger('LowCountThreshold');
 			$table->timestamp('DateAdded')->useCurrent();
 			$table->timestamp('DateModified')->useCurrent();
+			$table->boolean('IsArchived')->default(false);
+			$table->timestamp('ArchivedAt')->nullable();
+			$table->foreignId('ArchivedByUserID')->nullable()->constrained('users', 'id')->nullOnDelete();
+			$table->text('ArchiveReason')->nullable();
 		});
 
 		Schema::create('stock_in_details', function (Blueprint $table) {

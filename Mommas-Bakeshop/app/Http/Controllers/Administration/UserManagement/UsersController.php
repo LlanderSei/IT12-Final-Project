@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Administration\UserManagement;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuditTrailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -44,7 +45,7 @@ class UsersController extends UserManagementBaseController {
   }
 
   public function update(Request $request, int $id) {
-    $user = User::findOrFail($id);
+    $user = User::query()->notArchived()->findOrFail($id);
     $originalRoleId = (int) $user->RoleID;
     $this->mergeRoleIdFromName($request);
 
@@ -104,22 +105,83 @@ class UsersController extends UserManagementBaseController {
     return redirect()->back()->with('success', 'User updated successfully.');
   }
 
-  public function destroy(Request $request, int $id) {
-    $target = User::findOrFail($id);
+  public function destroy(Request $request, int $id, AuditTrailService $auditTrail) {
+    $target = User::query()->notArchived()->findOrFail($id);
     $currentUser = $request->user();
     $currentUser?->loadMissing('role');
     $target->loadMissing('role');
 
     if ((int) $currentUser->id === (int) $target->id) {
-      return redirect()->back()->with('error', 'You cannot delete your own account.');
+      return redirect()->back()->with('error', 'You cannot archive your own account.');
     }
 
     if (!$this->canDeleteByRole($currentUser?->role?->RoleRank, $target->role?->RoleRank)) {
-      return redirect()->back()->with('error', 'You can only delete users with the same role or lower.');
+      return redirect()->back()->with('error', 'You can only archive users with the same role or lower.');
     }
 
-    $target->delete();
+    $reason = trim((string) $request->input('ArchiveReason', ''));
+    $target->update([
+      'IsActive' => false,
+      'IsArchived' => true,
+      'ArchivedAt' => now(),
+      'ArchivedByUserID' => $currentUser?->id,
+      'ArchiveReason' => $reason !== '' ? $reason : null,
+    ]);
 
-    return redirect()->back()->with('success', 'User deleted successfully.');
+    $auditTrail->record(
+      $currentUser,
+      'Users',
+      'Archived',
+      $reason !== ''
+        ? "User archived: {$target->FullName} ({$reason})"
+        : "User archived: {$target->FullName}",
+      [
+        'id' => $target->id,
+        'FullName' => $target->FullName,
+        'IsArchived' => true,
+        'ArchiveReason' => $reason !== '' ? $reason : null,
+      ],
+      [
+        'IsArchived' => false,
+      ],
+    );
+
+    return redirect()->back()->with('success', 'User archived successfully.');
+  }
+
+  public function restore(Request $request, int $id, AuditTrailService $auditTrail) {
+    $target = User::query()->onlyArchived()->findOrFail($id);
+    $currentUser = $request->user();
+    $currentUser?->loadMissing('role');
+    $target->loadMissing('role');
+
+    if (!$this->canDeleteByRole($currentUser?->role?->RoleRank, $target->role?->RoleRank)) {
+      return redirect()->back()->with('error', 'You can only restore users with the same role or lower.');
+    }
+
+    $target->update([
+      'IsActive' => true,
+      'IsArchived' => false,
+      'ArchivedAt' => null,
+      'ArchivedByUserID' => null,
+      'ArchiveReason' => null,
+    ]);
+
+    $auditTrail->record(
+      $currentUser,
+      'Users',
+      'Restored',
+      "User restored: {$target->FullName}",
+      [
+        'id' => $target->id,
+        'FullName' => $target->FullName,
+        'IsArchived' => false,
+      ],
+      [
+        'IsArchived' => true,
+      ],
+    );
+
+    return redirect()->back()->with('success', 'User restored successfully.');
   }
 }

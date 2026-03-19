@@ -77,10 +77,12 @@ class HandleInertiaRequests extends Middleware {
         ->count();
 
       $noStockInventoryCount = Inventory::query()
+        ->notArchived()
         ->where('Quantity', '<=', 0)
         ->count();
 
       $noStockProductsCount = Product::query()
+        ->notArchived()
         ->where('Quantity', '<=', 0)
         ->count();
 

@@ -22,7 +22,7 @@ class CashierController extends Controller {
 
   public function cashSale() {
     return Inertia::render('PointOfSale/Cashier', [
-      'products' => Product::with('category')
+      'products' => Product::query()->notArchived()->with('category')
         ->orderBy('ProductName')
         ->get()
         ->map(function ($product) {
@@ -31,7 +31,7 @@ class CashierController extends Controller {
         })
         ->values(),
       'categories' => Category::orderBy('CategoryName')->get(),
-      'customers' => Customer::orderBy('CustomerName')->get(),
+      'customers' => Customer::query()->notArchived()->orderBy('CustomerName')->get(),
     ]);
   }
 

@@ -205,12 +205,12 @@ export default function Products({
 	};
 
 	const deleteProduct = () => {
-		if (!canDeleteProduct) return requirePermission("CanDeleteProduct");
+		if (!canDeleteProduct) return requirePermission("CanArchiveProduct");
 		setIsDeleteModalOpen(true);
 	};
 
 	const confirmDeleteProduct = () => {
-		if (!canDeleteProduct) return requirePermission("CanDeleteProduct");
+		if (!canDeleteProduct) return requirePermission("CanArchiveProduct");
 		destroy(route("inventory.products.destroy", editingProduct.ID), {
 			onSuccess: () => {
 				setIsDeleteModalOpen(false);
@@ -1073,7 +1073,7 @@ export default function Products({
 												onClick={deleteProduct}
 												className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600"
 											>
-												Delete
+												Archive
 											</button>
 									)}
 									<button
@@ -1233,14 +1233,14 @@ export default function Products({
 				</div>
 			)}
 
-			{/* Product Delete Confirmation Modal */}
+			{/* Product Archive Confirmation Modal */}
 			<ConfirmationModal
 				show={isDeleteModalOpen}
 				onClose={() => setIsDeleteModalOpen(false)}
 				onConfirm={confirmDeleteProduct}
-				title="Delete Product"
-				message={`Are you sure you want to delete "${editingProduct?.ProductName}"? This action cannot be undone.`}
-				confirmText="Delete"
+				title="Archive Product"
+				message={`Are you sure you want to archive "${editingProduct?.ProductName}"?`}
+				confirmText="Archive"
 				processing={processing}
 			/>
 

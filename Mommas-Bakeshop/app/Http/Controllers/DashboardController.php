@@ -44,6 +44,7 @@ class DashboardController extends Controller {
       ->sum('Quantity');
 
     $lowStockAlerts = (int) Product::query()
+      ->notArchived()
       ->whereColumn('Quantity', '<=', 'LowStockThreshold')
       ->count();
 

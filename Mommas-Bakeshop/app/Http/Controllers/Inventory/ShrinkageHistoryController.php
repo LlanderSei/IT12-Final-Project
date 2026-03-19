@@ -19,6 +19,23 @@ class ShrinkageHistoryController extends Controller {
   use HandlesShrinkage;
 
   public function shrinkageHistory(Request $request) {
+    return $this->renderShrinkageTabs($request, 'Pending');
+  }
+
+  public function shrinkagePending(Request $request) {
+    return $this->renderShrinkageTabs($request, 'Pending');
+  }
+
+  public function shrinkageHistoryTab(Request $request) {
+    return $this->renderShrinkageTabs($request, 'History');
+  }
+
+  protected function renderShrinkageTabs(Request $request, ?string $forcedTab = null) {
+    $requestedTab = $forcedTab ?? $request->route('tab');
+    $initialTab = in_array($requestedTab, ['Pending', 'History'], true)
+      ? $requestedTab
+      : 'Pending';
+
     $shrinkages = Shrinkage::with([
       'user:id,FullName',
       'shrinkedProducts.product:ID,ProductName,Price,Quantity',
@@ -29,6 +46,7 @@ class ShrinkageHistoryController extends Controller {
       ->values();
 
     $products = Product::query()
+      ->notArchived()
       ->orderBy('ProductName')
       ->get(['ID', 'ProductName', 'Price', 'Quantity'])
       ->map(fn ($product) => [
@@ -39,10 +57,11 @@ class ShrinkageHistoryController extends Controller {
       ])
       ->values();
 
-    return Inertia::render('Inventory/ShrinkageHistory', [
+    return Inertia::render('Inventory/ShrinkageTabs', [
       'shrinkages' => $shrinkages,
       'products' => $products,
       'allowedReasons' => $this->allowedShrinkageReasons($request->user()),
+      'initialTab' => $initialTab,
     ]);
   }
 
@@ -72,12 +91,12 @@ class ShrinkageHistoryController extends Controller {
         ? 'Shrinkage recorded and verified successfully.'
         : 'Shrinkage recorded successfully.';
 
-      return redirect()->route('inventory.shrinkage-history')->with('success', $message);
+      return redirect()->route('inventory.shrinkage-history.pending')->with('success', $message);
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to record shrinkage.');
+      return redirect()->route('inventory.shrinkage-history.pending')->with('error', 'Failed to record shrinkage.');
     }
   }
 
@@ -123,12 +142,12 @@ class ShrinkageHistoryController extends Controller {
         }
       });
 
-      return redirect()->route('inventory.shrinkage-history')->with('success', 'Shrinkage record updated successfully.');
+      return redirect()->route('inventory.shrinkage-history.pending')->with('success', 'Shrinkage record updated successfully.');
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to update shrinkage record.');
+      return redirect()->route('inventory.shrinkage-history.pending')->with('error', 'Failed to update shrinkage record.');
     }
   }
 
@@ -149,10 +168,10 @@ class ShrinkageHistoryController extends Controller {
         $shrinkage->delete();
       });
 
-      return redirect()->route('inventory.shrinkage-history')->with('success', 'Shrinkage record deleted successfully.');
+      return redirect()->route('inventory.shrinkage-history.pending')->with('success', 'Shrinkage record deleted successfully.');
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to delete shrinkage record.');
+      return redirect()->route('inventory.shrinkage-history.pending')->with('error', 'Failed to delete shrinkage record.');
     }
   }
 
@@ -212,12 +231,15 @@ class ShrinkageHistoryController extends Controller {
       $message = $payload['status'] === 'Verified'
         ? 'Shrinkage record verified successfully.'
         : 'Shrinkage record rejected.';
-      return redirect()->route('inventory.shrinkage-history')->with('success', $message);
+      $routeName = $payload['status'] === 'Verified'
+        ? 'inventory.shrinkage-history.history'
+        : 'inventory.shrinkage-history.pending';
+      return redirect()->route($routeName)->with('success', $message);
     } catch (ValidationException $e) {
       throw $e;
     } catch (\Throwable $e) {
       report($e);
-      return redirect()->route('inventory.shrinkage-history')->with('error', 'Failed to verify shrinkage record.');
+      return redirect()->route('inventory.shrinkage-history.pending')->with('error', 'Failed to verify shrinkage record.');
     }
   }
 }

@@ -44,6 +44,11 @@ class LoginRequest extends FormRequest
 
         $email = Str::lower($this->string('email'));
         $user = User::query()->where('email', $email)->first();
+        if ($user && $user->IsArchived === true) {
+            throw ValidationException::withMessages([
+                'email' => 'Your account has been archived.',
+            ]);
+        }
         if ($user && $user->IsActive === false) {
             throw ValidationException::withMessages([
                 'email' => 'Your account is deactivated.',
@@ -52,6 +57,7 @@ class LoginRequest extends FormRequest
 
         $credentials = $this->only('email', 'password');
         $credentials['IsActive'] = true;
+        $credentials['IsArchived'] = false;
 
         if (! Auth::attempt($credentials, $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());

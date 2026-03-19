@@ -67,13 +67,15 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanViewCustomers', 'PermissionDescription' => 'Can access customer records and details.', 'PermissionGroup' => 'Customers'],
 			['PermissionName' => 'CanCreateCustomer', 'PermissionDescription' => 'Can add new customers.', 'PermissionGroup' => 'Customers'],
 			['PermissionName' => 'CanUpdateCustomer', 'PermissionDescription' => 'Can modify customer records.', 'PermissionGroup' => 'Customers'],
-			['PermissionName' => 'CanDeleteCustomer', 'PermissionDescription' => 'Can delete customer records that have no sales history.', 'PermissionGroup' => 'Customers'],
+			['PermissionName' => 'CanArchiveCustomer', 'PermissionDescription' => 'Can archive active customer records.', 'PermissionGroup' => 'Customers'],
+			['PermissionName' => 'CanRestoreCustomer', 'PermissionDescription' => 'Can restore archived customer records.', 'PermissionGroup' => 'Customers'],
 
 			// Inventory
 			['PermissionName' => 'CanViewInventoryLevels', 'PermissionDescription' => 'Can access inventory levels and management.', 'PermissionGroup' => 'Inventory Levels'],
 			['PermissionName' => 'CanCreateInventoryItem', 'PermissionDescription' => 'Can add new inventory items.', 'PermissionGroup' => 'Inventory Levels'],
 			['PermissionName' => 'CanUpdateInventoryItem', 'PermissionDescription' => 'Can modify existing inventory items.', 'PermissionGroup' => 'Inventory Levels'],
-			['PermissionName' => 'CanDeleteInventoryItem', 'PermissionDescription' => 'Can delete inventory items.', 'PermissionGroup' => 'Inventory Levels'],
+			['PermissionName' => 'CanArchiveInventoryItem', 'PermissionDescription' => 'Can archive inventory items.', 'PermissionGroup' => 'Inventory Levels'],
+			['PermissionName' => 'CanRestoreInventoryItem', 'PermissionDescription' => 'Can restore archived inventory items.', 'PermissionGroup' => 'Inventory Levels'],
 			['PermissionName' => 'CanCreateStockIn', 'PermissionDescription' => 'Can perform stock-in operations.', 'PermissionGroup' => 'Inventory Levels'],
 			['PermissionName' => 'CanUpdateStockIn', 'PermissionDescription' => 'Can modify stock-in records.', 'PermissionGroup' => 'Inventory Levels'],
 			['PermissionName' => 'CanDeleteStockIn', 'PermissionDescription' => 'Can delete stock-in records.', 'PermissionGroup' => 'Inventory Levels'],
@@ -87,7 +89,8 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanViewProductsAndBatches', 'PermissionDescription' => 'Can access products and batches management.', 'PermissionGroup' => 'Products & Batches'],
 			['PermissionName' => 'CanCreateProduct', 'PermissionDescription' => 'Can add new products.', 'PermissionGroup' => 'Products & Batches'],
 			['PermissionName' => 'CanUpdateProduct', 'PermissionDescription' => 'Can modify existing products.', 'PermissionGroup' => 'Products & Batches'],
-			['PermissionName' => 'CanDeleteProduct', 'PermissionDescription' => 'Can delete products.', 'PermissionGroup' => 'Products & Batches'],
+			['PermissionName' => 'CanArchiveProduct', 'PermissionDescription' => 'Can archive products.', 'PermissionGroup' => 'Products & Batches'],
+			['PermissionName' => 'CanRestoreProduct', 'PermissionDescription' => 'Can restore archived products.', 'PermissionGroup' => 'Products & Batches'],
 			['PermissionName' => 'CanCreateProductCategory', 'PermissionDescription' => 'Can add new product categories.', 'PermissionGroup' => 'Products & Batches'],
 			['PermissionName' => 'CanUpdateProductCategory', 'PermissionDescription' => 'Can modify existing product categories.', 'PermissionGroup' => 'Products & Batches'],
 			['PermissionName' => 'CanDeleteProductCategory', 'PermissionDescription' => 'Can delete product categories.', 'PermissionGroup' => 'Products & Batches'],
@@ -109,7 +112,9 @@ class PermissionsSeeder extends Seeder {
 			['PermissionName' => 'CanViewUserManagementUsers', 'PermissionDescription' => 'Can access the Users tab in user management.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanCreateUser', 'PermissionDescription' => 'Can add new user accounts.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanUpdateUser', 'PermissionDescription' => 'Can modify existing user accounts.', 'PermissionGroup' => 'User Management'],
-			['PermissionName' => 'CanDeleteUser', 'PermissionDescription' => 'Can delete user accounts.', 'PermissionGroup' => 'User Management'],
+			['PermissionName' => 'CanArchiveUser', 'PermissionDescription' => 'Can archive user accounts.', 'PermissionGroup' => 'User Management'],
+			['PermissionName' => 'CanRestoreUser', 'PermissionDescription' => 'Can restore archived user accounts.', 'PermissionGroup' => 'User Management'],
+			['PermissionName' => 'CanViewArchives', 'PermissionDescription' => 'Can access archived users, customers, products, and inventory.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanViewUserManagementPermissions', 'PermissionDescription' => 'Can access the Permissions tab in user management.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanUpdateUserPermissions', 'PermissionDescription' => 'Can change user permissions.', 'PermissionGroup' => 'User Management'],
 			['PermissionName' => 'CanViewUserManagementRoles', 'PermissionDescription' => 'Can access the Roles tab in user management.', 'PermissionGroup' => 'User Management'],
@@ -161,7 +166,13 @@ class PermissionsSeeder extends Seeder {
 		}
 
 		Permission::query()
-			->whereIn('PermissionName', ['CanManageJobOrders'])
+			->whereIn('PermissionName', [
+				'CanManageJobOrders',
+				'CanDeleteUser',
+				'CanDeleteCustomer',
+				'CanDeleteProduct',
+				'CanDeleteInventoryItem',
+			])
 			->delete();
 	}
 }

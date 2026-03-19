@@ -19,6 +19,7 @@ import {
 	Sun,
 	Moon,
 	Settings,
+	Archive,
 } from "lucide-react";
 
 const Icon = ({ name, size = 20, style }) => {
@@ -35,6 +36,7 @@ const Icon = ({ name, size = 20, style }) => {
 		audits: FileText,
 		logout: LogOut,
 		settings: Settings,
+		archives: Archive,
 	};
 
 	const LucideIcon = icons[name];
@@ -159,7 +161,11 @@ const NAV_STRUCTURE = [
 			},
 			{
 				id: "inventory.shrinkage-history",
-				activeRoutes: ["inventory.shrinkage-history"],
+				activeRoutes: [
+					"inventory.shrinkage-history",
+					"inventory.shrinkage-history.pending",
+					"inventory.shrinkage-history.history",
+				],
 				label: "Shrinkage History",
 				icon: "audits",
 				href: route("inventory.shrinkage-history"),
@@ -227,6 +233,19 @@ const NAV_STRUCTURE = [
 				icon: "audits",
 				href: route("admin.audits"),
 				requiredPermissions: ["CanViewAudits"],
+			},
+			{
+				id: "admin.archives",
+				activeRoutes: [
+					"admin.archives",
+					"admin.archives.customers",
+					"admin.archives.products",
+					"admin.archives.inventory",
+				],
+				label: "Archives",
+				icon: "archives",
+				href: route("admin.archives"),
+				requiredPermissions: ["CanViewArchives"],
 			},
 		],
 	},
@@ -297,7 +316,9 @@ const Sidebar = () => {
 	const pendingJobOrders = Array.isArray(pageProps?.pendingJobOrders)
 		? pageProps.pendingJobOrders
 		: [];
-	const sharedPendingJobOrdersCount = Number(pageProps?.pendingJobOrdersCount || 0);
+	const sharedPendingJobOrdersCount = Number(
+		pageProps?.pendingJobOrdersCount || 0,
+	);
 	const pendingPaymentsCount = Number(pageProps?.pendingPaymentsCount || 0);
 	const noStockInventoryCount = Number(pageProps?.noStockInventoryCount || 0);
 	const noStockProductsCount = Number(pageProps?.noStockProductsCount || 0);
@@ -427,9 +448,11 @@ const Sidebar = () => {
 					zIndex: 30,
 				}}
 				onMouseEnter={(e) => {
-					e.currentTarget.style.backgroundColor = "rgb(var(--color-primary-soft))";
+					e.currentTarget.style.backgroundColor =
+						"rgb(var(--color-primary-soft))";
 					e.currentTarget.style.color = "var(--color-primary-hex)";
-					e.currentTarget.style.boxShadow = "0 10px 28px rgba(15, 23, 42, 0.18)";
+					e.currentTarget.style.boxShadow =
+						"0 10px 28px rgba(15, 23, 42, 0.18)";
 				}}
 				onMouseLeave={(e) => {
 					e.currentTarget.style.backgroundColor = "var(--color-surface)";

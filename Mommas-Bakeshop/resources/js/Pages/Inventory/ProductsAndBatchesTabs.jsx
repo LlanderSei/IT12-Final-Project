@@ -22,7 +22,7 @@ export default function ProductsAndBatchesTabs({
 	const { can } = usePermissions();
 	const canCreateProduct = can("CanCreateProduct");
 	const canUpdateProduct = can("CanUpdateProduct");
-	const canDeleteProduct = can("CanDeleteProduct");
+	const canDeleteProduct = can("CanArchiveProduct");
 	const canCreateProductCategory = can("CanCreateProductCategory");
 	const canUpdateProductCategory = can("CanUpdateProductCategory");
 	const canDeleteProductCategory = can("CanDeleteProductCategory");
