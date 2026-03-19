@@ -1,114 +1,92 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, usePage } from "@inertiajs/react";
+import { Head, router, usePage } from "@inertiajs/react";
 import { formatCountLabel } from "@/utils/countLabel";
 import { Eye } from "lucide-react";
 
-export default function Audits({ audits = [] }) {
+export default function Audits({
+	audits = { data: [], current_page: 1, last_page: 1, per_page: 25, total: 0, from: null, to: null },
+	filters = {},
+	filterOptions = {},
+}) {
 	const { auth } = usePage().props;
 	const isOwnerView = String(auth?.user?.role || "").toLowerCase() === "owner";
-	const [searchQuery, setSearchQuery] = useState("");
-	const [actionFilter, setActionFilter] = useState("all");
-	const [tableFilter, setTableFilter] = useState("all");
-	const [sourceFilter, setSourceFilter] = useState("all");
-	const [dateRangeFilter, setDateRangeFilter] = useState("all");
+	const [searchQuery, setSearchQuery] = useState(filters.search || "");
+	const [actionFilter, setActionFilter] = useState(filters.action || "all");
+	const [tableFilter, setTableFilter] = useState(filters.table || "all");
+	const [sourceFilter, setSourceFilter] = useState(filters.source || "all");
+	const [dateRangeFilter, setDateRangeFilter] = useState(filters.dateRange || "all");
 	const [sortConfig, setSortConfig] = useState({
-		key: "DateAdded",
-		direction: "desc",
+		key: filters.sortKey || "DateAdded",
+		direction: filters.sortDirection || "desc",
 	});
 	const [selectedAudit, setSelectedAudit] = useState(null);
-	const [currentPage, setCurrentPage] = useState(1);
-	const [itemsPerPage, setItemsPerPage] = useState(25);
+	const [currentPage, setCurrentPage] = useState(Number(filters.page || audits.current_page || 1));
+	const [itemsPerPage, setItemsPerPage] = useState(Number(filters.perPage || audits.per_page || 25));
+	const isFirstRender = useRef(true);
 
-	const actionOptions = useMemo(
-		() => [...new Set(audits.map((audit) => audit.Action).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-		[audits],
-	);
+	const actionOptions = filterOptions.actions || [];
+	const tableOptions = filterOptions.tables || [];
+	const sourceOptions = filterOptions.sources || [];
+	const paginatedAudits = audits.data || [];
 
-	const tableOptions = useMemo(
-		() => [...new Set(audits.map((audit) => audit.TableEdited).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-		[audits],
-	);
-
-	const sourceOptions = useMemo(
-		() => [...new Set(audits.map((audit) => audit.Source).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-		[audits],
-	);
-
-	const isInDateRange = (auditDate) => {
-		if (dateRangeFilter === "all") return true;
-
-		const now = new Date();
-		const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-		const date = new Date(auditDate);
-		if (Number.isNaN(date.getTime())) return false;
-
-		if (dateRangeFilter === "today") {
-			return date >= todayStart;
-		}
-		if (dateRangeFilter === "last7") {
-			const cutoff = new Date(todayStart);
-			cutoff.setDate(cutoff.getDate() - 6);
-			return date >= cutoff;
-		}
-		if (dateRangeFilter === "last30") {
-			const cutoff = new Date(todayStart);
-			cutoff.setDate(cutoff.getDate() - 29);
-			return date >= cutoff;
-		}
-		if (dateRangeFilter === "thisMonth") {
-			return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-		}
-		if (dateRangeFilter === "thisYear") {
-			return date.getFullYear() === now.getFullYear();
-		}
-
-		return true;
-	};
-
-	const getSortValue = (audit, key) => {
-		if (key === "User") return audit.user?.FullName || "";
-		if (key === "DateAdded") return new Date(audit.DateAdded).getTime() || 0;
-		return audit[key] || "";
-	};
-
-	const filteredAudits = useMemo(() => {
-		const searchLower = searchQuery.toLowerCase().trim();
-
-		const filtered = audits.filter((audit) => {
-			const matchesSearch =
-				!searchLower ||
-				audit.user?.FullName?.toLowerCase().includes(searchLower) ||
-				audit.TableEdited?.toLowerCase().includes(searchLower) ||
-				audit.Action?.toLowerCase().includes(searchLower) ||
-				(!isOwnerView && audit.Source?.toLowerCase().includes(searchLower)) ||
-				audit.PreviousChanges?.toLowerCase().includes(searchLower) ||
-				audit.SavedChanges?.toLowerCase().includes(searchLower) ||
-				audit.ReadableChanges?.toLowerCase().includes(searchLower) ||
-				new Date(audit.DateAdded).toLocaleString().toLowerCase().includes(searchLower);
-			const matchesAction = actionFilter === "all" || audit.Action === actionFilter;
-			const matchesTable = tableFilter === "all" || audit.TableEdited === tableFilter;
-			const matchesSource = isOwnerView || sourceFilter === "all" || audit.Source === sourceFilter;
-			const matchesDate = isInDateRange(audit.DateAdded);
-
-			return matchesSearch && matchesAction && matchesTable && matchesSource && matchesDate;
+	useEffect(() => {
+		setSearchQuery(filters.search || "");
+		setActionFilter(filters.action || "all");
+		setTableFilter(filters.table || "all");
+		setSourceFilter(filters.source || "all");
+		setDateRangeFilter(filters.dateRange || "all");
+		setSortConfig({
+			key: filters.sortKey || "DateAdded",
+			direction: filters.sortDirection || "desc",
 		});
+		setCurrentPage(Number(filters.page || audits.current_page || 1));
+		setItemsPerPage(Number(filters.perPage || audits.per_page || 25));
+	}, [
+		filters.search,
+		filters.action,
+		filters.table,
+		filters.source,
+		filters.dateRange,
+		filters.sortKey,
+		filters.sortDirection,
+		filters.page,
+		filters.perPage,
+		audits.current_page,
+		audits.per_page,
+	]);
 
-		filtered.sort((a, b) => {
-			const aValue = getSortValue(a, sortConfig.key);
-			const bValue = getSortValue(b, sortConfig.key);
-			const comparison =
-				typeof aValue === "number" && typeof bValue === "number"
-					? aValue - bValue
-					: String(aValue).localeCompare(String(bValue), undefined, {
-							numeric: true,
-							sensitivity: "base",
-					  });
-			return sortConfig.direction === "asc" ? comparison : -comparison;
-		});
+	useEffect(() => {
+		if (isFirstRender.current) {
+			isFirstRender.current = false;
+			return;
+		}
 
-		return filtered;
-	}, [audits, searchQuery, actionFilter, tableFilter, sourceFilter, dateRangeFilter, sortConfig, isOwnerView]);
+		const timeoutId = window.setTimeout(() => {
+			router.get(
+				route("admin.audits"),
+				{
+					search: searchQuery,
+					action: actionFilter,
+					table: tableFilter,
+					source: sourceFilter,
+					dateRange: dateRangeFilter,
+					sortKey: sortConfig.key,
+					sortDirection: sortConfig.direction,
+					perPage: itemsPerPage,
+					page: currentPage,
+				},
+				{
+					preserveState: true,
+					preserveScroll: true,
+					replace: true,
+					only: ["audits", "filters", "filterOptions"],
+				},
+			);
+		}, 250);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [searchQuery, actionFilter, tableFilter, sourceFilter, dateRangeFilter, sortConfig, itemsPerPage, currentPage]);
 
 	const requestSort = (key) => {
 		let direction = "asc";
@@ -116,11 +94,8 @@ export default function Audits({ audits = [] }) {
 			direction = "desc";
 		}
 		setSortConfig({ key, direction });
-	};
-
-	useEffect(() => {
 		setCurrentPage(1);
-	}, [searchQuery, actionFilter, tableFilter, sourceFilter, dateRangeFilter, sortConfig, itemsPerPage]);
+	};
 
 	const clearFilters = () => {
 		setSearchQuery("");
@@ -131,6 +106,7 @@ export default function Audits({ audits = [] }) {
 		}
 		setDateRangeFilter("all");
 		setSortConfig({ key: "DateAdded", direction: "desc" });
+		setCurrentPage(1);
 	};
 
 	const formatChanges = (jsonString) => {
@@ -168,17 +144,21 @@ export default function Audits({ audits = [] }) {
 		return "bg-blue-100 text-blue-800";
 	};
 
-	const totalPages = Math.max(1, Math.ceil(filteredAudits.length / itemsPerPage));
+	const totalPages = Math.max(1, Number(audits.last_page || 1));
 	const safeCurrentPage = Math.min(currentPage, totalPages);
-	const startIndex = (safeCurrentPage - 1) * itemsPerPage;
-	const paginatedAudits = filteredAudits.slice(startIndex, startIndex + itemsPerPage);
 	const pageNumberWindow = 2;
 	const pageStart = Math.max(1, safeCurrentPage - pageNumberWindow);
 	const pageEnd = Math.min(totalPages, safeCurrentPage + pageNumberWindow);
 	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
-	const countLabel = formatCountLabel(filteredAudits.length, "record");
+	const countLabel = formatCountLabel(Number(audits.total || 0), "record");
+	const visibleRangeLabel = useMemo(() => {
+		const from = Number(audits.from || 0);
+		const to = Number(audits.to || 0);
+		const total = Number(audits.total || 0);
+		return `Showing ${from}-${to} of ${total}`;
+	}, [audits.from, audits.to, audits.total]);
 
 	const goToPage = (page) => {
 		setCurrentPage(Math.min(totalPages, Math.max(1, page)));
@@ -202,7 +182,7 @@ export default function Audits({ audits = [] }) {
 				<div className="flex-1 flex flex-col overflow-hidden min-h-0">
 					<div className="mx-auto w-full flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
-								<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
+							<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
 								<div className="mb-6 flex items-start gap-3">
 									<div className="relative w-full max-w-xl shrink-0">
 										<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -215,34 +195,65 @@ export default function Audits({ audits = [] }) {
 											className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
 											placeholder={`Search audits by user, action, table, ${isOwnerView ? "or change" : "source, or change"}...`}
 											value={searchQuery}
-											onChange={(e) => setSearchQuery(e.target.value)}
+											onChange={(e) => {
+												setSearchQuery(e.target.value);
+												setCurrentPage(1);
+											}}
 										/>
 									</div>
 									<div className="flex flex-1 min-w-0 items-center gap-2">
 										<div className="relative flex-1 min-w-0">
 											<div className="overflow-x-auto pb-1 pr-4">
 												<div className="flex min-w-max items-center gap-2 pr-3">
-													<select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
+													<select
+														value={actionFilter}
+														onChange={(e) => {
+															setActionFilter(e.target.value);
+															setCurrentPage(1);
+														}}
+														className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+													>
 														<option value="all">All Actions</option>
 														{actionOptions.map((action) => (
 															<option key={action} value={action}>{action}</option>
 														))}
 													</select>
-													<select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} className="w-44 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
+													<select
+														value={tableFilter}
+														onChange={(e) => {
+															setTableFilter(e.target.value);
+															setCurrentPage(1);
+														}}
+														className="w-44 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+													>
 														<option value="all">All Tables</option>
 														{tableOptions.map((tableName) => (
 															<option key={tableName} value={tableName}>{tableName}</option>
 														))}
 													</select>
 													{!isOwnerView && (
-														<select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
+														<select
+															value={sourceFilter}
+															onChange={(e) => {
+																setSourceFilter(e.target.value);
+																setCurrentPage(1);
+															}}
+															className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+														>
 															<option value="all">All Sources</option>
 															{sourceOptions.map((source) => (
 																<option key={source} value={source}>{source}</option>
 															))}
 														</select>
 													)}
-													<select value={dateRangeFilter} onChange={(e) => setDateRangeFilter(e.target.value)} className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary">
+													<select
+														value={dateRangeFilter}
+														onChange={(e) => {
+															setDateRangeFilter(e.target.value);
+															setCurrentPage(1);
+														}}
+														className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+													>
 														<option value="all">All Dates</option>
 														<option value="today">Today</option>
 														<option value="last7">Last 7 Days</option>
@@ -317,7 +328,7 @@ export default function Audits({ audits = [] }) {
 														</td>
 													</tr>
 												))}
-												{filteredAudits.length === 0 && (
+												{paginatedAudits.length === 0 && (
 													<tr>
 														<td colSpan={isOwnerView ? 6 : 7} className="px-6 py-4 text-center text-sm text-gray-500">
 															No audit records found.
@@ -329,15 +340,16 @@ export default function Audits({ audits = [] }) {
 									</div>
 									<div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
 										<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-											<div className="text-sm text-gray-600">
-												Showing {filteredAudits.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredAudits.length)} of {filteredAudits.length}
-											</div>
+											<div className="text-sm text-gray-600">{visibleRangeLabel}</div>
 											<div className="flex flex-wrap items-center gap-2">
 												<label htmlFor="audits-items-per-page" className="text-sm text-gray-600">Items per page</label>
 												<select
 													id="audits-items-per-page"
 													value={itemsPerPage}
-													onChange={(e) => setItemsPerPage(Number(e.target.value))}
+													onChange={(e) => {
+														setItemsPerPage(Number(e.target.value));
+														setCurrentPage(1);
+													}}
 													className="rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 												>
 													<option value={25}>25</option>
@@ -395,11 +407,11 @@ export default function Audits({ audits = [] }) {
 										</div>
 									</div>
 								</div>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
 
 			{selectedAudit && (
 				<div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
