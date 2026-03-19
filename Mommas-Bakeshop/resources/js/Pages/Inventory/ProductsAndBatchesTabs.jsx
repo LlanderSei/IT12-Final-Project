@@ -15,6 +15,8 @@ export default function ProductsAndBatchesTabs({
 	products,
 	categories,
 	batches,
+	batchFilters,
+	batchFilterOptions,
 	snapshots,
 	auth,
 	initialTab = "Products",
@@ -90,7 +92,7 @@ export default function ProductsAndBatchesTabs({
 		}
 		return {
 			subtitle: "Batches History",
-			countLabel: formatCountLabel((batches || []).length, "record"),
+			countLabel: formatCountLabel(getRecordCount(batches), "record"),
 		};
 	};
 	const [headerMeta, setHeaderMeta] = useState(() =>
@@ -201,6 +203,9 @@ export default function ProductsAndBatchesTabs({
 						products={products}
 						categories={categories}
 						batches={batches}
+						filters={batchFilters}
+						filterOptions={batchFilterOptions}
+						fetchRoute={route("products.batches")}
 						onHeaderMetaChange={setHeaderMeta}
 						canCreateProductionBatch={canCreateProductionBatch}
 						canUpdateProductionBatch={canUpdateProductionBatch}
@@ -268,3 +273,7 @@ export default function ProductsAndBatchesTabs({
 		</AuthenticatedLayout>
 	);
 }
+	const getRecordCount = (value) => {
+		if (Array.isArray(value)) return value.length;
+		return Number(value?.total || 0);
+	};
