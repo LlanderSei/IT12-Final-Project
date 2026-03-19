@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Head, Link } from "@inertiajs/react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Head, Link, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import SaleDocumentPreviewModal from "@/Components/SaleDocumentPreviewModal";
@@ -68,9 +68,7 @@ function SalesTable({
 						<td className="px-4 py-4 text-sm text-gray-900">{sale.customer?.CustomerName || "Walk-In"}</td>
 						<td className="px-4 py-4 text-sm text-gray-900">
 							{sale.SaleType === "JobOrder"
-								? sale.payment?.InvoiceNumber ||
-									sale.payment?.ReceiptNumber ||
-									"-"
+								? sale.payment?.InvoiceNumber || sale.payment?.ReceiptNumber || "-"
 								: sale.payment?.ReceiptNumber || "-"}
 						</td>
 						<td className="px-4 py-4 text-sm font-semibold text-gray-900">{currency(sale.totalAmount)}</td>
@@ -86,18 +84,16 @@ function SalesTable({
 									<Eye size={14} />
 									View
 								</button>
-								{canViewInvoices &&
-									sale.SaleType === "JobOrder" &&
-									sale.payment?.InvoiceNumber && (
-										<button
-											type="button"
-											onClick={() => onInvoice?.(sale)}
-											className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
-										>
-											<FileText size={14} />
-											Invoice
-										</button>
-									)}
+								{canViewInvoices && sale.SaleType === "JobOrder" && sale.payment?.InvoiceNumber && (
+									<button
+										type="button"
+										onClick={() => onInvoice?.(sale)}
+										className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary-soft"
+									>
+										<FileText size={14} />
+										Invoice
+									</button>
+								)}
 								{canViewReceipts && sale.payment?.ReceiptNumber && (
 									<button
 										type="button"
@@ -124,7 +120,10 @@ function SalesTable({
 	);
 }
 
-export default function SalesHistory({ sales = [] }) {
+export default function SalesHistory({
+	sales = { data: [], current_page: 1, last_page: 1, per_page: 25, total: 0, from: null, to: null },
+	filters = {},
+}) {
 	const { can, deny, requirePermission } = usePermissions();
 	const canViewInvoices = can("CanViewJobOrderInvoices");
 	const canExportInvoices = can("CanExportJobOrderInvoices");
@@ -137,23 +136,22 @@ export default function SalesHistory({ sales = [] }) {
 		sale: null,
 		receiptPayment: null,
 	});
-	const [currentPage, setCurrentPage] = useState(1);
-	const [itemsPerPage, setItemsPerPage] = useState(25);
-	const [searchQuery, setSearchQuery] = useState("");
-	const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
-	const [customerFilter, setCustomerFilter] = useState("all");
-	const [dateFrom, setDateFrom] = useState("");
-	const [dateTo, setDateTo] = useState("");
+	const [currentPage, setCurrentPage] = useState(Number(filters.page || sales.current_page || 1));
+	const [itemsPerPage, setItemsPerPage] = useState(Number(filters.perPage || sales.per_page || 25));
+	const [searchQuery, setSearchQuery] = useState(filters.search || "");
+	const [paymentStatusFilter, setPaymentStatusFilter] = useState(filters.paymentStatus || "all");
+	const [customerFilter, setCustomerFilter] = useState(filters.customerFilter || "all");
+	const [dateFrom, setDateFrom] = useState(filters.dateFrom || "");
+	const [dateTo, setDateTo] = useState(filters.dateTo || "");
 	const [sortConfig, setSortConfig] = useState({
-		key: "DateAdded",
-		direction: "desc",
+		key: filters.sortKey || "DateAdded",
+		direction: filters.sortDirection || "desc",
 	});
+	const isFirstRender = useRef(true);
 
 	const salesRows = useMemo(() => {
-		return (sales || []).map((sale) => {
-			const totalAmount = normalizeMoney(
-				sale.payment?.TotalAmount ?? sale.TotalAmount,
-			);
+		return (sales.data || []).map((sale) => {
+			const totalAmount = normalizeMoney(sale.payment?.TotalAmount ?? sale.TotalAmount);
 			const paymentPaidAmount = normalizeMoney(sale.payment?.PaidAmount);
 			const totalPartialPaid = (sale.partial_payments || []).reduce(
 				(sum, payment) => sum + normalizeMoney(payment.PaidAmount),
@@ -169,53 +167,67 @@ export default function SalesHistory({ sales = [] }) {
 				amountLeft,
 			};
 		});
-	}, [sales]);
+	}, [sales.data]);
 
-	const filteredSalesRows = useMemo(() => {
-		const query = searchQuery.trim().toLowerCase();
-		const from = dateFrom ? new Date(dateFrom) : null;
-		const to = dateTo ? new Date(dateTo) : null;
-		if (to) to.setHours(23, 59, 59, 999);
-
-		return salesRows.filter((sale) => {
-			if (query) {
-				const customOrderLines =
-					sale.job_order?.custom_items ||
-					sale.jobOrder?.customItems ||
-					sale.jobOrder?.custom_items ||
-					[];
-				const text = [
-					sale.ID,
-					sale.customer?.CustomerName || "Walk-In",
-					sale.user?.FullName || "",
-					sale.payment?.PaymentStatus || "",
-					...(sale.sold_products || []).map(
-						(line) => line.product?.ProductName || "",
-					),
-					...customOrderLines.map((line) => line.CustomOrderDescription || ""),
-				]
-					.join(" ")
-					.toLowerCase();
-				if (!text.includes(query)) return false;
-			}
-
-			if (
-				paymentStatusFilter !== "all" &&
-				sale.payment?.PaymentStatus !== paymentStatusFilter
-			) {
-				return false;
-			}
-
-			if (customerFilter === "walk-in" && sale.customer) return false;
-			if (customerFilter === "with-customer" && !sale.customer) return false;
-
-			const addedDate = sale.DateAdded ? new Date(sale.DateAdded) : null;
-			if (from && (!addedDate || addedDate < from)) return false;
-			if (to && (!addedDate || addedDate > to)) return false;
-
-			return true;
+	useEffect(() => {
+		setSearchQuery(filters.search || "");
+		setPaymentStatusFilter(filters.paymentStatus || "all");
+		setCustomerFilter(filters.customerFilter || "all");
+		setDateFrom(filters.dateFrom || "");
+		setDateTo(filters.dateTo || "");
+		setSortConfig({
+			key: filters.sortKey || "DateAdded",
+			direction: filters.sortDirection || "desc",
 		});
-	}, [salesRows, searchQuery, paymentStatusFilter, customerFilter, dateFrom, dateTo]);
+		setCurrentPage(Number(filters.page || sales.current_page || 1));
+		setItemsPerPage(Number(filters.perPage || sales.per_page || 25));
+		setSelectedSale(null);
+		setDocumentPreview({ type: null, sale: null, receiptPayment: null });
+	}, [
+		filters.search,
+		filters.paymentStatus,
+		filters.customerFilter,
+		filters.dateFrom,
+		filters.dateTo,
+		filters.sortKey,
+		filters.sortDirection,
+		filters.page,
+		filters.perPage,
+		sales.current_page,
+		sales.per_page,
+	]);
+
+	useEffect(() => {
+		if (isFirstRender.current) {
+			isFirstRender.current = false;
+			return;
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			router.get(
+				route("pos.sale-history"),
+				{
+					search: searchQuery,
+					paymentStatus: paymentStatusFilter,
+					customerFilter,
+					dateFrom,
+					dateTo,
+					sortKey: sortConfig.key,
+					sortDirection: sortConfig.direction,
+					perPage: itemsPerPage,
+					page: currentPage,
+				},
+				{
+					preserveState: true,
+					preserveScroll: true,
+					replace: true,
+					only: ["sales", "filters"],
+				},
+			);
+		}, 250);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [searchQuery, paymentStatusFilter, customerFilter, dateFrom, dateTo, sortConfig, itemsPerPage, currentPage]);
 
 	const requestSort = (key) => {
 		let direction = "asc";
@@ -223,50 +235,15 @@ export default function SalesHistory({ sales = [] }) {
 			direction = "desc";
 		}
 		setSortConfig({ key, direction });
+		setCurrentPage(1);
 	};
 
-	const sortedSalesRows = useMemo(() => {
-		const getSortValue = (sale, key) => {
-			switch (key) {
-				case "Cashier":
-					return String(sale.user?.FullName || "").toLowerCase();
-				case "Customer":
-					return String(sale.customer?.CustomerName || "Walk-In").toLowerCase();
-				case "TotalAmount":
-					return Number(sale.totalAmount || 0);
-				case "PaymentStatus":
-					return String(sale.payment?.PaymentStatus || "").toLowerCase();
-				case "DateAdded":
-					return sale.DateAdded ? new Date(sale.DateAdded).getTime() : 0;
-				default:
-					return "";
-			}
-		};
-
-		return [...filteredSalesRows].sort((a, b) => {
-			const aValue = getSortValue(a, sortConfig.key);
-			const bValue = getSortValue(b, sortConfig.key);
-			if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-			if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-			return 0;
-		});
-	}, [filteredSalesRows, sortConfig]);
-
-	useEffect(() => {
-		setCurrentPage(1);
-	}, [searchQuery, paymentStatusFilter, customerFilter, dateFrom, dateTo, sortConfig, itemsPerPage]);
-
-	const totalPages = Math.max(1, Math.ceil(sortedSalesRows.length / itemsPerPage));
+	const totalPages = Math.max(1, Number(sales.last_page || 1));
 	const safeCurrentPage = Math.min(currentPage, totalPages);
-	const startIndex = (safeCurrentPage - 1) * itemsPerPage;
-	const paginatedRows = sortedSalesRows.slice(startIndex, startIndex + itemsPerPage);
 	const pageNumberWindow = 2;
 	const pageStart = Math.max(1, safeCurrentPage - pageNumberWindow);
 	const pageEnd = Math.min(totalPages, safeCurrentPage + pageNumberWindow);
-	const pageNumbers = Array.from(
-		{ length: pageEnd - pageStart + 1 },
-		(_, idx) => pageStart + idx,
-	);
+	const pageNumbers = Array.from({ length: pageEnd - pageStart + 1 }, (_, idx) => pageStart + idx);
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
 
@@ -276,16 +253,17 @@ export default function SalesHistory({ sales = [] }) {
 
 	const selectedSaleCustomOrderLines = useMemo(() => {
 		if (!selectedSale) return [];
-		return (
-			selectedSale.job_order?.custom_items ||
-			selectedSale.jobOrder?.customItems ||
-			selectedSale.jobOrder?.custom_items ||
-			[]
-		);
+		return selectedSale.job_order?.custom_items || selectedSale.jobOrder?.customItems || selectedSale.jobOrder?.custom_items || [];
 	}, [selectedSale]);
 	const isPreviewOpen = Boolean(documentPreview.type && documentPreview.sale);
 	const isSelectedSaleJobOrder = selectedSale?.SaleType === "JobOrder";
-	const countLabel = formatCountLabel(sortedSalesRows.length, "sale");
+	const countLabel = formatCountLabel(Number(sales.total || 0), "sale");
+	const visibleRangeLabel = useMemo(() => {
+		const from = Number(sales.from || 0);
+		const to = Number(sales.to || 0);
+		const total = Number(sales.total || 0);
+		return `Showing ${from}-${to} of ${total}`;
+	}, [sales.from, sales.to, sales.total]);
 
 	const clearFilters = () => {
 		setSearchQuery("");
@@ -293,6 +271,7 @@ export default function SalesHistory({ sales = [] }) {
 		setCustomerFilter("all");
 		setDateFrom("");
 		setDateTo("");
+		setCurrentPage(1);
 	};
 
 	const openInvoicePreview = (sale) => {
@@ -350,7 +329,10 @@ export default function SalesHistory({ sales = [] }) {
 								className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
 								placeholder="Search by sale ID, customer, cashier, product, or status..."
 								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
+								onChange={(e) => {
+									setSearchQuery(e.target.value);
+									setCurrentPage(1);
+								}}
 							/>
 						</div>
 						<div className="flex flex-1 min-w-0 items-center gap-2">
@@ -359,7 +341,10 @@ export default function SalesHistory({ sales = [] }) {
 									<div className="flex min-w-max items-center gap-2 pr-3">
 										<select
 											value={paymentStatusFilter}
-											onChange={(e) => setPaymentStatusFilter(e.target.value)}
+											onChange={(e) => {
+												setPaymentStatusFilter(e.target.value);
+												setCurrentPage(1);
+											}}
 											className="w-44 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 										>
 											<option value="all">All Payment Status</option>
@@ -369,7 +354,10 @@ export default function SalesHistory({ sales = [] }) {
 										</select>
 										<select
 											value={customerFilter}
-											onChange={(e) => setCustomerFilter(e.target.value)}
+											onChange={(e) => {
+												setCustomerFilter(e.target.value);
+												setCurrentPage(1);
+											}}
 											className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 										>
 											<option value="all">All Customers</option>
@@ -379,14 +367,20 @@ export default function SalesHistory({ sales = [] }) {
 										<input
 											type="date"
 											value={dateFrom}
-											onChange={(e) => setDateFrom(e.target.value)}
+											onChange={(e) => {
+												setDateFrom(e.target.value);
+												setCurrentPage(1);
+											}}
 											className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 										/>
 										<span className="text-sm text-gray-500">~</span>
 										<input
 											type="date"
 											value={dateTo}
-											onChange={(e) => setDateTo(e.target.value)}
+											onChange={(e) => {
+												setDateTo(e.target.value);
+												setCurrentPage(1);
+											}}
 											className="w-40 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 										/>
 									</div>
@@ -406,7 +400,7 @@ export default function SalesHistory({ sales = [] }) {
 					<div className="border rounded-lg border-gray-200 flex-1 min-h-0 flex flex-col overflow-hidden">
 						<div className="flex-1 overflow-y-auto">
 							<SalesTable
-								rows={paginatedRows}
+								rows={salesRows}
 								onView={setSelectedSale}
 								onInvoice={openInvoicePreview}
 								onReceipt={openReceiptPreview}
@@ -418,9 +412,7 @@ export default function SalesHistory({ sales = [] }) {
 						</div>
 						<div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
 							<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-								<div className="text-sm text-gray-600">
-									Showing {sortedSalesRows.length === 0 ? 0 : startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedSalesRows.length)} of {sortedSalesRows.length}
-								</div>
+								<div className="text-sm text-gray-600">{visibleRangeLabel}</div>
 								<div className="flex flex-wrap items-center gap-2">
 									<label htmlFor="sales-items-per-page" className="text-sm text-gray-600">
 										Items per page
@@ -428,7 +420,10 @@ export default function SalesHistory({ sales = [] }) {
 									<select
 										id="sales-items-per-page"
 										value={itemsPerPage}
-										onChange={(e) => setItemsPerPage(Number(e.target.value))}
+										onChange={(e) => {
+											setItemsPerPage(Number(e.target.value));
+											setCurrentPage(1);
+										}}
 										className="rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
 									>
 										<option value={25}>25</option>
@@ -487,33 +482,27 @@ export default function SalesHistory({ sales = [] }) {
 									{canViewInvoices && selectedSale.payment?.InvoiceNumber && (
 										<div>
 											Invoice: {selectedSale.payment.InvoiceNumber}
-											{selectedSale.payment?.InvoiceIssuedAt
-												? ` - ${formatDateTime(selectedSale.payment.InvoiceIssuedAt)}`
-												: ""}
+											{selectedSale.payment?.InvoiceIssuedAt ? ` - ${formatDateTime(selectedSale.payment.InvoiceIssuedAt)}` : ""}
 										</div>
 									)}
 									{canViewReceipts && selectedSale.payment?.ReceiptNumber && (
 										<div>
 											Initial receipt: {selectedSale.payment.ReceiptNumber}
-											{selectedSale.payment?.ReceiptIssuedAt
-												? ` - ${formatDateTime(selectedSale.payment.ReceiptIssuedAt)}`
-												: ""}
+											{selectedSale.payment?.ReceiptIssuedAt ? ` - ${formatDateTime(selectedSale.payment.ReceiptIssuedAt)}` : ""}
 										</div>
 									)}
 								</div>
 							</div>
 							<div className="flex flex-wrap justify-end gap-2">
-								{canViewInvoices &&
-									selectedSale.SaleType === "JobOrder" &&
-									selectedSale.payment?.InvoiceNumber && (
-										<button
-											type="button"
-											onClick={() => openInvoicePreview(selectedSale)}
-											className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-										>
-											Preview Invoice
-										</button>
-									)}
+								{canViewInvoices && selectedSale.SaleType === "JobOrder" && selectedSale.payment?.InvoiceNumber && (
+									<button
+										type="button"
+										onClick={() => openInvoicePreview(selectedSale)}
+										className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+									>
+										Preview Invoice
+									</button>
+								)}
 								{canViewReceipts && selectedSale.payment?.ReceiptNumber && (
 									<button
 										type="button"
@@ -657,21 +646,11 @@ export default function SalesHistory({ sales = [] }) {
 
 			<SaleDocumentPreviewModal
 				show={Boolean(documentPreview.type && documentPreview.sale)}
-				onClose={() =>
-					setDocumentPreview({
-						type: null,
-						sale: null,
-						receiptPayment: null,
-					})
-				}
+				onClose={() => setDocumentPreview({ type: null, sale: null, receiptPayment: null })}
 				sale={documentPreview.sale}
 				type={documentPreview.type || "invoice"}
 				receiptPayment={documentPreview.receiptPayment}
-				canExport={
-					documentPreview.type === "invoice"
-						? canExportInvoices
-						: canExportReceipts
-				}
+				canExport={documentPreview.type === "invoice" ? canExportInvoices : canExportReceipts}
 			/>
 		</AuthenticatedLayout>
 	);
