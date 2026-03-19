@@ -18,7 +18,11 @@ export default function InventoryLevelsTabs({
 	products,
 	categories,
 	stockIns,
+	stockInFilters,
+	stockInFilterOptions,
 	stockOuts,
+	stockOutFilters,
+	stockOutFilterOptions,
 	snapshots,
 	initialTab = "Inventory",
 }) {
@@ -96,7 +100,7 @@ export default function InventoryLevelsTabs({
 		if (tab === "Stock-In") {
 			return {
 				subtitle: "Stock-In History",
-				countLabel: formatCountLabel((stockIns || []).length, "record"),
+				countLabel: formatCountLabel(getRecordCount(stockIns), "record"),
 			};
 		}
 		if (tab === "Snapshots") {
@@ -107,7 +111,7 @@ export default function InventoryLevelsTabs({
 		}
 		return {
 			subtitle: "Stock-Out History",
-			countLabel: formatCountLabel((stockOuts || []).length, "record"),
+			countLabel: formatCountLabel(getRecordCount(stockOuts), "record"),
 		};
 	};
 	const [headerMeta, setHeaderMeta] = useState(() =>
@@ -466,6 +470,9 @@ export default function InventoryLevelsTabs({
 							{activeTab === "Stock-In" && (
 								<StockIn
 									stockIns={stockIns}
+									filters={stockInFilters}
+									filterOptions={stockInFilterOptions}
+									fetchRoute={route("inventory.stock-in")}
 									onEdit={openEditStockInModal}
 									onHeaderMetaChange={setHeaderMeta}
 									canEdit={canUpdateStockIn}
@@ -474,6 +481,9 @@ export default function InventoryLevelsTabs({
 							{activeTab === "Stock-Out" && (
 								<StockOut
 									stockOuts={stockOuts}
+									filters={stockOutFilters}
+									filterOptions={stockOutFilterOptions}
+									fetchRoute={route("inventory.stock-out")}
 									onEdit={openEditStockOutModal}
 									onHeaderMetaChange={setHeaderMeta}
 									canEdit={canUpdateStockOut}
@@ -703,3 +713,7 @@ export default function InventoryLevelsTabs({
 		</AuthenticatedLayout>
 	);
 }
+	const getRecordCount = (value) => {
+		if (Array.isArray(value)) return value.length;
+		return Number(value?.total || 0);
+	};

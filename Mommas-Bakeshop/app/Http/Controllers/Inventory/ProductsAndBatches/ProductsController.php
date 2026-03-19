@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductLeftoverSnapshot;
+use App\Models\ProductionBatch;
 use App\Models\ProductionBatchDetail;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -128,28 +131,9 @@ class ProductsController extends Controller {
       ->map(fn ($product) => $this->transformProductForView($product))
       ->values();
     $categories = Category::all();
-    $batches = ProductionBatchDetail::with(['user', 'batches.product'])
-      ->orderBy('DateAdded', 'desc')
-      ->get()
-      ->map(function ($detail) {
-        $items = $detail->batches->map(function ($line) {
-          return [
-            'ProductID' => $line->ProductID,
-            'ItemName' => $line->product?->ProductName ?? 'Deleted Product',
-            'QuantityProduced' => (int) ($line->QuantityProduced ?? 0),
-          ];
-        })->values();
-
-        return [
-          'ID' => $detail->ID,
-          'user' => $detail->user,
-          'BatchDescription' => $detail->BatchDescription,
-          // Always derive from actual batch lines to avoid stale/legacy counter mismatches.
-          'TotalQuantity' => (int) $items->sum('QuantityProduced'),
-          'DateAdded' => $detail->DateAdded,
-          'ItemsProduced' => $items,
-        ];
-      });
+    $batchPayload = $initialTab === 'Production Batches'
+      ? $this->buildProductionBatchPayload($request)
+      : ['records' => [], 'filters' => [], 'filterOptions' => []];
 
     $snapshots = ProductLeftoverSnapshot::with([
       'user:id,FullName',
@@ -185,10 +169,119 @@ class ProductsController extends Controller {
     return Inertia::render('Inventory/ProductsAndBatchesTabs', [
       'products' => $products,
       'categories' => $categories,
-      'batches' => $batches,
+      'batches' => $batchPayload['records'],
+      'batchFilters' => $batchPayload['filters'],
+      'batchFilterOptions' => $batchPayload['filterOptions'],
       'snapshots' => $snapshots,
       'initialTab' => $initialTab,
     ]);
+  }
+
+  protected function buildProductionBatchPayload(Request $request): array {
+    $search = trim((string) $request->string('batchSearch', ''));
+    $addedBy = (string) $request->string('batchAddedBy', 'all');
+    $item = (string) $request->string('batchItem', 'all');
+    $dateFrom = (string) $request->string('batchDateFrom', '');
+    $dateTo = (string) $request->string('batchDateTo', '');
+    $minTotalQty = (string) $request->string('batchMinTotalQty', '');
+    $maxTotalQty = (string) $request->string('batchMaxTotalQty', '');
+    $sortKey = (string) $request->string('batchSortKey', 'DateAdded');
+    $sortDirection = strtolower((string) $request->string('batchSortDirection', 'desc')) === 'asc' ? 'asc' : 'desc';
+    $perPage = (int) $request->integer('batchPerPage', 25);
+    $perPage = in_array($perPage, [25, 50, 100, 500], true) ? $perPage : 25;
+
+    $totalQuantitySubquery = ProductionBatch::query()
+      ->selectRaw('coalesce(sum(QuantityProduced), 0)')
+      ->whereColumn('production_batches.BatchDetailsID', 'production_batch_details.ID');
+
+    $query = ProductionBatchDetail::query()
+      ->with(['user:id,FullName', 'batches.product:ID,ProductName'])
+      ->addSelect(['calculated_total_quantity' => $totalQuantitySubquery])
+      ->when($search !== '', function (Builder $builder) use ($search) {
+        $builder->where(function (Builder $nested) use ($search) {
+          $nested
+            ->whereHas('user', fn(Builder $userQuery) => $userQuery->where('FullName', 'like', "%{$search}%"))
+            ->orWhere('BatchDescription', 'like', "%{$search}%")
+            ->orWhereHas('batches.product', fn(Builder $productQuery) => $productQuery->where('ProductName', 'like', "%{$search}%"));
+        });
+      })
+      ->when($addedBy !== 'all', fn(Builder $builder) => $builder->whereHas('user', fn(Builder $userQuery) => $userQuery->where('FullName', $addedBy)))
+      ->when($item !== 'all', fn(Builder $builder) => $builder->whereHas('batches.product', fn(Builder $productQuery) => $productQuery->where('ProductName', $item)))
+      ->when($dateFrom !== '', fn(Builder $builder) => $builder->whereDate('DateAdded', '>=', $dateFrom))
+      ->when($dateTo !== '', fn(Builder $builder) => $builder->whereDate('DateAdded', '<=', $dateTo))
+      ->when(
+        trim($minTotalQty) !== '' && is_numeric($minTotalQty),
+        fn(Builder $builder) => $builder->whereRaw(
+          '(select coalesce(sum(QuantityProduced), 0) from production_batches where production_batches.BatchDetailsID = production_batch_details.ID) >= ?',
+          [(int) $minTotalQty]
+        )
+      )
+      ->when(
+        trim($maxTotalQty) !== '' && is_numeric($maxTotalQty),
+        fn(Builder $builder) => $builder->whereRaw(
+          '(select coalesce(sum(QuantityProduced), 0) from production_batches where production_batches.BatchDetailsID = production_batch_details.ID) <= ?',
+          [(int) $maxTotalQty]
+        )
+      );
+
+    $query = match ($sortKey) {
+      'AddedBy' => $query->orderBy(
+        User::query()->select('FullName')->whereColumn('users.id', 'production_batch_details.UserID')->limit(1),
+        $sortDirection
+      )->orderByDesc('production_batch_details.ID'),
+      'TotalQuantity' => $query->orderBy('calculated_total_quantity', $sortDirection)->orderByDesc('ID'),
+      'BatchDescription', 'DateAdded' => $query->orderBy($sortKey, $sortDirection)->orderByDesc('ID'),
+      default => $query->orderByDesc('DateAdded')->orderByDesc('ID'),
+    };
+
+    $records = $query->paginate($perPage)->withQueryString();
+    $records->getCollection()->transform(function (ProductionBatchDetail $detail) {
+      $items = $detail->batches->map(function ($line) {
+        return [
+          'ProductID' => $line->ProductID,
+          'ItemName' => $line->product?->ProductName ?? 'Deleted Product',
+          'QuantityProduced' => (int) ($line->QuantityProduced ?? 0),
+        ];
+      })->values();
+
+      return [
+        'ID' => $detail->ID,
+        'user' => $detail->user,
+        'BatchDescription' => $detail->BatchDescription,
+        'TotalQuantity' => (int) $items->sum('QuantityProduced'),
+        'DateAdded' => optional($detail->DateAdded)->toIso8601String(),
+        'ItemsProduced' => $items,
+      ];
+    });
+
+    $itemOptions = ProductionBatchDetail::query()
+      ->with('batches.product:ID,ProductName')
+      ->get()
+      ->flatMap(fn($detail) => $detail->batches->pluck('product.ProductName'))
+      ->filter()
+      ->unique()
+      ->values();
+
+    return [
+      'records' => $records,
+      'filters' => [
+        'search' => $search,
+        'addedBy' => $addedBy,
+        'item' => $item,
+        'dateFrom' => $dateFrom,
+        'dateTo' => $dateTo,
+        'minTotalQty' => $minTotalQty,
+        'maxTotalQty' => $maxTotalQty,
+        'sortKey' => $sortKey,
+        'sortDirection' => $sortDirection,
+        'perPage' => $perPage,
+        'page' => $records->currentPage(),
+      ],
+      'filterOptions' => [
+        'addedBy' => ProductionBatchDetail::query()->with('user:id,FullName')->get()->pluck('user.FullName')->filter()->unique()->values(),
+        'item' => $itemOptions,
+      ],
+    ];
   }
 
   private function transformProductForView(Product $product): Product {
