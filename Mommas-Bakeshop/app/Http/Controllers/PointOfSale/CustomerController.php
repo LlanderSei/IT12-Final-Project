@@ -9,7 +9,9 @@ use Inertia\Inertia;
 
 class CustomerController extends Controller {
   public function customers() {
-    $customers = Customer::withCount('sales')
+    $customers = Customer::query()
+      ->notArchived()
+      ->withCount('sales')
       ->with([
         'sales' => function ($query) {
           $query->with([
@@ -93,7 +95,7 @@ class CustomerController extends Controller {
   }
 
   public function updateCustomer(Request $request, int $id) {
-    $customer = Customer::findOrFail($id);
+    $customer = Customer::query()->notArchived()->findOrFail($id);
     $data = $this->validateCustomerPayload($request);
 
     $customer->update([
@@ -105,16 +107,29 @@ class CustomerController extends Controller {
   }
 
   public function destroyCustomer(int $id) {
-    $customer = Customer::withCount('sales')->findOrFail($id);
-    if ((int) $customer->sales_count > 0) {
-      return redirect()
-        ->route('pos.customers')
-        ->with('error', 'Cannot delete a customer with sales history.');
-    }
+    $customer = Customer::query()->notArchived()->findOrFail($id);
+    $customer->update([
+      'IsArchived' => true,
+      'ArchivedAt' => now(),
+      'ArchivedByUserID' => auth()->id(),
+      'ArchiveReason' => request('ArchiveReason') ?: null,
+      'DateModified' => now(),
+    ]);
 
-    $customer->delete();
+    return redirect()->route('pos.customers')->with('success', 'Customer archived successfully.');
+  }
 
-    return redirect()->route('pos.customers')->with('success', 'Customer deleted successfully.');
+  public function restoreCustomer(int $id) {
+    $customer = Customer::query()->onlyArchived()->findOrFail($id);
+    $customer->update([
+      'IsArchived' => false,
+      'ArchivedAt' => null,
+      'ArchivedByUserID' => null,
+      'ArchiveReason' => null,
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->back()->with('success', 'Customer restored successfully.');
   }
 
   private function validateCustomerPayload(Request $request): array {

@@ -20,7 +20,7 @@ export default function Customers({ customers = [] }) {
 	const { can, requirePermission } = usePermissions();
 	const canCreateCustomer = can("CanCreateCustomer");
 	const canUpdateCustomer = can("CanUpdateCustomer");
-	const canDeleteCustomer = can("CanDeleteCustomer");
+	const canDeleteCustomer = can("CanArchiveCustomer");
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [customerTypeFilter, setCustomerTypeFilter] = useState("all");
@@ -188,24 +188,13 @@ export default function Customers({ customers = [] }) {
 	};
 
 	const openDeleteModal = (customer) => {
-		if (!canDeleteCustomer) return requirePermission("CanDeleteCustomer");
-		if (Number(customer.SalesRecords || 0) > 0) {
-			window.dispatchEvent(
-				new CustomEvent("app-toast", {
-					detail: {
-						type: "error",
-						message: "Cannot delete a customer with sales history.",
-					},
-				}),
-			);
-			return;
-		}
+		if (!canDeleteCustomer) return requirePermission("CanArchiveCustomer");
 		setCustomerToDelete(customer);
 	};
 
 	const confirmDeleteCustomer = () => {
 		if (!customerToDelete) return;
-		if (!canDeleteCustomer) return requirePermission("CanDeleteCustomer");
+		if (!canDeleteCustomer) return requirePermission("CanArchiveCustomer");
 		customerForm.delete(route("pos.customers.destroy", customerToDelete.ID), {
 			preserveScroll: true,
 			onSuccess: () => setCustomerToDelete(null),
@@ -372,11 +361,11 @@ export default function Customers({ customers = [] }) {
 															<button
 																type="button"
 																onClick={() => openDeleteModal(customer)}
-																disabled={!canDeleteCustomer || Number(customer.SalesRecords || 0) > 0}
+																disabled={!canDeleteCustomer}
 																className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
 															>
 																<Trash2 className="h-3.5 w-3.5" />
-																Delete
+																Archive
 															</button>
 														</div>
 													</td>
@@ -732,9 +721,9 @@ export default function Customers({ customers = [] }) {
 				show={Boolean(customerToDelete)}
 				onClose={() => setCustomerToDelete(null)}
 				onConfirm={confirmDeleteCustomer}
-				title="Delete Customer"
-				message={`Are you sure you want to delete "${customerToDelete?.CustomerName || ""}"?`}
-				confirmText="Delete"
+				title="Archive Customer"
+				message={`Are you sure you want to archive "${customerToDelete?.CustomerName || ""}"?`}
+				confirmText="Archive"
 				processing={customerForm.processing}
 			/>
 		</AuthenticatedLayout>

@@ -59,6 +59,7 @@ class UserManagementBaseController extends Controller {
       ->get();
 
     $users = User::query()
+      ->notArchived()
       ->select(['id', 'FullName', 'email', 'RoleID', 'IsActive', 'created_at'])
       ->with(['role:ID,RoleName,RoleColor,RoleRank'])
       ->with(['permissionsSet.permission:ID,PermissionName'])
@@ -261,7 +262,7 @@ class UserManagementBaseController extends Controller {
         'CanViewCustomers',
         'CanCreateCustomer',
         'CanUpdateCustomer',
-        'CanDeleteCustomer',
+        'CanArchiveCustomer',
       ],
       'clerkLevel' => [
         'CanViewShrinkageHistory',
@@ -272,7 +273,7 @@ class UserManagementBaseController extends Controller {
         'CanViewInventoryLevels',
         'CanCreateInventoryItem',
         'CanUpdateInventoryItem',
-        'CanDeleteInventoryItem',
+        'CanArchiveInventoryItem',
         'CanCreateStockIn',
         'CanUpdateStockIn',
         'CanDeleteStockIn',
@@ -284,7 +285,7 @@ class UserManagementBaseController extends Controller {
         'CanViewProductsAndBatches',
         'CanCreateProduct',
         'CanUpdateProduct',
-        'CanDeleteProduct',
+        'CanArchiveProduct',
         'CanCreateProductCategory',
         'CanUpdateProductCategory',
         'CanDeleteProductCategory',
@@ -304,7 +305,12 @@ class UserManagementBaseController extends Controller {
         'CanViewUserManagementUsers',
         'CanCreateUser',
         'CanUpdateUser',
-        'CanDeleteUser',
+        'CanArchiveUser',
+        'CanRestoreUser',
+        'CanViewArchives',
+        'CanRestoreCustomer',
+        'CanRestoreProduct',
+        'CanRestoreInventoryItem',
         'CanViewUserManagementPermissions',
         'CanUpdateUserPermissions',
         'CanViewUserManagementRoles',

@@ -183,7 +183,7 @@ class StockInController extends InventoryController {
           $inventoryID = $inventory->ID;
         } else {
           $inventoryID = (int) ($item['InventoryID'] ?? 0);
-          Inventory::findOrFail($inventoryID);
+          Inventory::query()->notArchived()->findOrFail($inventoryID);
         }
       } else {
         if (!empty($item['CreateProduct'])) {
@@ -215,7 +215,7 @@ class StockInController extends InventoryController {
           $productID = $product->ID;
         } else {
           $productID = (int) ($item['ProductID'] ?? 0);
-          $product = Product::findOrFail($productID);
+          $product = Product::query()->notArchived()->findOrFail($productID);
           if (!str_contains(strtolower((string) $product->ProductFrom), 'purchased')) {
             throw ValidationException::withMessages([
               'items' => 'Only products tagged as Purchased can be added in Stock-In product items.',

@@ -1,12 +1,13 @@
-
 import React, { useEffect, useMemo, useState } from "react";
-import { Head, useForm } from "@inertiajs/react";
+import { Head, Link, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import ConfirmationModal from "@/Components/ConfirmationModal";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
-import { CheckCircle2, Eye, Minus, Pencil, Plus, Trash2 } from "lucide-react";
+import { Minus, Plus, Trash2 } from "lucide-react";
+import Pending from "./ShrinkageSubviews/Pending";
+import History from "./ShrinkageSubviews/History";
 
 const currency = (value) => `P${Number(value || 0).toFixed(2)}`;
 
@@ -33,16 +34,51 @@ const buildGroupedQuantities = (items = [], excludeIndex = null) =>
 		return accumulator;
 	}, {});
 
-export default function ShrinkageHistory({
+export default function ShrinkageTabs({
 	shrinkages = [],
 	products = [],
 	allowedReasons = [],
+	initialTab = "Pending",
 }) {
 	const { can, requirePermission } = usePermissions();
 	const canCreateShrinkage = can("CanCreateShrinkageRecord");
 	const canUpdateShrinkage = can("CanUpdateShrinkageRecord");
-	const canDeleteShrinkage = can("CanDeleteShrinkageRecord");
 	const canVerifyShrinkage = can("CanVerifyShrinkageRecord");
+
+	const pendingShrinkages = useMemo(
+		() =>
+			(shrinkages || []).filter(
+				(record) =>
+					!record.VerificationStatus || record.VerificationStatus === "Pending",
+			),
+		[shrinkages],
+	);
+	const historicalShrinkages = useMemo(
+		() =>
+			(shrinkages || []).filter(
+				(record) =>
+					record.VerificationStatus &&
+					record.VerificationStatus !== "Pending",
+			),
+		[shrinkages],
+	);
+	const tabs = useMemo(
+		() => [
+			{
+				label: "Pending",
+				href: route("inventory.shrinkage-history.pending"),
+				badgeCount: pendingShrinkages.length,
+			},
+			{
+				label: "History",
+				href: route("inventory.shrinkage-history.history"),
+			},
+		],
+		[pendingShrinkages.length],
+	);
+	const activeTab = tabs.some((tab) => tab.label === initialTab)
+		? initialTab
+		: "Pending";
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [reasonFilter, setReasonFilter] = useState("all");
@@ -55,8 +91,8 @@ export default function ShrinkageHistory({
 	const [selectedShrinkage, setSelectedShrinkage] = useState(null);
 	const [isFormModalOpen, setIsFormModalOpen] = useState(false);
 	const [editingShrinkage, setEditingShrinkage] = useState(null);
-	const [shrinkageToDelete, setShrinkageToDelete] = useState(null);
 	const [verifyTarget, setVerifyTarget] = useState(null);
+	const [shrinkageToReject, setShrinkageToReject] = useState(null);
 	const [selectedProductId, setSelectedProductId] = useState("");
 	const [selectedQuantity, setSelectedQuantity] = useState("1");
 	const [formError, setFormError] = useState("");
@@ -80,6 +116,10 @@ export default function ShrinkageHistory({
 		[products],
 	);
 
+	const visibleShrinkages = activeTab === "Pending"
+		? pendingShrinkages
+		: historicalShrinkages;
+
 	const reasonOptions = useMemo(() => {
 		const options = [...allowedReasons];
 		if (editingShrinkage?.Reason && !options.includes(editingShrinkage.Reason)) {
@@ -89,8 +129,9 @@ export default function ShrinkageHistory({
 	}, [allowedReasons, editingShrinkage]);
 
 	const filterReasonOptions = useMemo(
-		() => [...new Set((shrinkages || []).map((item) => item.Reason).filter(Boolean))],
-		[shrinkages],
+		() =>
+			[...new Set((visibleShrinkages || []).map((item) => item.Reason).filter(Boolean))],
+		[visibleShrinkages],
 	);
 
 	const getBaseAvailable = (productId) =>
@@ -106,7 +147,7 @@ export default function ShrinkageHistory({
 
 	const filteredShrinkages = useMemo(() => {
 		const query = searchQuery.trim().toLowerCase();
-		const records = [...(shrinkages || [])].filter((record) => {
+		const records = [...visibleShrinkages].filter((record) => {
 			if (reasonFilter !== "all" && record.Reason !== reasonFilter) {
 				return false;
 			}
@@ -146,11 +187,11 @@ export default function ShrinkageHistory({
 			if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
 			return 0;
 		});
-	}, [reasonFilter, searchQuery, shrinkages, sortConfig]);
+	}, [reasonFilter, searchQuery, sortConfig, visibleShrinkages]);
 
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [searchQuery, reasonFilter, sortConfig, itemsPerPage]);
+	}, [searchQuery, reasonFilter, sortConfig, itemsPerPage, activeTab]);
 
 	const totalPages = Math.max(1, Math.ceil(filteredShrinkages.length / itemsPerPage));
 	const safeCurrentPage = Math.min(currentPage, totalPages);
@@ -169,14 +210,19 @@ export default function ShrinkageHistory({
 	const canGoPrevious = safeCurrentPage > 1;
 	const canGoNext = safeCurrentPage < totalPages;
 	const countLabel = formatCountLabel(filteredShrinkages.length, "record");
-	const unconfirmedCount = useMemo(
-		() =>
-			filteredShrinkages.filter(
-				(record) =>
-					!record.VerificationStatus || record.VerificationStatus === "Pending",
-			).length,
-		[filteredShrinkages],
-	);
+	const headerMeta = useMemo(() => {
+		if (activeTab === "Pending") {
+			return {
+				subtitle: "Pending Confirmation",
+				countLabel,
+			};
+		}
+
+		return {
+			subtitle: "Verified & Rejected Records",
+			countLabel,
+		};
+	}, [activeTab, countLabel]);
 
 	const requestSort = (key) => {
 		let direction = "asc";
@@ -240,6 +286,7 @@ export default function ShrinkageHistory({
 		resetFormState();
 		setIsFormModalOpen(true);
 	};
+
 	const addProductLine = () => {
 		const productId = String(selectedProductId || "");
 		const quantity = Number(selectedQuantity || 0);
@@ -384,15 +431,6 @@ export default function ShrinkageHistory({
 		submitFormPayload(true);
 	};
 
-	const confirmDelete = () => {
-		if (!shrinkageToDelete) return;
-		if (!canDeleteShrinkage) return requirePermission("CanDeleteShrinkageRecord");
-		form.delete(route("inventory.shrinkage-history.destroy", shrinkageToDelete.ID), {
-			preserveScroll: true,
-			onSuccess: () => setShrinkageToDelete(null),
-		});
-	};
-
 	const openVerifyModal = (record) => {
 		if (!canVerifyShrinkage) return requirePermission("CanVerifyShrinkageRecord");
 		if (record?.VerificationStatus && record.VerificationStatus !== "Pending") return;
@@ -405,13 +443,22 @@ export default function ShrinkageHistory({
 		setVerifyTarget(null);
 	};
 
-	const submitVerification = (status) => {
+	const submitVerification = () => {
 		if (!verifyTarget) return;
 		if (!canVerifyShrinkage) return requirePermission("CanVerifyShrinkageRecord");
-		verifyForm.setData("status", status);
 		verifyForm.post(route("inventory.shrinkage-history.verify", verifyTarget.ID), {
 			preserveScroll: true,
 			onSuccess: () => closeVerifyModal(),
+		});
+	};
+
+	const confirmReject = () => {
+		if (!shrinkageToReject) return;
+		if (!canVerifyShrinkage) return requirePermission("CanVerifyShrinkageRecord");
+		verifyForm.setData("status", "Rejected");
+		verifyForm.post(route("inventory.shrinkage-history.verify", shrinkageToReject.ID), {
+			preserveScroll: true,
+			onSuccess: () => setShrinkageToReject(null),
 		});
 	};
 
@@ -420,7 +467,7 @@ export default function ShrinkageHistory({
 			(products || []).filter(
 				(product) => getRemainingAllowance(product.ID) > 0,
 			),
-		[products, form.data.items, editingShrinkage],
+		[products, form.data.items],
 	);
 
 	const formItemsWithMeta = useMemo(
@@ -439,7 +486,7 @@ export default function ShrinkageHistory({
 					MaxQuantity: getRemainingAllowance(item.ProductID, index),
 				};
 			}),
-		[form.data.items, productsById, editingShrinkage],
+		[form.data.items, productsById],
 	);
 
 	const modalTotalAmount = useMemo(
@@ -456,25 +503,60 @@ export default function ShrinkageHistory({
 			header={
 				<div className="flex items-center justify-between gap-4">
 					<h2 className="font-semibold text-xl text-gray-800 leading-tight">
-						Shrinkage History
+						Shrinkage
+						{headerMeta?.subtitle && (
+							<span className="ml-2 text-base font-medium text-gray-500">
+								&gt; {headerMeta.subtitle}
+							</span>
+						)}
 					</h2>
 					<div className="flex items-center gap-2">
-						{unconfirmedCount > 0 && (
+						{activeTab === "Pending" && pendingShrinkages.length > 0 && (
 							<div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium">
-								{formatCountLabel(unconfirmedCount, "unconfirmed record")}
+								{formatCountLabel(pendingShrinkages.length, "pending record")}
 							</div>
 						)}
-						<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
-							{countLabel}
-						</div>
+						{headerMeta?.countLabel && (
+							<div className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium">
+								{headerMeta.countLabel}
+							</div>
+						)}
 					</div>
 				</div>
 			}
 			disableScroll={true}
 		>
-			<Head title="Shrinkage History" />
+			<Head title="Shrinkage" />
 
-			<div className="flex flex-col flex-1 overflow-hidden min-h-0">
+			<div className="flex flex-col flex-1 w-full overflow-hidden min-h-0">
+				<div className="bg-white border-b border-gray-200 mt-0">
+					<div className="mx-auto px-4">
+						<nav className="-mb-px flex gap-2" aria-label="Tabs">
+							{tabs.map((tab) => {
+								const badgeCount = Number(tab.badgeCount || 0);
+								return (
+									<Link
+										key={tab.label}
+										href={tab.href}
+										className={`${
+											activeTab === tab.label
+												? "bg-primary-soft border-primary text-primary"
+												: "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+										} relative whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors duration-200 rounded-t-lg`}
+									>
+										{tab.label}
+										{badgeCount > 0 && (
+											<span className="pointer-events-none absolute -bottom-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white shadow-sm ring-2 ring-white">
+												{badgeCount}
+											</span>
+										)}
+									</Link>
+								);
+							})}
+						</nav>
+					</div>
+				</div>
+
 				<div className="mx-auto flex-1 flex flex-col overflow-hidden min-h-0 w-full">
 					<div className="bg-white shadow-sm sm:rounded-lg flex-1 flex flex-col overflow-hidden min-h-0">
 						<div className="p-6 flex-1 flex flex-col overflow-hidden min-h-0">
@@ -519,6 +601,16 @@ export default function ShrinkageHistory({
 														</option>
 													))}
 												</select>
+												<select
+													value={itemsPerPage}
+													onChange={(e) => setItemsPerPage(Number(e.target.value))}
+													className="w-36 rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
+												>
+													<option value={25}>25 per page</option>
+													<option value={50}>50 per page</option>
+													<option value={100}>100 per page</option>
+													<option value={500}>500 per page</option>
+												</select>
 											</div>
 										</div>
 										<div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
@@ -533,217 +625,63 @@ export default function ShrinkageHistory({
 								</div>
 							</div>
 
-							<div className="border rounded-lg border-gray-200 flex-1 min-h-0 flex flex-col overflow-hidden">
-								<div className="flex-1 overflow-y-auto">
-									<table className="min-w-full divide-y divide-gray-200">
-										<thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-											<tr>
-												{[
-													["ID", "ID"],
-													["UserID", "User ID"],
-													["Quantity", "Quantity"],
-													["TotalAmount", "Total Amount"],
-													["Reason", "Reason"],
-													["VerificationStatus", "Verification"],
-													["DateAdded", "Date Added"],
-												].map(([key, label]) => (
-													<th
-														key={key}
-														className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-														onClick={() => requestSort(key)}
-													>
-														<div className="flex items-center">
-															{label}
-															{sortConfig.key === key && (
-																<span className="ml-1 text-[10px] text-gray-400">
-																	{sortConfig.direction}
-																</span>
-															)}
-														</div>
-													</th>
-												))}
-												<th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-													Actions
-												</th>
-											</tr>
-										</thead>
-										<tbody className="bg-white divide-y divide-gray-200">
-											{paginatedShrinkages.map((record) => {
-												const isPending =
-													!record.VerificationStatus ||
-													record.VerificationStatus === "Pending";
-												return (
-													<tr key={record.ID} className="hover:bg-gray-50">
-													<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-														{record.ID}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-														<div>{record.UserID}</div>
-														<p className="text-xs text-gray-400">{record.CreatedBy}</p>
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-														{record.Quantity}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														{currency(record.TotalAmount)}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-														{record.Reason}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-														{record.VerificationStatus || "Pending"}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-														{formatDateTime(record.DateAdded)}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-														<div className="flex items-center gap-2">
-															<button
-																type="button"
-																onClick={() => setSelectedShrinkage(record)}
-																className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-hover"
-															>
-																<Eye className="h-3.5 w-3.5" />
-																View
-															</button>
-															{isPending && (
-																<button
-																	type="button"
-																	onClick={() => openVerifyModal(record)}
-																	disabled={!canVerifyShrinkage}
-																	className="inline-flex items-center gap-1.5 rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-																>
-																	<CheckCircle2 className="h-3.5 w-3.5" />
-																	Confirm Shrinkage
-																</button>
-															)}
-															<button
-																type="button"
-																onClick={() => openEditModal(record)}
-																disabled={!canUpdateShrinkage || !isPending}
-																className="inline-flex items-center gap-1.5 rounded border border-primary px-3 py-1 text-xs font-medium text-primary hover:bg-primary-soft disabled:opacity-50 disabled:cursor-not-allowed"
-															>
-																<Pencil className="h-3.5 w-3.5" />
-																Edit
-															</button>
-															<button
-																type="button"
-																onClick={() =>
-																	canDeleteShrinkage
-																		? setShrinkageToDelete(record)
-																		: requirePermission("CanDeleteShrinkageRecord")
-																}
-																disabled={!canDeleteShrinkage || !isPending}
-																className="inline-flex items-center gap-1.5 rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-															>
-																<Trash2 className="h-3.5 w-3.5" />
-																Delete
-															</button>
-														</div>
-													</td>
-												</tr>
-												);
-											})}
-											{filteredShrinkages.length === 0 && (
-												<tr>
-												<td colSpan="8" className="px-6 py-4 text-center text-sm text-gray-500">
-													No shrinkage records found.
-												</td>
-												</tr>
-											)}
-										</tbody>
-									</table>
-								</div>
-
-								<div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
-									<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-										<div className="text-sm text-gray-600">
-											Showing {filteredShrinkages.length === 0 ? 0 : startIndex + 1}-
-											{Math.min(startIndex + itemsPerPage, filteredShrinkages.length)} of {" "}
-											{filteredShrinkages.length}
-										</div>
-										<div className="flex flex-wrap items-center gap-2">
-											<label htmlFor="shrinkage-items-per-page" className="text-sm text-gray-600">
-												Items per page
-											</label>
-											<select
-												id="shrinkage-items-per-page"
-												value={itemsPerPage}
-												onChange={(e) => setItemsPerPage(Number(e.target.value))}
-												className="rounded-md border-gray-300 text-sm focus:border-primary focus:ring-primary"
-											>
-												<option value={25}>25</option>
-												<option value={50}>50</option>
-												<option value={100}>100</option>
-												<option value={500}>500</option>
-											</select>
-											<button
-												type="button"
-												onClick={() => goToPage(1)}
-												disabled={!canGoPrevious}
-												className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												First
-											</button>
-											<button
-												type="button"
-												onClick={() => goToPage(safeCurrentPage - 1)}
-												disabled={!canGoPrevious}
-												className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												Previous
-											</button>
-											{pageNumbers.map((page) => (
-												<button
-													key={page}
-													type="button"
-													onClick={() => goToPage(page)}
-													className={`rounded-md px-3 py-1.5 text-sm ${
-														page === safeCurrentPage
-															? "border border-primary bg-primary text-white"
-															: "border border-gray-300 text-gray-700 hover:bg-gray-50"
-													}`}
-												>
-													{page}
-												</button>
-											))}
-											<button
-												type="button"
-												onClick={() => goToPage(safeCurrentPage + 1)}
-												disabled={!canGoNext}
-												className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												Next
-											</button>
-											<button
-												type="button"
-												onClick={() => goToPage(totalPages)}
-												disabled={!canGoNext}
-												className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												Last
-											</button>
-										</div>
-									</div>
-								</div>
-							</div>
+							{activeTab === "Pending" ? (
+								<Pending
+									records={paginatedShrinkages}
+									sortConfig={sortConfig}
+									requestSort={requestSort}
+									onView={setSelectedShrinkage}
+									onVerify={openVerifyModal}
+									onEdit={openEditModal}
+									onReject={setShrinkageToReject}
+									canVerifyShrinkage={canVerifyShrinkage}
+									canUpdateShrinkage={canUpdateShrinkage}
+									filteredCount={filteredShrinkages.length}
+									startIndex={startIndex}
+									itemsPerPage={itemsPerPage}
+									safeCurrentPage={safeCurrentPage}
+									pageNumbers={pageNumbers}
+									canGoPrevious={canGoPrevious}
+									canGoNext={canGoNext}
+									goToPage={goToPage}
+									totalPages={totalPages}
+								/>
+							) : (
+								<History
+									records={paginatedShrinkages}
+									sortConfig={sortConfig}
+									requestSort={requestSort}
+									onView={setSelectedShrinkage}
+									filteredCount={filteredShrinkages.length}
+									startIndex={startIndex}
+									itemsPerPage={itemsPerPage}
+									safeCurrentPage={safeCurrentPage}
+									pageNumbers={pageNumbers}
+									canGoPrevious={canGoPrevious}
+									canGoNext={canGoNext}
+									goToPage={goToPage}
+									totalPages={totalPages}
+								/>
+							)}
 						</div>
 					</div>
 				</div>
 			</div>
 
-			<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<button
-						type="button"
-						onClick={openCreateModal}
-						disabled={!canCreateShrinkage}
-						className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						Record Shrinkage
-					</button>
+			{activeTab === "Pending" && (
+				<div className="sticky bottom-0 w-full p-4 bg-white border-t border-gray-200 z-10">
+					<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+						<button
+							type="button"
+							onClick={openCreateModal}
+							disabled={!canCreateShrinkage}
+							className="w-full inline-flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							Record Shrinkage
+						</button>
+					</div>
 				</div>
-			</div>
+			)}
 
 			<Modal show={Boolean(selectedShrinkage)} onClose={() => setSelectedShrinkage(null)} maxWidth="4xl">
 				{selectedShrinkage && (
@@ -1042,7 +980,7 @@ export default function ShrinkageHistory({
 							Confirm Shrinkage #{verifyTarget.ID}
 						</h3>
 						<p className="mt-2 text-sm text-gray-600">
-							Verification will deduct stock quantities. Rejection keeps stock unchanged.
+							This will deduct stock quantities for the selected shrinkage record.
 						</p>
 						<div className="mt-4 space-y-2 text-sm text-gray-700">
 							<div>
@@ -1073,15 +1011,7 @@ export default function ShrinkageHistory({
 							</button>
 							<button
 								type="button"
-								onClick={() => submitVerification("Rejected")}
-								disabled={verifyForm.processing}
-								className="rounded-md border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-							>
-								Reject
-							</button>
-							<button
-								type="button"
-								onClick={() => submitVerification("Verified")}
+								onClick={submitVerification}
 								disabled={verifyForm.processing}
 								className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
 							>
@@ -1093,13 +1023,13 @@ export default function ShrinkageHistory({
 			</Modal>
 
 			<ConfirmationModal
-				show={Boolean(shrinkageToDelete)}
-				onClose={() => setShrinkageToDelete(null)}
-				onConfirm={confirmDelete}
-				title="Delete Shrinkage Record"
-				message={`Delete shrinkage record #${shrinkageToDelete?.ID || ""}? Stock is only adjusted after verification.`}
-				confirmText="Delete Record"
-				processing={form.processing}
+				show={Boolean(shrinkageToReject)}
+				onClose={() => setShrinkageToReject(null)}
+				onConfirm={confirmReject}
+				title="Reject Shrinkage Record"
+				message={`Mark shrinkage record #${shrinkageToReject?.ID || ""} as rejected? Stock will remain unchanged.`}
+				confirmText="Rejected"
+				processing={verifyForm.processing}
 			/>
 
 			<ConfirmationModal

@@ -111,9 +111,13 @@ trait PosHelpers {
     return [$lines, $totalQuantity, round($totalAmount, 2)];
   }
 
-  protected function assertAndLockProducts(array $groupedItems) {
+  protected function assertAndLockProducts(array $groupedItems, bool $requireNotArchived = true) {
     $productIDs = array_map('intval', array_keys($groupedItems));
-    $products = Product::whereIn('ID', $productIDs)->lockForUpdate()->get()->keyBy('ID');
+    $query = Product::whereIn('ID', $productIDs);
+    if ($requireNotArchived) {
+      $query->notArchived();
+    }
+    $products = $query->lockForUpdate()->get()->keyBy('ID');
 
     if ($products->count() !== count($productIDs)) {
       throw ValidationException::withMessages([

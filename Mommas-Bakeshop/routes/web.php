@@ -15,6 +15,7 @@ use App\Http\Controllers\Administration\Database\MaintenanceJobsController;
 use App\Http\Controllers\Administration\Database\SchemaReportController;
 use App\Http\Controllers\Administration\Database\DataTransferController;
 use App\Http\Controllers\Administration\Database\RetentionAndCleanupController;
+use App\Http\Controllers\Administration\ArchivesController;
 use App\Http\Controllers\Administration\AuditsController;
 use App\Http\Controllers\PointOfSale\CashierController;
 use App\Http\Controllers\PointOfSale\CustomerController;
@@ -53,8 +54,6 @@ Route::middleware('auth')->group(function () {
   // Profile
   Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
   Route::patch('/profile', [ProfileController::class, 'update'])->middleware('maintenance.lock')->name('profile.update');
-  Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('maintenance.lock')->name('profile.destroy');
-
   // Point of Sale
   Route::get('/pos/cashier', function () {
     return redirect()->route('pos.cash-sale');
@@ -78,7 +77,8 @@ Route::middleware('auth')->group(function () {
   Route::get('/pos/customers', [CustomerController::class, 'customers'])->middleware('permission:CanViewCustomers')->name('pos.customers');
   Route::post('/pos/customers', [CustomerController::class, 'storeCustomer'])->middleware(['permission:CanCreateCustomer', 'maintenance.lock'])->name('pos.customers.store');
   Route::put('/pos/customers/{id}', [CustomerController::class, 'updateCustomer'])->middleware(['permission:CanUpdateCustomer', 'maintenance.lock'])->name('pos.customers.update');
-  Route::delete('/pos/customers/{id}', [CustomerController::class, 'destroyCustomer'])->middleware(['permission:CanDeleteCustomer', 'maintenance.lock'])->name('pos.customers.destroy');
+  Route::delete('/pos/customers/{id}', [CustomerController::class, 'destroyCustomer'])->middleware(['permission:CanArchiveCustomer', 'maintenance.lock'])->name('pos.customers.destroy');
+  Route::post('/pos/customers/{id}/restore', [CustomerController::class, 'restoreCustomer'])->middleware(['permission:CanRestoreCustomer', 'maintenance.lock'])->name('pos.customers.restore');
   Route::post('/pos/sale-history/payments', [SaleHistoryPendingPaymentsController::class, 'recordSalePayment'])->middleware(['permission:CanRecordSalePayment', 'maintenance.lock'])->name('pos.sale-history.payments.store');
   Route::post('/pos/checkout/walk-in', [CashierController::class, 'checkoutWalkIn'])->middleware(['permission:CanProcessSalesWalkIn', 'maintenance.lock'])->name('pos.checkout.walk-in');
   Route::post('/pos/job-orders', [JobOrdersController::class, 'storeJobOrder'])->middleware(['permission:CanCreateJobOrders', 'maintenance.lock'])->name('pos.job-orders.store');
@@ -103,10 +103,18 @@ Route::middleware('auth')->group(function () {
     ->name('inventory.snapshots');
   Route::post('/inventory/levels', [InventoryLevelsController::class, 'store'])->middleware(['permission:CanCreateInventoryItem', 'maintenance.lock'])->name('inventory.levels.store');
   Route::put('/inventory/levels/{id}', [InventoryLevelsController::class, 'update'])->middleware(['permission:CanUpdateInventoryItem', 'maintenance.lock'])->name('inventory.levels.update');
-  Route::delete('/inventory/levels/{id}', [InventoryLevelsController::class, 'destroy'])->middleware(['permission:CanDeleteInventoryItem', 'maintenance.lock'])->name('inventory.levels.destroy');
+  Route::delete('/inventory/levels/{id}', [InventoryLevelsController::class, 'destroy'])->middleware(['permission:CanArchiveInventoryItem', 'maintenance.lock'])->name('inventory.levels.destroy');
+  Route::post('/inventory/levels/{id}/restore', [InventoryLevelsController::class, 'restore'])->middleware(['permission:CanRestoreInventoryItem', 'maintenance.lock'])->name('inventory.levels.restore');
   Route::get('/inventory/shrinkage-history', [ShrinkageHistoryController::class, 'shrinkageHistory'])
+    ->defaults('tab', 'Pending')
     ->middleware('permission:CanViewShrinkageHistory')
     ->name('inventory.shrinkage-history');
+  Route::get('/inventory/shrinkage-history/pending', [ShrinkageHistoryController::class, 'shrinkagePending'])
+    ->middleware('permission:CanViewShrinkageHistory')
+    ->name('inventory.shrinkage-history.pending');
+  Route::get('/inventory/shrinkage-history/history', [ShrinkageHistoryController::class, 'shrinkageHistoryTab'])
+    ->middleware('permission:CanViewShrinkageHistory')
+    ->name('inventory.shrinkage-history.history');
   Route::post('/inventory/shrinkage-history', [ShrinkageHistoryController::class, 'storeShrinkageHistory'])
     ->middleware(['permission:CanCreateShrinkageRecord', 'maintenance.lock'])
     ->name('inventory.shrinkage-history.store');
@@ -139,7 +147,8 @@ Route::middleware('auth')->group(function () {
     ->name('products.snapshots');
   Route::post('/inventory/products', [ProductsController::class, 'store'])->middleware(['permission:CanCreateProduct', 'maintenance.lock'])->name('inventory.products.store');
   Route::put('/inventory/products/{id}', [ProductsController::class, 'update'])->middleware(['permission:CanUpdateProduct', 'maintenance.lock'])->name('inventory.products.update');
-  Route::delete('/inventory/products/{id}', [ProductsController::class, 'destroy'])->middleware(['permission:CanDeleteProduct', 'maintenance.lock'])->name('inventory.products.destroy');
+  Route::delete('/inventory/products/{id}', [ProductsController::class, 'destroy'])->middleware(['permission:CanArchiveProduct', 'maintenance.lock'])->name('inventory.products.destroy');
+  Route::post('/inventory/products/{id}/restore', [ProductsController::class, 'restore'])->middleware(['permission:CanRestoreProduct', 'maintenance.lock'])->name('inventory.products.restore');
   Route::post('/inventory/products/snapshots', [ProductSnapshotsController::class, 'storeSnapshot'])->middleware(['permission:CanRecordProductSnapshot', 'maintenance.lock'])->name('inventory.products.snapshots.store');
 
   Route::post('/inventory/batches', [ProductionBatchesController::class, 'storeBatch'])->middleware(['permission:CanCreateProductionBatch', 'maintenance.lock'])->name('inventory.batches.store');
@@ -158,6 +167,18 @@ Route::middleware('auth')->group(function () {
   Route::get('/admin/users', [UsersController::class, 'index'])
     ->middleware('permission:CanViewUserManagementUsers')
     ->name('admin.users');
+  Route::get('/admin/archives', [ArchivesController::class, 'index'])
+    ->middleware('permission:CanViewArchives')
+    ->name('admin.archives');
+  Route::get('/admin/archives/customers', [ArchivesController::class, 'customers'])
+    ->middleware('permission:CanViewArchives')
+    ->name('admin.archives.customers');
+  Route::get('/admin/archives/products', [ArchivesController::class, 'products'])
+    ->middleware('permission:CanViewArchives')
+    ->name('admin.archives.products');
+  Route::get('/admin/archives/inventory', [ArchivesController::class, 'inventory'])
+    ->middleware('permission:CanViewArchives')
+    ->name('admin.archives.inventory');
   Route::get('/admin/permissions', [PermissionsController::class, 'index'])
     ->middleware('permission:CanViewUserManagementPermissions')
     ->name('admin.permissions');
@@ -177,7 +198,8 @@ Route::middleware('auth')->group(function () {
   Route::delete('/admin/permission-groups/{id}', [PermissionGroupsController::class, 'destroyPermissionGroup'])->middleware(['permission:CanDeletePermissionGroup', 'maintenance.lock'])->name('admin.permission-groups.destroy');
   Route::post('/admin/users', [UsersController::class, 'store'])->middleware(['permission:CanCreateUser', 'maintenance.lock'])->name('admin.users.store');
   Route::put('/admin/users/{id}', [UsersController::class, 'update'])->middleware(['permission:CanUpdateUser', 'maintenance.lock'])->name('admin.users.update');
-  Route::delete('/admin/users/{id}', [UsersController::class, 'destroy'])->middleware(['permission:CanDeleteUser', 'maintenance.lock'])->name('admin.users.destroy');
+  Route::delete('/admin/users/{id}', [UsersController::class, 'destroy'])->middleware(['permission:CanArchiveUser', 'maintenance.lock'])->name('admin.users.destroy');
+  Route::post('/admin/users/{id}/restore', [UsersController::class, 'restore'])->middleware(['permission:CanRestoreUser', 'maintenance.lock'])->name('admin.users.restore');
   Route::get('/admin/audits', [AuditsController::class, 'index'])->middleware('permission:CanViewAudits')->name('admin.audits');
   Route::get('/admin/database', [BackupsController::class, 'index'])
     ->middleware('permission:CanViewDatabaseBackups')
@@ -218,4 +240,3 @@ Route::middleware('auth')->group(function () {
 
 
 require __DIR__ . '/auth.php';
-

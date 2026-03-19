@@ -44,7 +44,7 @@ class ProductionBatchesController extends ProductsController {
         ]);
 
         // Trigger updates quantity. Keep DateModified in sync.
-        $product = Product::findOrFail($row['ProductID']);
+        $product = Product::query()->notArchived()->findOrFail($row['ProductID']);
         $product->update([
           'DateModified' => now(),
         ]);
@@ -91,7 +91,7 @@ class ProductionBatchesController extends ProductsController {
         $productID = $product->ID;
       } else {
         $productID = (int) ($item['ProductID'] ?? 0);
-        $product = Product::findOrFail($productID);
+        $product = Product::query()->notArchived()->findOrFail($productID);
         if (strtolower((string) $product->ProductFrom) !== 'produced') {
           throw ValidationException::withMessages([
             'items' => 'Only products tagged as Produced can be added in Production Batches existing items.',

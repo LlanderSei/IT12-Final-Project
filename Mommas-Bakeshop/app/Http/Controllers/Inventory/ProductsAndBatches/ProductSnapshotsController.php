@@ -38,6 +38,7 @@ class ProductSnapshotsController extends ProductsController {
       ]);
 
       $products = Product::query()
+        ->notArchived()
         ->where('Quantity', '>', 0)
         ->orderBy('ProductName', 'asc')
         ->get(['ID', 'Price', 'Quantity']);

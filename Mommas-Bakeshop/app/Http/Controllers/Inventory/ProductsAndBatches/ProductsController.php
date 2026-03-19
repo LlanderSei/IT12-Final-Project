@@ -51,7 +51,7 @@ class ProductsController extends Controller {
   }
 
   public function update(Request $request, $id) {
-    $product = Product::findOrFail($id);
+    $product = Product::query()->notArchived()->findOrFail($id);
 
     // No longer checking isValid() for the same reason as store()
 
@@ -91,11 +91,29 @@ class ProductsController extends Controller {
   }
 
   public function destroy($id) {
-    $product = Product::findOrFail($id);
-    $this->deleteProductImage($product->ProductImage);
-    $product->delete();
+    $product = Product::query()->notArchived()->findOrFail($id);
+    $product->update([
+      'IsArchived' => true,
+      'ArchivedAt' => now(),
+      'ArchivedByUserID' => auth()->id(),
+      'ArchiveReason' => request('ArchiveReason') ?: null,
+      'DateModified' => now(),
+    ]);
 
-    return redirect()->back()->with('success', 'Product deleted successfully.');
+    return redirect()->back()->with('success', 'Product archived successfully.');
+  }
+
+  public function restore($id) {
+    $product = Product::query()->onlyArchived()->findOrFail($id);
+    $product->update([
+      'IsArchived' => false,
+      'ArchivedAt' => null,
+      'ArchivedByUserID' => null,
+      'ArchiveReason' => null,
+      'DateModified' => now(),
+    ]);
+
+    return redirect()->back()->with('success', 'Product restored successfully.');
   }
 
   protected function renderProductsAndBatches(Request $request, ?string $forcedTab = null) {
@@ -105,6 +123,7 @@ class ProductsController extends Controller {
       : 'Products';
 
     $products = Product::with('category')
+      ->notArchived()
       ->get()
       ->map(fn ($product) => $this->transformProductForView($product))
       ->values();

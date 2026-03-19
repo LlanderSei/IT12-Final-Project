@@ -122,7 +122,7 @@ class StockOutController extends InventoryController {
 
       if ($itemType === 'Inventory') {
         $inventoryID = (int) ($item['InventoryID'] ?? 0);
-        $inventory = Inventory::findOrFail($inventoryID);
+        $inventory = Inventory::query()->notArchived()->findOrFail($inventoryID);
         if ((int) $inventory->Quantity < $quantityRemoved) {
           throw ValidationException::withMessages([
             'items' => "Insufficient stock for inventory item {$inventory->ItemName}.",
@@ -130,7 +130,7 @@ class StockOutController extends InventoryController {
         }
       } else {
         $productID = (int) ($item['ProductID'] ?? 0);
-        $product = Product::findOrFail($productID);
+        $product = Product::query()->notArchived()->findOrFail($productID);
         if ((int) $product->Quantity < $quantityRemoved) {
           throw ValidationException::withMessages([
             'items' => "Insufficient stock for product {$product->ProductName}.",

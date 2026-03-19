@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\BuildsReadableAuditChanges;
+use App\Models\Concerns\HasArchiveState;
 use Illuminate\Database\Eloquent\Model;
 use OwenIt\Auditing\Contracts\Auditable;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 
 class Inventory extends Model implements Auditable {
-  use AuditableTrait, BuildsReadableAuditChanges;
+  use AuditableTrait, BuildsReadableAuditChanges, HasArchiveState;
   protected $table = 'inventory';
   protected $primaryKey = 'ID';
   public $timestamps = false;
@@ -22,6 +23,10 @@ class Inventory extends Model implements Auditable {
     'LowCountThreshold',
     'DateAdded',
     'DateModified',
+    'IsArchived',
+    'ArchivedAt',
+    'ArchivedByUserID',
+    'ArchiveReason',
   ];
 
   protected $casts = [
@@ -29,6 +34,8 @@ class Inventory extends Model implements Auditable {
     'LowCountThreshold' => 'integer',
     'DateAdded' => 'datetime',
     'DateModified' => 'datetime',
+    'IsArchived' => 'boolean',
+    'ArchivedAt' => 'datetime',
   ];
 
   protected $auditEvents = [
@@ -62,6 +69,17 @@ class Inventory extends Model implements Auditable {
 
     if ($event === 'deleted') {
       return "Inventory item removed: {$itemName}";
+    }
+
+    if (($oldValues['IsArchived'] ?? null) !== ($values['IsArchived'] ?? null)) {
+      $reason = trim((string) ($values['ArchiveReason'] ?? ''));
+      if (!empty($values['IsArchived'])) {
+        return $reason !== ''
+          ? "Inventory item archived: {$itemName} ({$reason})"
+          : "Inventory item archived: {$itemName}";
+      }
+
+      return "Inventory item restored: {$itemName}";
     }
 
     if (isset($oldValues['Quantity'], $values['Quantity']) && count($this->auditChangedKeys($data)) === 1 && (string) $oldValues['Quantity'] !== (string) $values['Quantity']) {

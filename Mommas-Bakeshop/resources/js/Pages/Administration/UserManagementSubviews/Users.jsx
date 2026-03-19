@@ -27,7 +27,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	const { can, requirePermission } = usePermissions();
 	const canCreateUser = can("CanCreateUser");
 	const canUpdateUser = can("CanUpdateUser");
-	const canDeleteUser = can("CanDeleteUser");
+	const canDeleteUser = can("CanArchiveUser");
 
 	const normalizedRoles = useMemo(() => {
 		if (Array.isArray(roles) && roles.length > 0) {
@@ -250,11 +250,11 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 	};
 
 	const getDeleteTooltip = (user) => {
-		if (isSelf(user)) return "You cannot delete your own account.";
+		if (isSelf(user)) return "You cannot archive your own account.";
 		if (!canDeleteTarget(user)) {
-			return "You can only delete users with the same role or lower privilege.";
+			return "You can only archive users with the same role or lower privilege.";
 		}
-		return "Delete user";
+		return "Archive user";
 	};
 
 	const getEditTooltip = (user) => {
@@ -267,7 +267,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 
 	const confirmDelete = () => {
 		if (!deleteCandidate) return;
-		if (!canDeleteUser) return requirePermission("CanDeleteUser");
+		if (!canDeleteUser) return requirePermission("CanArchiveUser");
 		form.delete(route("admin.users.destroy", deleteCandidate.id), {
 			onSuccess: () => setDeleteCandidate(null),
 		});
@@ -491,7 +491,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 																}
 															>
 																<Trash2 className="h-3.5 w-3.5" />
-																Delete
+																Archive
 															</button>
 														</div>
 													</td>
@@ -695,9 +695,9 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 						</span>
 						<div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md w-full">
 							<div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-								<h3 className="text-lg leading-6 font-medium text-gray-900">Delete User</h3>
+								<h3 className="text-lg leading-6 font-medium text-gray-900">Archive User</h3>
 								<p className="mt-3 text-sm text-gray-600">
-									Are you sure you want to delete "{deleteCandidate.FullName}"? This action cannot be undone.
+									Are you sure you want to archive "{deleteCandidate.FullName}"? The account will be hidden from active lists and login will be disabled.
 								</p>
 							</div>
 							<div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
@@ -707,7 +707,7 @@ export default function Users({ users = [], roles = [], onHeaderMetaChange }) {
 									disabled={form.processing}
 									className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
 								>
-									Delete
+									Archive
 								</button>
 								<button
 									type="button"

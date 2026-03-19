@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\HasArchiveState;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -10,7 +11,7 @@ use Illuminate\Support\Collection;
 
 class User extends Authenticatable {
   /** @use HasFactory<\Database\Factories\UserFactory> */
-  use HasFactory, Notifiable;
+  use HasFactory, Notifiable, HasArchiveState;
 
   protected $table = 'users';
   protected $primaryKey = 'id';
@@ -21,6 +22,10 @@ class User extends Authenticatable {
     'password',
     'RoleID',
     'IsActive',
+    'IsArchived',
+    'ArchivedAt',
+    'ArchivedByUserID',
+    'ArchiveReason',
   ];
 
   protected $hidden = [
@@ -34,6 +39,8 @@ class User extends Authenticatable {
       'password' => 'hashed',
       'RoleID' => 'integer',
       'IsActive' => 'boolean',
+      'IsArchived' => 'boolean',
+      'ArchivedAt' => 'datetime',
     ];
   }
 

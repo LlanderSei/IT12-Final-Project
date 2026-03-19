@@ -27,8 +27,15 @@ return new class extends Migration {
 			$table->string('password');
 			$table->foreignId('RoleID')->constrained('roles', 'ID')->restrictOnDelete();
 			$table->boolean('IsActive')->default(true);
+			$table->boolean('IsArchived')->default(false);
+			$table->timestamp('ArchivedAt')->nullable();
+			$table->text('ArchiveReason')->nullable();
 			$table->rememberToken();
 			$table->timestamps();
+		});
+
+		Schema::table('users', function (Blueprint $table) {
+			$table->foreignId('ArchivedByUserID')->nullable()->after('ArchivedAt')->constrained('users', 'id')->nullOnDelete();
 		});
 
 		Schema::create('password_reset_tokens', function (Blueprint $table) {
@@ -53,6 +60,9 @@ return new class extends Migration {
 	public function down(): void {
 		Schema::dropIfExists('sessions');
 		Schema::dropIfExists('password_reset_tokens');
+		Schema::table('users', function (Blueprint $table) {
+			$table->dropConstrainedForeignId('ArchivedByUserID');
+		});
 		Schema::dropIfExists('users');
 		Schema::dropIfExists('roles');
 	}

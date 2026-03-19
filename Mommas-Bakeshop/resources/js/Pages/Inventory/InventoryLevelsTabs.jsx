@@ -25,7 +25,7 @@ export default function InventoryLevelsTabs({
 	const { can, requirePermission } = usePermissions();
 	const canCreateInventoryItem = can("CanCreateInventoryItem");
 	const canUpdateInventoryItem = can("CanUpdateInventoryItem");
-	const canDeleteInventoryItem = can("CanDeleteInventoryItem");
+	const canDeleteInventoryItem = can("CanArchiveInventoryItem");
 	const canCreateStockIn = can("CanCreateStockIn");
 	const canUpdateStockIn = can("CanUpdateStockIn");
 	const canCreateStockOut = can("CanCreateStockOut");
@@ -217,7 +217,7 @@ export default function InventoryLevelsTabs({
 	};
 
 	const confirmDeleteItem = () => {
-		if (!canDeleteInventoryItem) return requirePermission("CanDeleteInventoryItem");
+		if (!canDeleteInventoryItem) return requirePermission("CanArchiveInventoryItem");
 		itemForm.delete(route("inventory.levels.destroy", editingItem.ID), {
 			onSuccess: () => {
 				setIsDeleteModalOpen(false);
@@ -635,7 +635,7 @@ export default function InventoryLevelsTabs({
 												onClick={() => setIsDeleteModalOpen(true)}
 												className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600"
 											>
-												Delete
+												Archive
 											</button>
 									)}
 									<button
@@ -694,9 +694,9 @@ export default function InventoryLevelsTabs({
 				show={isDeleteModalOpen}
 				onClose={() => setIsDeleteModalOpen(false)}
 				onConfirm={confirmDeleteItem}
-				title="Delete Item"
-				message={`Are you sure you want to delete "${editingItem?.ItemName}"? This will also affect stock history records.`}
-				confirmText="Delete"
+				title="Archive Item"
+				message={`Are you sure you want to archive "${editingItem?.ItemName}"?`}
+				confirmText="Archive"
 				processing={itemForm.processing}
 			/>
 
