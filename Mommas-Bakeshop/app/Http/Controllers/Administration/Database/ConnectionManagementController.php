@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers\Administration\Database;
 
-use App\Jobs\InitializeRemoteDatabaseJob;
-use App\Jobs\SwitchDatabaseTargetJob;
-use App\Services\DatabaseBackupService;
 use App\Services\AuditTrailService;
+use App\Services\DatabaseBackupService;
 use App\Services\DatabaseConnectionManager;
 use App\Services\SystemOperationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
+use App\Jobs\InitializeRemoteDatabaseJob;
 
 class ConnectionManagementController extends DatabaseBaseController {
   public function index(
@@ -131,7 +133,7 @@ class ConnectionManagementController extends DatabaseBaseController {
     }
   }
 
-  public function switchConnection(Request $request, DatabaseConnectionManager $connectionManager, SystemOperationService $operationService): RedirectResponse {
+  public function switchConnection(Request $request, DatabaseConnectionManager $connectionManager, SystemOperationService $operationService): Response|RedirectResponse {
     if ($response = $this->rejectIfBackgroundOperationInProgress($operationService)) {
       return $response;
     }
@@ -141,19 +143,17 @@ class ConnectionManagementController extends DatabaseBaseController {
     ]);
 
     try {
-      $operation = $operationService->queue(
-        $request->user(),
-        'SwitchDatabaseTarget',
-        sprintf('Switch database target to %s', ucfirst($validated['target'])),
-        ['target' => $validated['target']],
-        true,
-      );
-      SwitchDatabaseTargetJob::dispatch($operation->ID, $validated['target']);
+      $connectionManager->activateTarget($validated['target']);
 
-      return redirect()->back()->with('success', sprintf(
-        'Database switch queued as operation #%d.',
-        $operation->ID,
+      Auth::guard('web')->logout();
+      $request->session()->invalidate();
+      $request->session()->regenerateToken();
+      $request->session()->flash('success', sprintf(
+        'Database target switched to %s. Please sign in again.',
+        ucfirst($validated['target']),
       ));
+
+      return Inertia::location(route('login'));
     } catch (Throwable $exception) {
       return redirect()->back()->with('error', $exception->getMessage());
     }

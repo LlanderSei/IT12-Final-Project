@@ -11,15 +11,17 @@ use App\Models\ProductionBatchDetail;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Throwable;
 
 class ProductsController extends Controller {
   public function index(Request $request) {
     return $this->renderProductsAndBatches($request);
   }
 
-  public function store(Request $request) {
+  public function store(Request $request): RedirectResponse {
     // No longer checking isValid() here because we're using Base64 strings to bypass tmp issues
     // Validation will happen below with the 'ProductImage' field being a string (data URL)
 
@@ -33,27 +35,34 @@ class ProductsController extends Controller {
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
 
-    $productImagePath = null;
-    if (!empty($data['ProductImage']) && str_starts_with($data['ProductImage'], 'data:image')) {
-      $productImagePath = $this->uploadToImgBB($data['ProductImage']);
+    try {
+      $productImagePath = null;
+      if (!empty($data['ProductImage']) && str_starts_with($data['ProductImage'], 'data:image')) {
+        $productImagePath = $this->uploadToImgBB($data['ProductImage']);
+      }
+
+      Product::create([
+        'ProductName' => $data['ProductName'],
+        'ProductDescription' => $data['ProductDescription'] ?? '',
+        'CategoryID' => $data['CategoryID'],
+        'ProductImage' => $productImagePath,
+        'Price' => $data['Price'],
+        'Quantity' => '0',
+        'LowStockThreshold' => $data['LowStockThreshold'] ?? 10,
+        'DateAdded' => now(),
+        'DateModified' => now(),
+      ]);
+
+      return redirect()->route('inventory.products')->with('success', 'Product created successfully.');
+    } catch (Throwable $exception) {
+      return redirect()
+        ->back()
+        ->withInput($request->except('ProductImage'))
+        ->with('error', $exception->getMessage());
     }
-
-    Product::create([
-      'ProductName' => $data['ProductName'],
-      'ProductDescription' => $data['ProductDescription'] ?? '',
-      'CategoryID' => $data['CategoryID'],
-      'ProductImage' => $productImagePath,
-      'Price' => $data['Price'],
-      'Quantity' => '0',
-      'LowStockThreshold' => $data['LowStockThreshold'] ?? 10,
-      'DateAdded' => now(),
-      'DateModified' => now(),
-    ]);
-
-    return redirect()->route('inventory.products')->with('success', 'Product created successfully.');
   }
 
-  public function update(Request $request, $id) {
+  public function update(Request $request, $id): RedirectResponse {
     $product = Product::query()->notArchived()->findOrFail($id);
 
     // No longer checking isValid() for the same reason as store()
@@ -69,28 +78,35 @@ class ProductsController extends Controller {
       'LowStockThreshold' => 'nullable|integer|min:0',
     ]);
 
-    $removeProductImage = filter_var($request->input('RemoveProductImage', false), FILTER_VALIDATE_BOOL);
-    $productImagePath = $product->ProductImage;
+    try {
+      $removeProductImage = filter_var($request->input('RemoveProductImage', false), FILTER_VALIDATE_BOOL);
+      $productImagePath = $product->ProductImage;
 
-    if (!empty($data['ProductImage']) && str_starts_with($data['ProductImage'], 'data:image')) {
-      $productImagePath = $this->uploadToImgBB($data['ProductImage']);
-      $this->deleteProductImage($product->ProductImage);
-    } elseif ($removeProductImage) {
-      $this->deleteProductImage($product->ProductImage);
-      $productImagePath = null;
+      if (!empty($data['ProductImage']) && str_starts_with($data['ProductImage'], 'data:image')) {
+        $productImagePath = $this->uploadToImgBB($data['ProductImage']);
+        $this->deleteProductImage($product->ProductImage);
+      } elseif ($removeProductImage) {
+        $this->deleteProductImage($product->ProductImage);
+        $productImagePath = null;
+      }
+
+      $product->update([
+        'ProductName' => $data['ProductName'],
+        'ProductDescription' => $data['ProductDescription'] ?? $product->ProductDescription,
+        'CategoryID' => $data['CategoryID'],
+        'ProductImage' => $productImagePath,
+        'Price' => $data['Price'],
+        'LowStockThreshold' => $data['LowStockThreshold'] ?? $product->LowStockThreshold,
+        'DateModified' => now(),
+      ]);
+
+      return redirect()->back()->with('success', 'Product updated successfully.');
+    } catch (Throwable $exception) {
+      return redirect()
+        ->back()
+        ->withInput($request->except('ProductImage'))
+        ->with('error', $exception->getMessage());
     }
-
-    $product->update([
-      'ProductName' => $data['ProductName'],
-      'ProductDescription' => $data['ProductDescription'] ?? $product->ProductDescription,
-      'CategoryID' => $data['CategoryID'],
-      'ProductImage' => $productImagePath,
-      'Price' => $data['Price'],
-      'LowStockThreshold' => $data['LowStockThreshold'] ?? $product->LowStockThreshold,
-      'DateModified' => now(),
-    ]);
-
-    return redirect()->back()->with('success', 'Product updated successfully.');
   }
 
   public function destroy($id) {
