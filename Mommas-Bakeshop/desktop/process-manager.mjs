@@ -50,6 +50,7 @@ export class DesktopProcessManager {
 	constructor() {
 		this.backendProcess = null;
 		this.mysqlProcess = null;
+		this.queueWorkerProcess = null;
 		this.shuttingDown = false;
 		this.onProgress = (message, percent) => {};
 	}
@@ -70,6 +71,9 @@ export class DesktopProcessManager {
 
 		this.onProgress("Configuring PHP runtime...", 50);
 		await this.ensurePhpIniConfigured();
+
+		this.onProgress("Starting background jobs...", 60);
+		await this.startQueueWorker();
 	}
 
 	async startBackend() {
@@ -207,6 +211,71 @@ export class DesktopProcessManager {
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 
+	async startQueueWorker() {
+		if (this.queueWorkerProcess) {
+			return;
+		}
+
+		const desktopConfig = getDesktopConfig();
+		const phpBinary = await this.resolvePhpBinary();
+		const tmpDir = path.join(desktopConfig.projectRoot, "storage", "tmp").replace(/\\/g, "/");
+		const args = [
+			"-d", `upload_tmp_dir=${tmpDir}`,
+			"-d", `sys_temp_dir=${tmpDir}`,
+			"-d", "upload_max_filesize=10M",
+			"-d", "post_max_size=10M",
+			"artisan",
+			"queue:work",
+			"database",
+			"--queue=database-maintenance,default",
+			"--tries=1",
+			"--sleep=1",
+			"--timeout=3600",
+			"--backoff=1",
+			"--no-interaction",
+		];
+
+		this.queueWorkerProcess = spawn(phpBinary, args, {
+			cwd: desktopConfig.projectRoot,
+			stdio: "pipe",
+			windowsHide: true,
+			env: this.buildPhpEnv(phpBinary, {
+				APP_ENV: process.env.APP_ENV || "production",
+			}),
+		});
+
+		this.queueWorkerProcess.stdout?.on("data", (chunk) => {
+			process.stdout.write(`[desktop-queue] ${chunk}`);
+		});
+		this.queueWorkerProcess.stderr?.on("data", (chunk) => {
+			process.stderr.write(`[desktop-queue] ${chunk}`);
+		});
+		this.queueWorkerProcess.on("error", (error) => {
+			logDesktop(
+				desktopConfig.projectRoot,
+				`Queue worker error: ${formatFetchError(error)}`,
+			);
+		});
+		this.queueWorkerProcess.on("exit", (code, signal) => {
+			if (!this.shuttingDown) {
+				process.stderr.write(
+					`[desktop-queue] exited unexpectedly (code=${code}, signal=${signal})\n`,
+				);
+				logDesktop(
+					desktopConfig.projectRoot,
+					`Queue worker exited unexpectedly (code=${code}, signal=${signal}). Maintenance jobs will stop processing.`,
+				);
+			} else {
+				logDesktop(
+					desktopConfig.projectRoot,
+					`Queue worker exited (code=${code}, signal=${signal}).`,
+				);
+			}
+
+			this.queueWorkerProcess = null;
+		});
+	}
+
 	async stopManagedMysql() {
 		if (!this.mysqlProcess) {
 			return;
@@ -214,6 +283,28 @@ export class DesktopProcessManager {
 
 		const processToStop = this.mysqlProcess;
 		this.mysqlProcess = null;
+
+		if (process.platform === "win32") {
+			spawn("taskkill", ["/pid", String(processToStop.pid), "/f", "/t"], {
+				windowsHide: true,
+			});
+		} else {
+			processToStop.kill("SIGTERM");
+			setTimeout(() => {
+				if (!processToStop.killed) processToStop.kill("SIGKILL");
+			}, 2000);
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, 500));
+	}
+
+	async stopQueueWorker() {
+		if (!this.queueWorkerProcess) {
+			return;
+		}
+
+		const processToStop = this.queueWorkerProcess;
+		this.queueWorkerProcess = null;
 
 		if (process.platform === "win32") {
 			spawn("taskkill", ["/pid", String(processToStop.pid), "/f", "/t"], {
