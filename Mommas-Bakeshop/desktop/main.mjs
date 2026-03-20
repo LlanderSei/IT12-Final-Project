@@ -109,6 +109,7 @@ app.whenReady().then(async () => {
 			message: "Momma's Bakeshop desktop could not start.",
 			detail,
 		});
+		await processManager.stopQueueWorker();
 		await processManager.stopBackend();
 		await processManager.stopManagedMysql();
 		app.quit();
@@ -132,6 +133,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", async () => {
+	await processManager.stopQueueWorker();
 	await processManager.stopBackend();
 	await processManager.stopManagedMysql();
 	if (process.platform !== "darwin") {
@@ -140,6 +142,7 @@ app.on("window-all-closed", async () => {
 });
 
 app.on("before-quit", async () => {
+	await processManager.stopQueueWorker();
 	await processManager.stopBackend();
 	await processManager.stopManagedMysql();
 });
