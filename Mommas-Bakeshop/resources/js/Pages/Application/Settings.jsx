@@ -4,9 +4,9 @@ import { Head, useForm } from "@inertiajs/react";
 import usePermissions from "@/hooks/usePermissions";
 import { Save, ExternalLink, Info } from "lucide-react";
 
-const Settings = ({ auth, settings }) => {
+const Settings = ({ auth, settings, canUpdateImageHosting = false }) => {
 	const { can } = usePermissions();
-	const canUpdate = can("CanUpdateImageHosting");
+	const canUpdate = canUpdateImageHosting && can("CanUpdateImageHosting");
 
 	const { data, setData, put, processing, errors, recentlySuccessful } =
 		useForm({
@@ -32,136 +32,136 @@ const Settings = ({ auth, settings }) => {
 
 			<div className="p-3">
 				<div className="mx-auto space-y-6">
-					<div className="grid gap-3 lg:grid-cols-[minmax(0,6fr)_minmax(0,4fr)]">
-						<div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-							<section>
-								<header>
-									<h2 className="text-lg font-medium text-gray-900">
-										Image Hosting Configuration
-									</h2>
-									<p className="mt-1 text-sm text-gray-600">
-										Configure how your application handles image uploads.
-										Database settings take precedence over environment
-										variables.
-									</p>
-								</header>
+					{canUpdate && (
+						<div className="grid gap-3 lg:grid-cols-[minmax(0,6fr)_minmax(0,4fr)]">
+							<div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+								<section>
+									<header>
+										<h2 className="text-lg font-medium text-gray-900">
+											Image Hosting Configuration
+										</h2>
+										<p className="mt-1 text-sm text-gray-600">
+											Configure how your application handles image uploads.
+											Database settings take precedence over environment
+											variables.
+										</p>
+									</header>
 
-								<form onSubmit={handleSubmit} className="mt-6 space-y-6">
-									<div className="grid gap-4 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] lg:items-end">
-										<div>
-											<label
-												htmlFor="image_hosting_service"
-												className="block text-sm font-medium text-gray-700"
-											>
-												Image Hosting Service
-											</label>
-											<select
-												id="image_hosting_service"
-												value={data.image_hosting_service}
-												onChange={(e) =>
-													setData("image_hosting_service", e.target.value)
-												}
-												disabled={!canUpdate}
-												className="mt-1 block w-full border-gray-300 focus:border-primary focus:ring-primary rounded-md shadow-sm"
-											>
-												<option value="ImgBB">ImgBB</option>
-											</select>
-											{errors.image_hosting_service && (
-												<p className="mt-2 text-sm text-red-600">
-													{errors.image_hosting_service}
-												</p>
-											)}
-										</div>
-
-										{data.image_hosting_service === "ImgBB" && (
+									<form onSubmit={handleSubmit} className="mt-6 space-y-6">
+										<div className="grid gap-4 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] lg:items-end">
 											<div>
 												<label
-													htmlFor="imgbb_api_key"
+													htmlFor="image_hosting_service"
 													className="block text-sm font-medium text-gray-700"
 												>
-													ImgBB API Key
+													Image Hosting Service
 												</label>
-												<input
-													id="imgbb_api_key"
-													type="password"
-													value={data.imgbb_api_key}
+												<select
+													id="image_hosting_service"
+													value={data.image_hosting_service}
 													onChange={(e) =>
-														setData("imgbb_api_key", e.target.value)
+														setData("image_hosting_service", e.target.value)
 													}
-													disabled={!canUpdate}
 													className="mt-1 block w-full border-gray-300 focus:border-primary focus:ring-primary rounded-md shadow-sm"
-													placeholder="Enter your ImgBB API Key"
-												/>
-												{errors.imgbb_api_key && (
+												>
+													<option value="ImgBB">ImgBB</option>
+												</select>
+												{errors.image_hosting_service && (
 													<p className="mt-2 text-sm text-red-600">
-														{errors.imgbb_api_key}
+														{errors.image_hosting_service}
 													</p>
 												)}
 											</div>
-										)}
 
-										<div className="flex items-center gap-4 lg:justify-end">
-											<button
-												type="submit"
-												disabled={processing || !canUpdate}
-												className="inline-flex items-center px-4 py-2 bg-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-primary-hover focus:bg-primary-hover active:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50"
-											>
-												<Save className="w-4 h-4 mr-2" />
-												Save Settings
-											</button>
-
-											{recentlySuccessful && (
-												<p className="text-sm text-gray-600">Saved.</p>
+											{data.image_hosting_service === "ImgBB" && (
+												<div>
+													<label
+														htmlFor="imgbb_api_key"
+														className="block text-sm font-medium text-gray-700"
+													>
+														ImgBB API Key
+													</label>
+													<input
+														id="imgbb_api_key"
+														type="password"
+														value={data.imgbb_api_key}
+														onChange={(e) =>
+															setData("imgbb_api_key", e.target.value)
+														}
+														className="mt-1 block w-full border-gray-300 focus:border-primary focus:ring-primary rounded-md shadow-sm"
+														placeholder="Enter your ImgBB API Key"
+													/>
+													{errors.imgbb_api_key && (
+														<p className="mt-2 text-sm text-red-600">
+															{errors.imgbb_api_key}
+														</p>
+													)}
+												</div>
 											)}
+
+											<div className="flex items-center gap-4 lg:justify-end">
+												<button
+													type="submit"
+													disabled={processing}
+													className="inline-flex items-center px-4 py-2 bg-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-primary-hover focus:bg-primary-hover active:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50"
+												>
+													<Save className="w-4 h-4 mr-2" />
+													Save Settings
+												</button>
+
+												{recentlySuccessful && (
+													<p className="text-sm text-gray-600">Saved.</p>
+												)}
+											</div>
+										</div>
+									</form>
+								</section>
+							</div>
+
+							<div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+								<section>
+									<header className="flex items-center gap-2">
+										<Info className="w-5 h-5 text-primary" />
+										<h2 className="text-lg font-medium text-gray-900">
+											Setup Guide: ImgBB API Key
+										</h2>
+									</header>
+
+									<div className="mt-4 prose prose-sm text-gray-600 max-w-none">
+										<p>
+											ImgBB is a free image hosting service. To get your API key,
+											follow these steps:
+										</p>
+										<ol className="list-decimal list-inside space-y-2 mt-2">
+											<li>
+												Go to the{" "}
+												<a
+													href="https://api.imgbb.com/"
+													target="_blank"
+													rel="noopener noreferrer"
+													className="text-primary hover:underline inline-flex items-center"
+												>
+													ImgBB API Page
+													<ExternalLink className="w-3 h-3 ml-1" />
+												</a>
+											</li>
+											<li>Sign in or create a free account.</li>
+											<li>
+												Copy your <strong>API Key</strong> from the dashboard.
+											</li>
+											<li>Paste the key into the field above and save.</li>
+										</ol>
+										<div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-400 text-blue-700 text-xs">
+											<strong>Note:</strong> By using this service, your product
+											images will be hosted externally. This ensures your
+											application stays lightweight and avoids local storage
+											limitations.
 										</div>
 									</div>
-								</form>
-							</section>
+								</section>
+							</div>
 						</div>
-
-						<div className="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-							<section>
-								<header className="flex items-center gap-2">
-									<Info className="w-5 h-5 text-primary" />
-									<h2 className="text-lg font-medium text-gray-900">
-										Setup Guide: ImgBB API Key
-									</h2>
-								</header>
-
-								<div className="mt-4 prose prose-sm text-gray-600 max-w-none">
-									<p>
-										ImgBB is a free image hosting service. To get your API key,
-										follow these steps:
-									</p>
-									<ol className="list-decimal list-inside space-y-2 mt-2">
-										<li>
-											Go to the{" "}
-											<a
-												href="https://api.imgbb.com/"
-												target="_blank"
-												rel="noopener noreferrer"
-												className="text-primary hover:underline inline-flex items-center"
-											>
-												ImgBB API Page
-												<ExternalLink className="w-3 h-3 ml-1" />
-											</a>
-										</li>
-										<li>Sign in or create a free account.</li>
-										<li>
-											Copy your <strong>API Key</strong> from the dashboard.
-										</li>
-										<li>Paste the key into the field above and save.</li>
-									</ol>
-									<div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-400 text-blue-700 text-xs">
-										<strong>Note:</strong> By using this service, your product
-										images will be hosted externally. This ensures your
-										application stays lightweight and avoids local storage
-										limitations.
-									</div>
-								</div>
-							</section>
-						</div>
-					</div>
+					)}
 				</div>
 			</div>
 		</AuthenticatedLayout>
