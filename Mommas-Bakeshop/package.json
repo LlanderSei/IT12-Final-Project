@@ -11,7 +11,7 @@
         "build": "vite build",
         "dev": "vite",
         "desktop:bootstrap": "php artisan desktop:bootstrap --force",
-        "desktop:dev": "electron desktop/main.mjs",
+        "desktop:dev": "npm run build && electron desktop/main.mjs",
         "desktop:dir": "npm run build && node desktop/package.mjs dir",
         "desktop:package": "npm run build && node desktop/package.mjs package"
     },
@@ -60,6 +60,7 @@
             "!desktop/runtime/**",
             "package.json",
             "public/**/*",
+            "!public/storage{,/**}",
             "resources/views/**/*",
             "routes/**/*",
             "storage/framework/views/**/*",
