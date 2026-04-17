@@ -24,7 +24,7 @@
         "autoprefixer": "^10.4.12",
         "axios": "^1.11.0",
         "concurrently": "^9.0.1",
-        "electron": "^40.8.0",
+        "electron": "^41.0.3",
         "electron-builder": "^26.8.1",
         "laravel-vite-plugin": "^3.0.0",
         "postcss": "^8.4.31",
@@ -37,7 +37,7 @@
         "html2canvas": "^1.4.1",
         "jspdf": "^4.2.0",
         "jspdf-autotable": "^5.0.7",
-        "lucide-react": "^0.577.0",
+        "lucide-react": "^1.0.1",
         "recharts": "^3.7.0"
     },
     "build": {
