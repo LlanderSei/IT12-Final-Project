@@ -10,13 +10,19 @@ use Inertia\Inertia;
 
 class SettingsController extends Controller {
   public function index() {
+    $user = request()->user();
+    $canUpdateImageHosting = $user?->hasPermission('CanUpdateImageHosting') ?? false;
+
     $settings = [
       'image_hosting_service' => SystemSetting::get('image_hosting_service', 'ImgBB'),
-      'imgbb_api_key' => SystemSetting::get('imgbb_api_key', config('services.imgbb.key')),
+      'imgbb_api_key' => $canUpdateImageHosting
+        ? SystemSetting::get('imgbb_api_key', config('services.imgbb.key'))
+        : '',
     ];
 
     return Inertia::render('Application/Settings', [
       'settings' => $settings,
+      'canUpdateImageHosting' => $canUpdateImageHosting,
     ]);
   }
 

@@ -1,0 +1,104 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Web: Build Vite Assets",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cmd /c npm run build",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "web",
+        "order": 1
+      }
+    },
+    {
+      "name": "Web: Start Laravel Server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "php artisan serve --host=127.0.0.1 --port=8000",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "web",
+        "order": 2
+      }
+    },
+    {
+      "name": "Web: Start Vite Hot Reload",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cmd /c npm run dev -- --host 127.0.0.1 --port 5173",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "web",
+        "order": 3
+      }
+    },
+    {
+      "name": "Web: Full Dev Stack",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cmd /c composer run dev",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "web",
+        "order": 4
+      }
+    },
+    {
+      "name": "Desktop: Bootstrap Runtime",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cmd /c npm run desktop:bootstrap",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "desktop",
+        "order": 5
+      }
+    },
+    {
+      "name": "Desktop: Run Electron App",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cmd /c npm run desktop:dev",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "desktop",
+        "order": 6
+      }
+    },
+    {
+      "name": "Desktop: Electron Hot Reload Shell",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cmd /c npx electron desktop/main.mjs",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DESKTOP_APP_URL": "http://127.0.0.1:8000"
+      },
+      "presentation": {
+        "group": "desktop",
+        "order": 7
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Web: Hot Reload (Laravel + Vite)",
+      "configurations": [
+        "Web: Start Laravel Server",
+        "Web: Start Vite Hot Reload"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "Desktop: Hot Reload (Laravel + Vite + Electron)",
+      "configurations": [
+        "Web: Start Laravel Server",
+        "Web: Start Vite Hot Reload",
+        "Desktop: Electron Hot Reload Shell"
+      ],
+      "stopAll": true
+    }
+  ]
+}

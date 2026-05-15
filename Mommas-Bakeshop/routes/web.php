@@ -234,7 +234,7 @@ Route::middleware('auth')->group(function () {
   Route::get('/admin/database/backups/{id}/download', [BackupsController::class, 'download'])->middleware('permission:CanDownloadDatabaseBackup')->name('admin.database.download');
 
   // Application Settings
-  Route::get('/application/settings', [SettingsController::class, 'index'])->name('application.settings');
+  Route::get('/application/settings', [SettingsController::class, 'index'])->middleware('permission:CanUpdateImageHosting')->name('application.settings');
   Route::put('/application/settings', [SettingsController::class, 'update'])->middleware(['maintenance.lock'])->name('application.settings.update');
 });
 
