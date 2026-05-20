@@ -137,6 +137,12 @@ trait HandlesSaleHistory {
 
     return Inertia::render('PointOfSale/SalesHistory', [
       'sales' => $sales,
+      'customers' => Customer::query()
+        ->withCount('sales')
+        ->orderBy('CustomerName')
+        ->get()
+        ->map(fn ($customer) => $this->transformSaleHistoryCustomerForView($customer))
+        ->values(),
       'filters' => [
         'search' => $search,
         'paymentStatus' => $paymentStatus,
@@ -181,5 +187,71 @@ trait HandlesSaleHistory {
       )->orderByDesc('sales.ID'),
       default => $query->orderBy('sales.DateAdded', $sortDirection)->orderByDesc('sales.ID'),
     };
+  }
+
+  private function transformSaleHistoryCustomerForView(Customer $customer): array {
+    return [
+      'ID' => $customer->ID,
+      'CustomerName' => $customer->CustomerName,
+      'CustomerType' => $customer->CustomerType,
+      'ContactDetails' => $customer->ContactDetails,
+      'Address' => $customer->Address,
+      'DateAdded' => optional($customer->DateAdded)->toIso8601String(),
+      'DateModified' => optional($customer->DateModified)->toIso8601String(),
+      'SalesRecords' => (int) $customer->sales_count,
+      'sales' => $this->recentSalesForSaleHistoryCustomer($customer),
+    ];
+  }
+
+  private function recentSalesForSaleHistoryCustomer(Customer $customer) {
+    return $customer->sales()
+      ->with([
+        'user:id,FullName',
+        'payment',
+        'soldProducts.product:ID,ProductName',
+        'partialPayments',
+        'jobOrder.customItems',
+      ])
+      ->orderByDesc('DateAdded')
+      ->limit(20)
+      ->get()
+      ->map(function ($sale) {
+        $paymentTotal = (float) ($sale->payment?->TotalAmount ?? $sale->TotalAmount ?? 0);
+        $paymentPaid = (float) ($sale->payment?->PaidAmount ?? 0);
+        $partialPaid = (float) $sale->partialPayments->sum('PaidAmount');
+        $paidAmount = max($paymentPaid, $partialPaid);
+
+        return [
+          'ID' => $sale->ID,
+          'DateAdded' => optional($sale->DateAdded)->toIso8601String(),
+          'user' => $sale->user,
+          'payment' => $sale->payment,
+          'totalAmount' => $paymentTotal,
+          'paidAmount' => $paidAmount,
+          'amountLeft' => max(0, round($paymentTotal - $paidAmount, 2)),
+          'sold_products' => $sale->soldProducts->map(function ($line) {
+            return [
+              'ID' => $line->ID,
+              'Quantity' => (int) $line->Quantity,
+              'PricePerUnit' => (float) $line->PricePerUnit,
+              'SubAmount' => (float) $line->SubAmount,
+              'product' => $line->product,
+            ];
+          })->values(),
+          'job_order' => $sale->jobOrder
+            ? [
+                'ID' => $sale->jobOrder->ID,
+                'custom_items' => $sale->jobOrder->customItems->map(function ($line) {
+                  return [
+                    'ID' => $line->ID,
+                    'CustomOrderDescription' => $line->CustomOrderDescription,
+                    'Quantity' => (int) $line->Quantity,
+                    'PricePerUnit' => (float) $line->PricePerUnit,
+                  ];
+                })->values(),
+              ]
+            : null,
+        ];
+      })->values();
   }
 }

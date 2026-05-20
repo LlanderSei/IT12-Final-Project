@@ -27,7 +27,7 @@ const plusThirtyDaysISO = () => {
 	return date.toISOString().split("T")[0];
 };
 
-export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
+export default function PendingJobOrders({ rows = [], onHeaderMetaChange, onViewCustomer }) {
 	const { requirePermission } = usePermissions();
 	const [selectedJobOrder, setSelectedJobOrder] = useState(null);
 	const [deliverTarget, setDeliverTarget] = useState(null);
@@ -363,7 +363,17 @@ export default function PendingJobOrders({ rows = [], onHeaderMetaChange }) {
 											#{row.ID}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-											{row.customer?.CustomerName || "-"}
+											{row.customer?.ID ? (
+												<button
+													type="button"
+													onClick={() => onViewCustomer?.(row.customer)}
+													className="text-left font-medium text-primary hover:underline"
+												>
+													{row.customer.CustomerName || `Customer #${row.customer.ID}`}
+												</button>
+											) : (
+												"-"
+											)}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
 											{formatDateTime(row.DeliveryAt)}

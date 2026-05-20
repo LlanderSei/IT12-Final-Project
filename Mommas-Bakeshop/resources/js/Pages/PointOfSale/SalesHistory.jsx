@@ -3,6 +3,7 @@ import { Head, Link, router } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import SaleDocumentPreviewModal from "@/Components/SaleDocumentPreviewModal";
+import CustomerDetailsModal from "./Partials/CustomerDetailsModal";
 import { formatCountLabel } from "@/utils/countLabel";
 import usePermissions from "@/hooks/usePermissions";
 import { Eye, FileText, Receipt } from "lucide-react";
@@ -21,6 +22,7 @@ const normalizeMoney = (value) => Number(value || 0);
 function SalesTable({
 	rows = [],
 	onView,
+	onViewCustomer,
 	onInvoice,
 	onReceipt,
 	canViewInvoices = false,
@@ -65,7 +67,19 @@ function SalesTable({
 								"Unknown"
 							)}
 						</td>
-						<td className="px-4 py-4 text-sm text-gray-900">{sale.customer?.CustomerName || "Walk-In"}</td>
+						<td className="px-4 py-4 text-sm text-gray-900">
+							{sale.customer?.ID ? (
+								<button
+									type="button"
+									onClick={() => onViewCustomer?.(sale.customer)}
+									className="text-left font-medium text-primary hover:underline"
+								>
+									{sale.customer.CustomerName || `Customer #${sale.customer.ID}`}
+								</button>
+							) : (
+								"Walk-In"
+							)}
+						</td>
 						<td className="px-4 py-4 text-sm text-gray-900">
 							{sale.SaleType === "JobOrder"
 								? sale.payment?.InvoiceNumber || sale.payment?.ReceiptNumber || "-"
@@ -122,6 +136,7 @@ function SalesTable({
 
 export default function SalesHistory({
 	sales = { data: [], current_page: 1, last_page: 1, per_page: 25, total: 0, from: null, to: null },
+	customers = [],
 	filters = {},
 }) {
 	const { can, deny, requirePermission } = usePermissions();
@@ -131,6 +146,7 @@ export default function SalesHistory({
 	const canExportReceipts = can("CanExportPaymentReceipts");
 
 	const [selectedSale, setSelectedSale] = useState(null);
+	const [selectedCustomer, setSelectedCustomer] = useState(null);
 	const [documentPreview, setDocumentPreview] = useState({
 		type: null,
 		sale: null,
@@ -168,6 +184,9 @@ export default function SalesHistory({
 			};
 		});
 	}, [sales.data]);
+	const customersById = useMemo(() => {
+		return new Map((customers || []).map((customer) => [String(customer.ID), customer]));
+	}, [customers]);
 
 	useEffect(() => {
 		setSearchQuery(filters.search || "");
@@ -182,6 +201,7 @@ export default function SalesHistory({
 		setCurrentPage(Number(filters.page || sales.current_page || 1));
 		setItemsPerPage(Number(filters.perPage || sales.per_page || 25));
 		setSelectedSale(null);
+		setSelectedCustomer(null);
 		setDocumentPreview({ type: null, sale: null, receiptPayment: null });
 	}, [
 		filters.search,
@@ -299,6 +319,11 @@ export default function SalesHistory({
 		});
 	};
 
+	const openCustomerDetails = (customer) => {
+		if (!customer?.ID) return;
+		setSelectedCustomer(customersById.get(String(customer.ID)) || customer);
+	};
+
 	return (
 		<AuthenticatedLayout
 			header={
@@ -402,6 +427,7 @@ export default function SalesHistory({
 							<SalesTable
 								rows={salesRows}
 								onView={setSelectedSale}
+								onViewCustomer={openCustomerDetails}
 								onInvoice={openInvoicePreview}
 								onReceipt={openReceiptPreview}
 								canViewInvoices={canViewInvoices}
@@ -651,6 +677,11 @@ export default function SalesHistory({
 				type={documentPreview.type || "invoice"}
 				receiptPayment={documentPreview.receiptPayment}
 				canExport={documentPreview.type === "invoice" ? canExportInvoices : canExportReceipts}
+			/>
+
+			<CustomerDetailsModal
+				customer={selectedCustomer}
+				onClose={() => setSelectedCustomer(null)}
 			/>
 		</AuthenticatedLayout>
 	);
