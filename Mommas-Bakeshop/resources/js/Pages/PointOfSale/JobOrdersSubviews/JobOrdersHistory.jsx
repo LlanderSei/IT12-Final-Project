@@ -15,7 +15,7 @@ const formatDateTime = (value) => {
 	return date.toLocaleString();
 };
 
-export default function JobOrdersHistory({ rows = [], onHeaderMetaChange }) {
+export default function JobOrdersHistory({ rows = [], onHeaderMetaChange, onViewCustomer }) {
 	const { requirePermission } = usePermissions();
 	const [selectedJobOrder, setSelectedJobOrder] = useState(null);
 	const [searchQuery, setSearchQuery] = useState("");
@@ -227,7 +227,17 @@ export default function JobOrdersHistory({ rows = [], onHeaderMetaChange }) {
 										#{row.ID}
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-										{row.customer?.CustomerName || "-"}
+										{row.customer?.ID ? (
+											<button
+												type="button"
+												onClick={() => onViewCustomer?.(row.customer)}
+												className="text-left font-medium text-primary hover:underline"
+											>
+												{row.customer.CustomerName || `Customer #${row.customer.ID}`}
+											</button>
+										) : (
+											"-"
+										)}
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
 										{formatDateTime(row.DeliveryAt)}

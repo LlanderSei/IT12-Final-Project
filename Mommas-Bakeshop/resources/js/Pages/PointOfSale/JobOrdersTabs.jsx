@@ -3,6 +3,7 @@ import { Head, Link, useForm } from "@inertiajs/react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import Modal from "@/Components/Modal";
 import SaleDocumentPreviewModal from "@/Components/SaleDocumentPreviewModal";
+import CustomerDetailsModal from "./Partials/CustomerDetailsModal";
 import JobOrders from "./JobOrdersSubviews/JobOrders";
 import PendingJobOrders from "./JobOrdersSubviews/PendingJobOrders";
 import PendingPayments from "./JobOrdersSubviews/PendingPayments";
@@ -72,6 +73,9 @@ export default function JobOrdersTabs({
 			.filter((sale) => sale.amountLeft > 0);
 	}, [pendingSales]);
 	const pendingPaymentsCount = pendingPaymentRows.length;
+	const customersById = useMemo(() => {
+		return new Map((customers || []).map((customer) => [String(customer.ID), customer]));
+	}, [customers]);
 
 	const tabs = [
 		canViewJobOrders
@@ -128,6 +132,7 @@ export default function JobOrdersTabs({
 	};
 	const [headerMeta, setHeaderMeta] = useState(() => getDefaultHeaderMeta(activeTab));
 	const [selectedSale, setSelectedSale] = useState(null);
+	const [selectedCustomer, setSelectedCustomer] = useState(null);
 	const [documentPreview, setDocumentPreview] = useState({
 		type: null,
 		sale: null,
@@ -217,6 +222,11 @@ export default function JobOrdersTabs({
 			sale,
 			receiptPayment,
 		});
+	};
+
+	const openCustomerDetails = (customer) => {
+		if (!customer?.ID) return;
+		setSelectedCustomer(customersById.get(String(customer.ID)) || customer);
 	};
 
 	const submitPayment = (e) => {
@@ -334,18 +344,21 @@ export default function JobOrdersTabs({
 					<PendingJobOrders
 						rows={pendingJobOrders}
 						onHeaderMetaChange={setHeaderMeta}
+						onViewCustomer={openCustomerDetails}
 					/>
 				) : activeTab === "Pending Payments" ? (
 					<PendingPayments
 						rows={pendingPaymentRows}
 						onView={setSelectedSale}
 						onInvoice={openInvoicePreview}
+						onViewCustomer={openCustomerDetails}
 						canViewInvoices={canViewInvoices}
 					/>
 				) : (
 					<JobOrdersHistory
 						rows={historyJobOrders}
 						onHeaderMetaChange={setHeaderMeta}
+						onViewCustomer={openCustomerDetails}
 					/>
 				)}
 			</div>
@@ -562,6 +575,11 @@ export default function JobOrdersTabs({
 						? canExportInvoices
 						: canExportReceipts
 				}
+			/>
+
+			<CustomerDetailsModal
+				customer={selectedCustomer}
+				onClose={() => setSelectedCustomer(null)}
 			/>
 
 			<Modal

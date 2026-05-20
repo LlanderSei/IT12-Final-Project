@@ -22,6 +22,7 @@ export default function PendingPayments({
 	rows = [],
 	onView,
 	onInvoice,
+	onViewCustomer,
 	canViewInvoices = false,
 	sortConfig,
 	requestSort,
@@ -74,7 +75,19 @@ export default function PendingPayments({
 										"Unknown"
 									)}
 								</td>
-								<td className="px-4 py-4 text-sm text-gray-900">{sale.customer?.CustomerName || "Walk-In"}</td>
+								<td className="px-4 py-4 text-sm text-gray-900">
+									{sale.customer?.ID ? (
+										<button
+											type="button"
+											onClick={() => onViewCustomer?.(sale.customer)}
+											className="text-left font-medium text-primary hover:underline"
+										>
+											{sale.customer.CustomerName || `Customer #${sale.customer.ID}`}
+										</button>
+									) : (
+										"Walk-In"
+									)}
+								</td>
 								<td className="px-4 py-4 text-sm text-gray-900">
 									{sale.SaleType === "JobOrder"
 										? sale.payment?.InvoiceNumber ||
